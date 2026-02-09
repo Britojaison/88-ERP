@@ -1,0 +1,40 @@
+# Core Django
+Django==4.2.9
+djangorestframework==3.14.0
+django-cors-headers==4.3.1
+django-filter==23.5
+
+# Database
+psycopg2-binary==2.9.9
+dj-database-url==2.1.0
+
+# Authentication
+djangorestframework-simplejwt==5.3.1
+PyJWT==2.8.0
+
+# Celery & Background Jobs
+celery==5.3.4
+redis==5.0.1
+
+# Search
+elasticsearch==8.11.1
+elasticsearch-dsl==8.11.0
+
+# Utilities
+python-dotenv==1.0.0
+jsonschema==4.20.0
+python-dateutil==2.8.2
+
+# Testing
+pytest==7.4.3
+pytest-django==4.7.0
+pytest-cov==4.1.0
+factory-boy==3.3.0
+
+# Code Quality
+black==23.12.1
+flake8==7.0.0
+isort==5.13.2
+
+# Monitoring
+sentry-sdk==1.39.2

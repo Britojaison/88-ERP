@@ -1,0 +1,371 @@
+"""
+Master Data Management models.
+Industry-agnostic core entities: Company, User, Customer, Vendor, Product, etc.
+"""
+from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
+from django.db import models
+from apps.core.models import BaseModel, TenantAwareModel, ActiveManager
+
+
+class Company(BaseModel):
+    """
+    Top-level tenant entity.
+    Represents a legal entity or business unit group.
+    """
+    code = models.CharField(max_length=50, unique=True, db_index=True)
+    name = models.CharField(max_length=255)
+    legal_name = models.CharField(max_length=255, blank=True)
+    tax_id = models.CharField(max_length=100, blank=True)
+    currency = models.CharField(max_length=3, default='USD')
+    
+    parent = models.ForeignKey(
+        'self',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='subsidiaries'
+    )
+    
+    objects = models.Manager()
+    active = ActiveManager()
+    
+    class Meta:
+        db_table = 'mdm_company'
+        verbose_name_plural = 'Companies'
+    
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+class BusinessUnit(TenantAwareModel):
+    """
+    Organizational unit within a company.
+    Used for reporting and access control.
+    """
+    code = models.CharField(max_length=50, db_index=True)
+    name = models.CharField(max_length=255)
+    
+    parent = models.ForeignKey(
+        'self',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='children'
+    )
+    
+    objects = models.Manager()
+    active = ActiveManager()
+    
+    class Meta:
+        db_table = 'mdm_business_unit'
+        unique_together = [['company', 'code']]
+    
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+class Location(TenantAwareModel):
+    """
+    Physical or logical location.
+    Used for inventory, shipping, and operations.
+    """
+    
+    TYPE_WAREHOUSE = 'warehouse'
+    TYPE_STORE = 'store'
+    TYPE_OFFICE = 'office'
+    TYPE_VIRTUAL = 'virtual'
+    
+    TYPE_CHOICES = [
+        (TYPE_WAREHOUSE, 'Warehouse'),
+        (TYPE_STORE, 'Store'),
+        (TYPE_OFFICE, 'Office'),
+        (TYPE_VIRTUAL, 'Virtual'),
+    ]
+    
+    code = models.CharField(max_length=50, db_index=True)
+    name = models.CharField(max_length=255)
+    location_type = models.CharField(max_length=20, choices=TYPE_CHOICES)
+    
+    business_unit = models.ForeignKey(
+        BusinessUnit,
+        on_delete=models.PROTECT,
+        related_name='locations'
+    )
+    
+    address_line1 = models.CharField(max_length=255, blank=True)
+    address_line2 = models.CharField(max_length=255, blank=True)
+    city = models.CharField(max_length=100, blank=True)
+    state = models.CharField(max_length=100, blank=True)
+    postal_code = models.CharField(max_length=20, blank=True)
+    country = models.CharField(max_length=2, blank=True)
+    
+    is_inventory_location = models.BooleanField(default=True)
+    
+    objects = models.Manager()
+    active = ActiveManager()
+    
+    class Meta:
+        db_table = 'mdm_location'
+        unique_together = [['company', 'code']]
+        indexes = [
+            models.Index(fields=['company', 'location_type', 'status']),
+        ]
+    
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+class User(AbstractBaseUser, PermissionsMixin, BaseModel):
+    """
+    Custom user model.
+    Authentication is separate from authorization (RBAC).
+    """
+    email = models.EmailField(unique=True, db_index=True)
+    username = models.CharField(max_length=150, unique=True, db_index=True)
+    first_name = models.CharField(max_length=150, blank=True)
+    last_name = models.CharField(max_length=150, blank=True)
+    
+    company = models.ForeignKey(
+        Company,
+        on_delete=models.PROTECT,
+        related_name='users'
+    )
+    
+    is_staff = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = ['username']
+    
+    objects = models.Manager()
+    active = ActiveManager()
+    
+    class Meta:
+        db_table = 'mdm_user'
+    
+    def __str__(self):
+        return self.email
+    
+    def get_full_name(self):
+        return f"{self.first_name} {self.last_name}".strip()
+
+
+class Customer(TenantAwareModel):
+    """
+    Customer master data.
+    Industry-agnostic customer entity.
+    """
+    code = models.CharField(max_length=50, db_index=True)
+    name = models.CharField(max_length=255)
+    legal_name = models.CharField(max_length=255, blank=True)
+    tax_id = models.CharField(max_length=100, blank=True)
+    
+    email = models.EmailField(blank=True)
+    phone = models.CharField(max_length=50, blank=True)
+    
+    credit_limit = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=0,
+        help_text='Credit limit in company currency'
+    )
+    
+    payment_terms_days = models.IntegerField(default=30)
+    
+    objects = models.Manager()
+    active = ActiveManager()
+    
+    class Meta:
+        db_table = 'mdm_customer'
+        unique_together = [['company', 'code']]
+    
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+class Vendor(TenantAwareModel):
+    """
+    Vendor/Supplier master data.
+    Industry-agnostic vendor entity.
+    """
+    code = models.CharField(max_length=50, db_index=True)
+    name = models.CharField(max_length=255)
+    legal_name = models.CharField(max_length=255, blank=True)
+    tax_id = models.CharField(max_length=100, blank=True)
+    
+    email = models.EmailField(blank=True)
+    phone = models.CharField(max_length=50, blank=True)
+    
+    payment_terms_days = models.IntegerField(default=30)
+    
+    objects = models.Manager()
+    active = ActiveManager()
+    
+    class Meta:
+        db_table = 'mdm_vendor'
+        unique_together = [['company', 'code']]
+    
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+class Product(TenantAwareModel):
+    """
+    Product master - design/concept level.
+    NO hard-coded attributes (size, color, etc.).
+    All attributes are dynamic via attribute engine.
+    """
+    code = models.CharField(max_length=100, db_index=True)
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    
+    # Product hierarchy (optional)
+    parent = models.ForeignKey(
+        'self',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='variants'
+    )
+    
+    objects = models.Manager()
+    active = ActiveManager()
+    
+    class Meta:
+        db_table = 'mdm_product'
+        unique_together = [['company', 'code']]
+    
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+class Style(TenantAwareModel):
+    """
+    Optional grouping level between Product and SKU.
+    Used in fashion but not required.
+    """
+    code = models.CharField(max_length=100, db_index=True)
+    name = models.CharField(max_length=255)
+    
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.PROTECT,
+        related_name='styles'
+    )
+    
+    objects = models.Manager()
+    active = ActiveManager()
+    
+    class Meta:
+        db_table = 'mdm_style'
+        unique_together = [['company', 'code']]
+    
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+class SKU(TenantAwareModel):
+    """
+    Stock Keeping Unit - sellable unit.
+    Inventory ALWAYS references SKU, never Product.
+    All variant dimensions (size, color, etc.) are attributes.
+    """
+    code = models.CharField(max_length=100, unique=True, db_index=True)
+    name = models.CharField(max_length=255)
+    
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.PROTECT,
+        related_name='skus'
+    )
+    
+    style = models.ForeignKey(
+        Style,
+        on_delete=models.PROTECT,
+        related_name='skus',
+        null=True,
+        blank=True
+    )
+    
+    # Pricing
+    base_price = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        help_text='Base selling price'
+    )
+    cost_price = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        help_text='Cost price'
+    )
+    
+    # Physical attributes (generic)
+    weight = models.DecimalField(
+        max_digits=10,
+        decimal_places=3,
+        null=True,
+        blank=True,
+        help_text='Weight in kg'
+    )
+    
+    # Inventory control
+    is_serialized = models.BooleanField(default=False)
+    is_batch_tracked = models.BooleanField(default=False)
+    
+    objects = models.Manager()
+    active = ActiveManager()
+    
+    class Meta:
+        db_table = 'mdm_sku'
+        indexes = [
+            models.Index(fields=['company', 'product', 'status']),
+        ]
+    
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+class ChartOfAccounts(TenantAwareModel):
+    """
+    Chart of accounts for financial integration.
+    Industry-agnostic GL structure.
+    """
+    
+    TYPE_ASSET = 'asset'
+    TYPE_LIABILITY = 'liability'
+    TYPE_EQUITY = 'equity'
+    TYPE_REVENUE = 'revenue'
+    TYPE_EXPENSE = 'expense'
+    
+    TYPE_CHOICES = [
+        (TYPE_ASSET, 'Asset'),
+        (TYPE_LIABILITY, 'Liability'),
+        (TYPE_EQUITY, 'Equity'),
+        (TYPE_REVENUE, 'Revenue'),
+        (TYPE_EXPENSE, 'Expense'),
+    ]
+    
+    code = models.CharField(max_length=50, db_index=True)
+    name = models.CharField(max_length=255)
+    account_type = models.CharField(max_length=20, choices=TYPE_CHOICES)
+    
+    parent = models.ForeignKey(
+        'self',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='children'
+    )
+    
+    is_control_account = models.BooleanField(default=False)
+    
+    objects = models.Manager()
+    active = ActiveManager()
+    
+    class Meta:
+        db_table = 'mdm_chart_of_accounts'
+        unique_together = [['company', 'code']]
+        verbose_name_plural = 'Chart of Accounts'
+    
+    def __str__(self):
+        return f"{self.code} - {self.name}"
