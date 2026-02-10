@@ -82,12 +82,23 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 # Database - Logical separation via schemas
-DATABASES = {
-    'default': dj_database_url.config(
-        default=os.getenv('DATABASE_URL', 'postgresql://localhost/erp_db'),
-        conn_max_age=600
-    )
-}
+# Using SQLite for development if PostgreSQL not configured
+DATABASE_URL = os.getenv('DATABASE_URL', '')
+if DATABASE_URL and DATABASE_URL.startswith('postgresql'):
+    DATABASES = {
+        'default': dj_database_url.config(
+            default=DATABASE_URL,
+            conn_max_age=600
+        )
+    }
+else:
+    # Fallback to SQLite for development
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 # Use schemas for logical separation
 DATABASE_ROUTERS = ['config.db_router.LogicalDatabaseRouter']

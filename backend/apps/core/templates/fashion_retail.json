@@ -1,0 +1,405 @@
+{
+  "version": "1.0",
+  "name": "Fashion Retail Template",
+  "industry": "fashion",
+  "description": "Complete configuration for fashion retail operations including size, color, season attributes and product launch workflows",
+  "attributes": {
+    "groups": [
+      {
+        "code": "physical_attributes",
+        "name": "Physical Attributes",
+        "entity_type": "sku",
+        "display_order": 1
+      },
+      {
+        "code": "classification",
+        "name": "Classification",
+        "entity_type": "product",
+        "display_order": 2
+      }
+    ],
+    "definitions": [
+      {
+        "code": "size",
+        "name": "Size",
+        "entity_type": "sku",
+        "data_type": "string",
+        "is_required": true,
+        "is_variant_dimension": true,
+        "is_searchable": true,
+        "is_filterable": true,
+        "validation_rules": {
+          "allowed_values": ["XXS", "XS", "S", "M", "L", "XL", "XXL", "XXXL"]
+        },
+        "display_order": 1,
+        "group_code": "physical_attributes",
+        "options": [
+          {"code": "xxs", "label": "XXS", "display_order": 1},
+          {"code": "xs", "label": "XS", "display_order": 2},
+          {"code": "s", "label": "S", "display_order": 3},
+          {"code": "m", "label": "M", "display_order": 4},
+          {"code": "l", "label": "L", "display_order": 5},
+          {"code": "xl", "label": "XL", "display_order": 6},
+          {"code": "xxl", "label": "XXL", "display_order": 7},
+          {"code": "xxxl", "label": "XXXL", "display_order": 8}
+        ]
+      },
+      {
+        "code": "color",
+        "name": "Color",
+        "entity_type": "sku",
+        "data_type": "string",
+        "is_required": true,
+        "is_variant_dimension": true,
+        "is_searchable": true,
+        "is_filterable": true,
+        "display_order": 2,
+        "group_code": "physical_attributes",
+        "options": [
+          {"code": "black", "label": "Black", "display_order": 1},
+          {"code": "white", "label": "White", "display_order": 2},
+          {"code": "red", "label": "Red", "display_order": 3},
+          {"code": "blue", "label": "Blue", "display_order": 4},
+          {"code": "green", "label": "Green", "display_order": 5},
+          {"code": "yellow", "label": "Yellow", "display_order": 6},
+          {"code": "pink", "label": "Pink", "display_order": 7},
+          {"code": "navy", "label": "Navy", "display_order": 8}
+        ]
+      },
+      {
+        "code": "season",
+        "name": "Season",
+        "entity_type": "product",
+        "data_type": "string",
+        "is_required": true,
+        "is_searchable": true,
+        "is_filterable": true,
+        "validation_rules": {
+          "allowed_values": ["SS25", "FW25", "SS26", "FW26"]
+        },
+        "display_order": 1,
+        "group_code": "classification",
+        "options": [
+          {"code": "ss25", "label": "Spring/Summer 2025", "display_order": 1},
+          {"code": "fw25", "label": "Fall/Winter 2025", "display_order": 2},
+          {"code": "ss26", "label": "Spring/Summer 2026", "display_order": 3},
+          {"code": "fw26", "label": "Fall/Winter 2026", "display_order": 4}
+        ]
+      },
+      {
+        "code": "fabric",
+        "name": "Fabric",
+        "entity_type": "product",
+        "data_type": "string",
+        "is_required": false,
+        "is_searchable": true,
+        "is_filterable": true,
+        "display_order": 2,
+        "group_code": "physical_attributes",
+        "options": [
+          {"code": "cotton", "label": "Cotton", "display_order": 1},
+          {"code": "polyester", "label": "Polyester", "display_order": 2},
+          {"code": "silk", "label": "Silk", "display_order": 3},
+          {"code": "wool", "label": "Wool", "display_order": 4},
+          {"code": "linen", "label": "Linen", "display_order": 5},
+          {"code": "denim", "label": "Denim", "display_order": 6}
+        ]
+      },
+      {
+        "code": "style_type",
+        "name": "Style Type",
+        "entity_type": "product",
+        "data_type": "string",
+        "is_required": true,
+        "is_searchable": true,
+        "is_filterable": true,
+        "display_order": 3,
+        "group_code": "classification",
+        "options": [
+          {"code": "casual", "label": "Casual", "display_order": 1},
+          {"code": "formal", "label": "Formal", "display_order": 2},
+          {"code": "sportswear", "label": "Sportswear", "display_order": 3},
+          {"code": "evening", "label": "Evening Wear", "display_order": 4}
+        ]
+      }
+    ]
+  },
+  "workflows": [
+    {
+      "code": "product_launch",
+      "name": "Product Launch Workflow",
+      "description": "Workflow for launching new products",
+      "entity_type": "product",
+      "states": [
+        {
+          "code": "draft",
+          "name": "Draft",
+          "is_initial": true,
+          "is_final": false,
+          "allow_edit": true,
+          "allow_delete": true
+        },
+        {
+          "code": "design_review",
+          "name": "Design Review",
+          "is_initial": false,
+          "is_final": false,
+          "allow_edit": true,
+          "allow_delete": false
+        },
+        {
+          "code": "pricing_review",
+          "name": "Pricing Review",
+          "is_initial": false,
+          "is_final": false,
+          "allow_edit": true,
+          "allow_delete": false
+        },
+        {
+          "code": "approved",
+          "name": "Approved",
+          "is_initial": false,
+          "is_final": false,
+          "allow_edit": false,
+          "allow_delete": false
+        },
+        {
+          "code": "launched",
+          "name": "Launched",
+          "is_initial": false,
+          "is_final": true,
+          "allow_edit": false,
+          "allow_delete": false
+        }
+      ],
+      "transitions": [
+        {
+          "name": "Submit for Design Review",
+          "from_state": "draft",
+          "to_state": "design_review",
+          "condition_expression": {},
+          "requires_approval": false,
+          "approver_role": null,
+          "actions": [],
+          "display_order": 1
+        },
+        {
+          "name": "Approve Design",
+          "from_state": "design_review",
+          "to_state": "pricing_review",
+          "condition_expression": {},
+          "requires_approval": true,
+          "approver_role": "design_manager",
+          "actions": [],
+          "display_order": 2
+        },
+        {
+          "name": "Approve Pricing",
+          "from_state": "pricing_review",
+          "to_state": "approved",
+          "condition_expression": {},
+          "requires_approval": true,
+          "approver_role": "pricing_manager",
+          "actions": [],
+          "display_order": 3
+        },
+        {
+          "name": "Launch Product",
+          "from_state": "approved",
+          "to_state": "launched",
+          "condition_expression": {},
+          "requires_approval": false,
+          "approver_role": null,
+          "actions": ["notify_stores", "update_website"],
+          "display_order": 4
+        }
+      ]
+    },
+    {
+      "code": "clearance_workflow",
+      "name": "Clearance Workflow",
+      "description": "Workflow for clearance and markdown",
+      "entity_type": "product",
+      "states": [
+        {
+          "code": "active",
+          "name": "Active",
+          "is_initial": true,
+          "is_final": false,
+          "allow_edit": true,
+          "allow_delete": false
+        },
+        {
+          "code": "markdown_pending",
+          "name": "Markdown Pending",
+          "is_initial": false,
+          "is_final": false,
+          "allow_edit": true,
+          "allow_delete": false
+        },
+        {
+          "code": "clearance",
+          "name": "Clearance",
+          "is_initial": false,
+          "is_final": false,
+          "allow_edit": false,
+          "allow_delete": false
+        },
+        {
+          "code": "archived",
+          "name": "Archived",
+          "is_initial": false,
+          "is_final": true,
+          "allow_edit": false,
+          "allow_delete": false
+        }
+      ],
+      "transitions": [
+        {
+          "name": "Request Markdown",
+          "from_state": "active",
+          "to_state": "markdown_pending",
+          "condition_expression": {},
+          "requires_approval": false,
+          "approver_role": null,
+          "actions": [],
+          "display_order": 1
+        },
+        {
+          "name": "Approve Markdown",
+          "from_state": "markdown_pending",
+          "to_state": "clearance",
+          "condition_expression": {},
+          "requires_approval": true,
+          "approver_role": "merchandise_manager",
+          "actions": ["update_prices"],
+          "display_order": 2
+        },
+        {
+          "name": "Archive Product",
+          "from_state": "clearance",
+          "to_state": "archived",
+          "condition_expression": {"==": [{"var": "stock_quantity"}, 0]},
+          "requires_approval": false,
+          "approver_role": null,
+          "actions": [],
+          "display_order": 3
+        }
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "code": "size_required_for_apparel",
+      "name": "Size Required for Apparel",
+      "description": "Size attribute is mandatory for apparel category",
+      "rule_type": "validation",
+      "trigger": "pre_save",
+      "entity_type": "sku",
+      "condition_expression": {
+        "and": [
+          {"==": [{"var": "product.category"}, "apparel"]},
+          {"missing": ["size"]}
+        ]
+      },
+      "error_message": "Size is required for apparel products",
+      "error_code": "SIZE_REQUIRED",
+      "priority": 100,
+      "is_blocking": true
+    },
+    {
+      "code": "mrp_validation",
+      "name": "MRP Must Be Greater Than Cost",
+      "description": "MRP must be at least 1.3x the cost price",
+      "rule_type": "validation",
+      "trigger": "pre_save",
+      "entity_type": "sku",
+      "condition_expression": {
+        "<": [{"var": "base_price"}, {"*": [{"var": "cost_price"}, 1.3]}]
+      },
+      "error_message": "MRP must be at least 1.3 times the cost price",
+      "error_code": "INVALID_MRP",
+      "priority": 90,
+      "is_blocking": true
+    },
+    {
+      "code": "no_archived_sku_sales",
+      "name": "Cannot Sell Archived SKU",
+      "description": "Archived SKUs cannot be added to sales orders",
+      "rule_type": "constraint",
+      "trigger": "pre_submit",
+      "entity_type": "document_line",
+      "condition_expression": {
+        "==": [{"var": "sku.status"}, "archived"]
+      },
+      "error_message": "Cannot sell archived SKU",
+      "error_code": "ARCHIVED_SKU",
+      "priority": 100,
+      "is_blocking": true
+    }
+  ],
+  "document_types": [
+    {
+      "code": "purchase_order",
+      "name": "Purchase Order",
+      "description": "Purchase order from vendor",
+      "has_lines": true,
+      "requires_approval": true,
+      "affects_inventory": true,
+      "affects_financials": true
+    },
+    {
+      "code": "sales_order",
+      "name": "Sales Order",
+      "description": "Sales order to customer",
+      "has_lines": true,
+      "requires_approval": false,
+      "affects_inventory": true,
+      "affects_financials": true
+    },
+    {
+      "code": "transfer_order",
+      "name": "Transfer Order",
+      "description": "Stock transfer between locations",
+      "has_lines": true,
+      "requires_approval": false,
+      "affects_inventory": true,
+      "affects_financials": false
+    },
+    {
+      "code": "return_order",
+      "name": "Return Order",
+      "description": "Customer return",
+      "has_lines": true,
+      "requires_approval": false,
+      "affects_inventory": true,
+      "affects_financials": true
+    }
+  ],
+  "numbering": [
+    {
+      "code": "po_sequence",
+      "name": "Purchase Order Sequence",
+      "format_pattern": "PO-{year}-{sequence}",
+      "prefix": "PO",
+      "scope_by_year": true,
+      "scope_by_month": false,
+      "scope_by_location": false,
+      "start_number": 1,
+      "increment_by": 1,
+      "padding_length": 5
+    },
+    {
+      "code": "so_sequence",
+      "name": "Sales Order Sequence",
+      "format_pattern": "SO-{year}-{sequence}",
+      "prefix": "SO",
+      "scope_by_year": true,
+      "scope_by_month": false,
+      "scope_by_location": false,
+      "start_number": 1,
+      "increment_by": 1,
+      "padding_length": 5
+    }
+  ]
+}

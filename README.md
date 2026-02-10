@@ -1,245 +1,198 @@
-# Metadata-Driven ERP Platform
+# 88 ERP Platform
 
-A production-grade, industry-agnostic ERP platform built on metadata-driven architecture.
+A metadata-driven, industry-agnostic ERP system that allows businesses to model, run, and evolve their operations without changing application code.
 
-## Core Principles
+## Overview
 
-- **Metadata-Driven**: All business logic configured via database, not code
-- **Industry-Agnostic**: No hard-coded business rules or industry assumptions
-- **Configuration-First**: Behavior controlled by metadata tables
-- **ACID-Correct**: Strong transactional guarantees
-- **Audit-Safe**: Immutable audit trail for all operations
-
-## Tech Stack
-
-### Backend
-- Python 3.11+
-- Django 4.2+
-- Django REST Framework
-- PostgreSQL (via Supabase supported)
-- Celery for background jobs
-- Elasticsearch for search
-
-### Frontend
-- React 18+
-- TypeScript
-- MUI or Ant Design
-- React Hook Form
-- Redux Toolkit / Zustand
-
-## Architecture
-
-### Logical Data Separation
-Uses PostgreSQL schemas for logical separation:
-- **metadata**: Attributes, workflows, rules, permissions
-- **transactions**: Documents, inventory, master data
-- **audit**: Immutable audit logs
-- **analytics**: Reporting and aggregations
-
-### Core Modules
-
-1. **core** - Shared utilities and base models
-2. **mdm** - Master Data Management (Company, User, Product, SKU, etc.)
-3. **attributes** - Dynamic attribute engine (NO hard-coded fields)
-4. **rbac** - Role-Based Access Control (runtime permission evaluation)
-5. **workflow** - State machine engine (metadata-driven workflows)
-6. **documents** - Document engine (PO, SO, Invoice, etc.)
-7. **inventory** - Inventory management (attribute-based)
-8. **config** - Configuration engine
-9. **rules** - Validation/business rule engine
-10. **numbering** - Sequence/numbering engine
-11. **calendar** - Period and calendar management
-12. **audit** - Audit service (append-only)
-13. **reporting** - Reporting and analytics
-14. **imports** - Data import framework
-15. **search** - Search abstraction layer
-16. **integrations** - External integrations
-
-## Setup
-
-### Backend Setup
-
-```bash
-cd backend
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Copy environment file
-cp .env.example .env
-# Edit .env with your database credentials
-
-# Run migrations
-python manage.py makemigrations
-python manage.py migrate
-
-# Create superuser
-python manage.py createsuperuser
-
-# Run development server
-python manage.py runserver
-```
-
-### Database Setup
-
-```sql
--- Create schemas for logical separation
-CREATE SCHEMA IF NOT EXISTS metadata;
-CREATE SCHEMA IF NOT EXISTS transactions;
-CREATE SCHEMA IF NOT EXISTS audit;
-CREATE SCHEMA IF NOT EXISTS analytics;
-```
-
-### Celery Setup
-
-```bash
-# Start Celery worker
-celery -A config worker -l info
-
-# Start Celery beat (for scheduled tasks)
-celery -A config beat -l info
-```
+This ERP platform is built on the principle of **configuration over customization**. Business behavior is defined in data, not code, allowing the same core system to support fashion retail, manufacturing, distribution, services, and any future domain with no code rewrites.
 
 ## Key Features
 
-### 1. Attribute Engine
-- NO hard-coded attributes (size, color, fabric, etc.)
-- All attributes defined in database
-- Supports variant dimensions
-- Type-safe validation
-- Searchable and filterable
+### Metadata Management System
+- **Visual Designers**: No-code configuration tools for business users
+- **Attribute Designer**: Create dynamic attributes with drag-and-drop
+- **Workflow Designer**: Visual state machine editor with React Flow
+- **Rule Builder**: Visual business rule expression builder with JSONLogic
+- **Form Builder**: Dynamic form designer with real-time preview
+- **Permission Designer**: Visual permission matrix editor
+- **Dependency Graph**: Visualize relationships between metadata entities
+- **Configuration Diff Viewer**: Compare configuration versions
+- **Documentation Generator**: Auto-generate documentation from metadata
 
-### 2. RBAC Engine
-- Permissions evaluated at runtime
-- Conditional permissions via JSONLogic
-- Row-level security
-- NO hard-coded role checks
+### Core Capabilities
+- **Master Data Management**: Products, SKUs, Companies, Locations, Customers, Vendors
+- **Dynamic Attributes**: Define custom fields without schema changes
+- **Workflow Engine**: Configurable approval workflows and state machines
+- **Business Rules Engine**: JSONLogic-based validation and calculation rules
+- **RBAC System**: Runtime permission evaluation with conditions
+- **Document Framework**: Generic document types (PO, Sales, Transfers, etc.)
+- **Inventory Management**: Immutable, SKU-based inventory tracking
+- **Audit System**: Complete audit trail for all operations
+- **Configuration Templates**: Pre-built industry templates (Fashion Retail, etc.)
+- **Sandbox Environment**: Test metadata changes before deployment
 
-### 3. Workflow Engine
-- State machine based
-- Metadata-driven transitions
-- Conditional approvals
-- Audit trail for all state changes
+## Technology Stack
 
-### 4. Document Engine
-- Generic document framework
-- Document types configured via metadata
-- Line-item support
-- Workflow integration
+### Backend
+- Django 4.2 + Django REST Framework
+- PostgreSQL (with SQLite fallback)
+- Celery + Redis for async tasks
+- Elasticsearch for search
+- JSONLogic for rule evaluation
 
-### 5. Inventory Engine
-- Attribute-based stock tracking
-- Multi-location support
-- Stock aging calculations
-- ACID-compliant movements
+### Frontend
+- React 18 + TypeScript
+- Material-UI (MUI) for components
+- Redux Toolkit for state management
+- React Flow for workflow visualization
+- Monaco Editor for code editing
+- Dagre for graph layouts
 
-### 6. Rule Engine
-- Pre-save and pre-submit validations
-- Stored as metadata
-- Reusable across entities
-- JSONLogic expressions
+## Prerequisites
 
-### 7. Numbering Engine
-- Configurable formats
-- Scoped sequences (company/location/year)
-- Concurrency-safe
-- Never uses max(id)+1
+- Python 3.9+
+- Node.js 18+
+- PostgreSQL 13+ (optional, SQLite fallback available)
 
-## Product Hierarchy
+## Quick Start
 
-```
-Product (design/concept)
-  └── Style (optional grouping)
-      └── SKU (sellable unit)
-          └── Inventory Balance
-```
-
-**CRITICAL**: Inventory ALWAYS references SKU, never Product.
-
-## Attribute System Example
-
-Instead of hard-coded fields:
-```python
-# ❌ WRONG
-class SKU:
-    size = models.CharField()
-    color = models.CharField()
-    fabric = models.CharField()
+### Backend Setup
+```bash
+cd backend
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py runserver
 ```
 
-Use dynamic attributes:
-```python
-# ✅ CORRECT
-# Define attributes in database
-AttributeDefinition(entity_type='sku', code='size', data_type='string')
-AttributeDefinition(entity_type='sku', code='color', data_type='string')
-AttributeDefinition(entity_type='sku', code='fabric', data_type='string')
+Backend runs at: http://127.0.0.1:8000
 
-# Values stored in AttributeValue table
-AttributeValue(entity=sku_instance, attribute='size', value='M')
+### Frontend Setup
+```bash
+cd frontend
+npm install --legacy-peer-deps
+npm run dev
 ```
 
-## Error Handling
+Frontend runs at: http://localhost:5174
 
-All errors use structured format:
-```json
-{
-  "error": {
-    "code": "INSUFFICIENT_STOCK",
-    "message": "SKU A123 size M has only 2 units at Store X. Requested: 5, Available: 2",
-    "details": {
-      "sku_code": "A123",
-      "location": "Store X",
-      "requested": 5,
-      "available": 2
-    }
-  }
-}
-```
-
-## Forbidden Patterns
-
-❌ Hard-coded size/color/category fields
-❌ Hard-coded workflows
-❌ Business rules in serializers/views
-❌ `if industry == fashion`
-❌ Permission checks via role strings
-❌ Deleting business data (use soft delete)
-❌ `max(id)+1` sequences
-
-## Development Guidelines
-
-1. **Models First**: Always start with models
-2. **Services Layer**: Business logic in services, not views
-3. **Transactions**: Use `transaction.atomic()` for all business operations
-4. **Validation**: Use rule engine, not inline validation
-5. **Permissions**: Use RBAC service, not decorators
-6. **Audit**: All changes must be audited
-7. **Testing**: Write tests for services, not just views
-
-## API Structure
+## Project Structure
 
 ```
-/api/auth/token/          - JWT authentication
-/api/mdm/                 - Master data endpoints
-/api/attributes/          - Attribute management
-/api/rbac/                - Roles and permissions
-/api/workflow/            - Workflow management
-/api/documents/           - Document operations
-/api/inventory/           - Inventory operations
-/api/config/              - Configuration
-/api/rules/               - Rule management
-/api/numbering/           - Sequence management
-/api/calendar/            - Period management
-/api/audit/               - Audit logs
-/api/reporting/           - Reports
-/api/imports/             - Data imports
-/api/search/              - Search operations
+88-ERP/
+├── backend/
+│   ├── apps/
+│   │   ├── attributes/      # Dynamic attribute engine
+│   │   ├── audit/           # Audit logging
+│   │   ├── calendar/        # Fiscal calendars
+│   │   ├── config/          # System configuration
+│   │   ├── core/            # Base models & metadata management
+│   │   ├── documents/       # Document framework
+│   │   ├── events/          # Domain events
+│   │   ├── imports/         # Data import
+│   │   ├── integrations/    # External integrations
+│   │   ├── inventory/       # Inventory management
+│   │   ├── mdm/             # Master data
+│   │   ├── numbering/       # Number sequences
+│   │   ├── rbac/            # Permissions & roles
+│   │   ├── reporting/       # Reports & analytics
+│   │   ├── rules/           # Business rules engine
+│   │   ├── search/          # Search functionality
+│   │   └── workflow/        # Workflow engine
+│   └── config/              # Django settings
+├── frontend/
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── designers/   # Visual metadata designers
+│   │   │   └── Layout.tsx   # Main layout
+│   │   ├── pages/           # Application pages
+│   │   ├── services/        # API services
+│   │   ├── store/           # Redux store
+│   │   ├── types/           # TypeScript types
+│   │   └── utils/           # Utility functions
+│   └── package.json
+├── ARCHITECTURE.md          # Detailed architecture documentation
+└── README.md               # This file
 ```
+
+## Metadata Management
+
+Access the Metadata Management interface at `/metadata` to:
+
+1. **Design Attributes**: Create custom fields for any entity
+2. **Build Workflows**: Design approval workflows visually
+3. **Define Rules**: Create business validation rules
+4. **Design Forms**: Build dynamic forms with drag-and-drop
+5. **Configure Permissions**: Set up role-based access control
+6. **View Dependencies**: Understand metadata relationships
+7. **Compare Versions**: See what changed between configurations
+8. **Generate Documentation**: Auto-create documentation from metadata
+9. **Import/Export**: Version control your configuration
+
+## Configuration Templates
+
+The system includes pre-built templates for common industries:
+
+### Fashion Retail Template
+- Attributes: Size, Color, Season, Fabric, Style
+- Workflows: Product Launch, Clearance, Returns
+- Rules: Markdown validation, Size chart requirements
+- Document Types: PO, Transfer, Sale, Return
+
+Apply templates from the Metadata Management interface.
+
+## API Documentation
+
+API endpoints are available at:
+- Master Data: `/api/mdm/`
+- Attributes: `/api/attributes/`
+- Workflows: `/api/workflows/`
+- Rules: `/api/rules/`
+- Documents: `/api/documents/`
+- Inventory: `/api/inventory/`
+- Metadata: `/api/metadata/`
+- Templates: `/api/templates/`
+- Sandboxes: `/api/sandboxes/`
+
+## Development
+
+### Run Tests
+```bash
+# Backend
+cd backend
+python manage.py test
+
+# Frontend
+cd frontend
+npm test
+```
+
+### Build for Production
+```bash
+# Backend
+cd backend
+python manage.py collectstatic
+
+# Frontend
+cd frontend
+npm run build
+```
+
+## Architecture
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed system design, including:
+- Metadata-driven architecture
+- Core engines (Attributes, Workflows, Rules, RBAC)
+- Data models and relationships
+- API design patterns
+- Security considerations
+
+## Philosophy
+
+This product is built on three foundational principles:
+
+1. **Configuration over customization**: Business behavior is defined in data, not code
+2. **Metadata as the source of truth**: Fields, forms, rules, workflows, and permissions are described declaratively
+3. **Correctness before convenience**: The system prioritizes consistency, traceability, and control
 
 ## License
 
@@ -247,4 +200,4 @@ Proprietary - All rights reserved
 
 ## Support
 
-For issues and questions, contact the development team.
+For questions or issues, contact the development team.

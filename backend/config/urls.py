@@ -12,6 +12,9 @@ urlpatterns = [
     path('api/auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     
+    # Metadata Management
+    path('api/', include('apps.core.metadata_urls')),
+    
     # ERP Modules
     path('api/mdm/', include('apps.mdm.urls')),
     path('api/attributes/', include('apps.attributes.urls')),

@@ -2,7 +2,6 @@
 Structured exception handling with error codes.
 All exceptions must be auditable and human-readable.
 """
-from rest_framework.views import exception_handler
 from rest_framework.response import Response
 from rest_framework import status
 
@@ -135,6 +134,9 @@ def custom_exception_handler(exc, context):
     Custom exception handler for DRF.
     Converts ERPException to structured JSON response.
     """
+    # Import here to avoid circular import
+    from rest_framework.views import exception_handler as drf_exception_handler
+    
     if isinstance(exc, ERPException):
         return Response(
             {
@@ -148,7 +150,7 @@ def custom_exception_handler(exc, context):
         )
     
     # Fall back to DRF's default handler
-    response = exception_handler(exc, context)
+    response = drf_exception_handler(exc, context)
     
     if response is not None:
         # Wrap DRF errors in our format

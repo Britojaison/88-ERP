@@ -5,4 +5,5 @@ router = DefaultRouter()
 
 urlpatterns = [
     path('', include(router.urls)),
+    path('shopify/', include('apps.integrations.shopify_urls')),
 ]

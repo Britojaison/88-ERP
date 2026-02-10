@@ -1,39 +1,36 @@
-# ERP Platform Architecture
+# 88 ERP Platform Architecture
 
 ## Overview
 
-This is a production-grade, metadata-driven ERP platform designed to be industry-agnostic. The system is built on the principle that **configuration drives behavior**, not code.
+Production-grade, metadata-driven ERP platform designed to be industry-agnostic. The system operates on the principle that **configuration drives behavior, not code**.
 
-## Core Architectural Principles
+---
+
+## Core Principles
 
 ### 1. Metadata-Driven Design
-
-**Everything important is configurable:**
-- Fields → Attribute Engine
-- Forms → Dynamic form rendering from metadata
-- Validations → Rule Engine
-- Workflows → Workflow Engine
-- Permissions → RBAC Engine
-- Numbering → Numbering Engine
+Everything important is configurable:
+- **Fields** → Attribute Engine
+- **Forms** → Dynamic rendering from metadata
+- **Validations** → Rule Engine
+- **Workflows** → Workflow Engine
+- **Permissions** → RBAC Engine
+- **Numbering** → Numbering Engine
 
 **Code = Engine Only**
 - No domain assumptions
 - No fashion-specific logic
 - No industry conditionals
-- Everything configurable via database tables
+- Everything configurable via database
 
 ### 2. Industry-Agnostic
-
-The platform can support:
+Support any industry without code changes:
 - Fashion (today)
 - Manufacturing (tomorrow)
 - Distribution (next week)
 - Any other industry
 
-**Without changing a single line of code.**
-
 ### 3. ACID Correctness
-
 - Strong transactional guarantees
 - `transaction.atomic()` for all business operations
 - Referential integrity enforced
@@ -41,33 +38,32 @@ The platform can support:
 - No eventual consistency shortcuts
 
 ### 4. Audit-Safe
-
 - Immutable audit trail
 - Append-only audit logs
 - No updates or deletes on audit data
 - 7-year retention by default
 
-## System Architecture
+---
 
-### Backend Architecture
+## System Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                        API Layer (DRF)                       │
-│  - JWT Authentication                                        │
-│  - Dynamic Permissions (RBAC)                                │
-│  - Structured Error Handling                                 │
+│                    API Layer (DRF)                           │
+│  • JWT Authentication                                        │
+│  • Dynamic Permissions (RBAC)                                │
+│  • Structured Error Handling                                 │
 └─────────────────────────────────────────────────────────────┘
-                              │
+                              ↓
 ┌─────────────────────────────────────────────────────────────┐
-│                      Service Layer                           │
-│  - Business Logic                                            │
-│  - Transaction Management                                    │
-│  - Event Emission                                            │
+│                    Service Layer                             │
+│  • Business Logic                                            │
+│  • Transaction Management                                    │
+│  • Event Emission                                            │
 └─────────────────────────────────────────────────────────────┘
-                              │
+                              ↓
 ┌─────────────────────────────────────────────────────────────┐
-│                      Engine Layer                            │
+│                    Engine Layer                              │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
 │  │  Attribute   │  │   Workflow   │  │     RBAC     │      │
 │  │   Engine     │  │    Engine    │  │    Engine    │      │
@@ -77,24 +73,26 @@ The platform can support:
 │  │   Engine     │  │    Engine    │  │   Service    │      │
 │  └──────────────┘  └──────────────┘  └──────────────┘      │
 └─────────────────────────────────────────────────────────────┘
-                              │
+                              ↓
 ┌─────────────────────────────────────────────────────────────┐
-│                      Data Layer                              │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │              PostgreSQL (Single Physical DB)          │   │
-│  │  ┌────────────┐  ┌────────────┐  ┌────────────┐     │   │
-│  │  │  metadata  │  │transactions│  │   audit    │     │   │
-│  │  │   schema   │  │   schema   │  │   schema   │     │   │
-│  │  └────────────┘  └────────────┘  └────────────┘     │   │
-│  │  ┌────────────┐                                      │   │
-│  │  │ analytics  │                                      │   │
-│  │  │   schema   │                                      │   │
-│  │  └────────────┘                                      │   │
-│  └──────────────────────────────────────────────────────┘   │
+│                    Data Layer                                │
+│  ┌────────────────────────────────────────────────────┐     │
+│  │        PostgreSQL (Single Physical DB)             │     │
+│  │  ┌────────────┐  ┌────────────┐  ┌────────────┐   │     │
+│  │  │  metadata  │  │transactions│  │   audit    │   │     │
+│  │  │   schema   │  │   schema   │  │   schema   │   │     │
+│  │  └────────────┘  └────────────┘  └────────────┘   │     │
+│  │  ┌────────────┐                                    │     │
+│  │  │ analytics  │                                    │     │
+│  │  │   schema   │                                    │     │
+│  │  └────────────┘                                    │     │
+│  └────────────────────────────────────────────────────┘     │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Module Structure
+---
+
+## Module Structure
 
 ```
 apps/
@@ -119,11 +117,13 @@ apps/
 
 **No circular dependencies. Clear boundaries.**
 
+---
+
 ## Key Engines
 
 ### 1. Attribute Engine
 
-**Problem:** Hard-coded fields (size, color, fabric) make system inflexible.
+**Problem:** Hard-coded fields make system inflexible.
 
 **Solution:** All attributes defined in database.
 
@@ -147,7 +147,7 @@ AttributeValue(entity=sku, attribute='size', value='M')
 
 ### 2. RBAC Engine
 
-**Problem:** Hard-coded role checks (`if user.role == 'manager'`) are inflexible.
+**Problem:** Hard-coded role checks are inflexible.
 
 **Solution:** Permissions evaluated at runtime via metadata.
 
@@ -181,7 +181,7 @@ RBACService.require_permission(user, 'inventory.approve')
 
 ### 4. Document Engine
 
-**Problem:** Each document type (PO, SO, Invoice) needs custom code.
+**Problem:** Each document type needs custom code.
 
 **Solution:** Generic document framework configured via metadata.
 
@@ -206,7 +206,7 @@ RBACService.require_permission(user, 'inventory.approve')
 
 ### 6. Rule Engine
 
-**Problem:** Validation logic scattered in serializers/views.
+**Problem:** Validation logic scattered everywhere.
 
 **Solution:** Rules stored in database, evaluated via engine.
 
@@ -215,6 +215,8 @@ RBACService.require_permission(user, 'inventory.approve')
 - Reusable across entities
 - JSONLogic expressions
 - Centralized management
+
+---
 
 ## Data Model Patterns
 
@@ -244,7 +246,7 @@ class TenantAwareModel(BaseModel):
 
 ### Soft Delete
 
-**Never physically delete business data:**
+Never physically delete business data:
 
 ```python
 entity.soft_delete()  # Sets status='deleted'
@@ -259,6 +261,8 @@ Version field prevents concurrent update conflicts:
 # Concurrent updates detected and rejected
 ```
 
+---
+
 ## Product Hierarchy
 
 ```
@@ -270,6 +274,8 @@ Company
 ```
 
 **CRITICAL:** Inventory ALWAYS references SKU, never Product.
+
+---
 
 ## Logical Data Separation
 
@@ -297,6 +303,8 @@ Single physical PostgreSQL database with logical schemas:
 - Aggregations
 - ETL results
 
+---
+
 ## Error Handling
 
 All errors use structured format:
@@ -305,7 +313,7 @@ All errors use structured format:
 {
   "error": {
     "code": "INSUFFICIENT_STOCK",
-    "message": "SKU A123 size M has only 2 units at Store X. Requested: 5, Available: 2",
+    "message": "SKU A123 size M has only 2 units at Store X",
     "details": {
       "sku_code": "A123",
       "location": "Store X",
@@ -316,7 +324,9 @@ All errors use structured format:
 }
 ```
 
-**Never vague errors like "Stock unavailable".**
+**Never vague errors.**
+
+---
 
 ## Transaction Management
 
@@ -331,6 +341,8 @@ def create_sales_order(data):
     # Create audit log
     # If ANY step fails, ALL rollback
 ```
+
+---
 
 ## Event System
 
@@ -350,17 +362,21 @@ def update_analytics(event):
     # Update reporting tables
 ```
 
+---
+
 ## Frontend Architecture
 
 ```
 React + TypeScript
   ├── Dynamic Form Rendering (from backend metadata)
   ├── Redux Toolkit (state management)
-  ├── MUI/Ant Design (components)
+  ├── Material-UI (components)
   └── React Hook Form (form handling)
 ```
 
 **Forms are rendered dynamically based on backend metadata.**
+
+---
 
 ## Security
 
@@ -379,11 +395,13 @@ React + TypeScript
 - Immutable trail
 - IP address tracking
 
+---
+
 ## Performance Considerations
 
-### ERP Correctness > Performance
+**ERP Correctness > Performance**
 
-**But we still optimize:**
+But we still optimize:
 
 1. **Database Indexes**
    - All foreign keys indexed
@@ -405,21 +423,23 @@ React + TypeScript
    - ETL jobs
    - Report generation
 
+---
+
 ## Deployment Architecture
 
 ```
 ┌─────────────┐
 │   Nginx     │  (Reverse Proxy)
 └─────────────┘
-       │
+       ↓
 ┌─────────────┐
 │  Gunicorn   │  (WSGI Server)
 └─────────────┘
-       │
+       ↓
 ┌─────────────┐
 │   Django    │  (Application)
 └─────────────┘
-       │
+       ↓
 ┌─────────────┐
 │ PostgreSQL  │  (Database)
 └─────────────┘
@@ -427,108 +447,40 @@ React + TypeScript
 ┌─────────────┐
 │   Celery    │  (Background Jobs)
 └─────────────┘
-       │
+       ↓
 ┌─────────────┐
 │    Redis    │  (Message Broker)
 └─────────────┘
-
-┌─────────────┐
-│Elasticsearch│  (Search - Optional)
-└─────────────┘
 ```
 
-## Scalability
-
-### Horizontal Scaling
-- Stateless application servers
-- Load balancer in front
-- Shared database
-
-### Vertical Scaling
-- PostgreSQL can handle significant load
-- Proper indexing is key
-- Connection pooling
-
-### Read Replicas
-- For reporting queries
-- Separate OLTP from OLAP
-
-## Testing Strategy
-
-### Unit Tests
-- Service layer logic
-- Engine logic
-- Validation rules
-
-### Integration Tests
-- API endpoints
-- Database transactions
-- Workflow transitions
-
-### End-to-End Tests
-- Critical business flows
-- Order-to-cash
-- Procure-to-pay
-
-## Monitoring
-
-### Application Monitoring
-- Sentry for error tracking
-- Structured logging
-- Performance metrics
-
-### Database Monitoring
-- Query performance
-- Connection pool usage
-- Lock contention
-
-### Business Monitoring
-- KPIs via reporting module
-- Audit log analysis
-- Workflow bottlenecks
-
-## Future Enhancements
-
-### Phase 2
-- Advanced reporting builder
-- Workflow designer UI
-- Attribute schema designer
-- Rule builder UI
-
-### Phase 3
-- Multi-currency support
-- Multi-language support
-- Advanced pricing engine
-- Promotion engine
-
-### Phase 4
-- Mobile apps
-- Offline support
-- Real-time notifications
-- Advanced analytics
+---
 
 ## Forbidden Patterns
 
-❌ Hard-coded size/color/category fields
-❌ Hard-coded workflows
-❌ Business rules in serializers/views
-❌ `if industry == fashion`
-❌ Permission checks via role strings
-❌ Deleting business data
-❌ `max(id)+1` sequences
-❌ Denormalized data without clear reason
-❌ Eventual consistency for business data
+❌ Hard-coded size/color/category fields  
+❌ Hard-coded workflows  
+❌ Business rules in serializers/views  
+❌ `if industry == fashion`  
+❌ Permission checks via role strings  
+❌ Deleting business data  
+❌ `max(id)+1` sequences  
+❌ Denormalized data without clear reason  
+❌ Eventual consistency for business data  
+
+---
 
 ## Success Criteria
 
-✅ Can support new industry without code changes
-✅ Can add new attributes without migrations
-✅ Can change workflows without deployment
-✅ Can modify permissions without code
-✅ All business operations are ACID
-✅ Complete audit trail
-✅ Structured error messages
-✅ No hard-coded business logic
+✅ Support new industry without code changes  
+✅ Add new attributes without migrations  
+✅ Change workflows without deployment  
+✅ Modify permissions without code  
+✅ All business operations are ACID  
+✅ Complete audit trail  
+✅ Structured error messages  
+✅ No hard-coded business logic  
+
+---
 
 ## Conclusion
 
