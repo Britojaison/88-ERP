@@ -2,6 +2,7 @@
 Metadata Management Service.
 Handles export, import, validation, and impact analysis of metadata.
 """
+from pathlib import Path
 from django.db import transaction
 from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
@@ -270,7 +271,13 @@ class MetadataService:
                 count = MetadataService._import_rules(company_id, config_data['rules'])
                 results['imported']['rules'] = count
             
-            # Add more imports...
+            if 'numbering' in config_data:
+                count = MetadataService._import_numbering(company_id, config_data['numbering'])
+                results['imported']['numbering'] = count
+
+            if 'document_types' in config_data:
+                count = MetadataService._import_document_types(company_id, config_data['document_types'])
+                results['imported']['document_types'] = count
             
         except Exception as e:
             results['success'] = False
@@ -401,20 +408,309 @@ class MetadataService:
     @staticmethod
     def _import_attributes(company_id: str, attributes_data: Dict[str, Any]) -> int:
         """Import attribute definitions."""
-        # TODO: Implement actual import logic
-        return len(attributes_data.get('definitions', []))
+        groups = attributes_data.get('groups', [])
+        definitions = attributes_data.get('definitions', [])
+
+        group_map: Dict[str, AttributeGroup] = {}
+        for group in groups:
+            grp_obj, _ = AttributeGroup.objects.update_or_create(
+                company_id=company_id,
+                code=group['code'],
+                defaults={
+                    'name': group['name'],
+                    'entity_type': group['entity_type'],
+                    'display_order': group.get('display_order', 0),
+                    'status': 'active',
+                },
+            )
+            group_map[group['code']] = grp_obj
+
+        imported = 0
+        for definition in definitions:
+            group_code = definition.get('group_code')
+            group_obj = group_map.get(group_code) if group_code else None
+
+            attr_obj, _ = AttributeDefinition.objects.update_or_create(
+                company_id=company_id,
+                code=definition['code'],
+                defaults={
+                    'name': definition['name'],
+                    'entity_type': definition['entity_type'],
+                    'data_type': definition['data_type'],
+                    'is_required': definition.get('is_required', False),
+                    'is_variant_dimension': definition.get('is_variant_dimension', False),
+                    'is_searchable': definition.get('is_searchable', True),
+                    'is_filterable': definition.get('is_filterable', True),
+                    'validation_rules': definition.get('validation_rules', {}),
+                    'display_order': definition.get('display_order', 0),
+                    'group': group_obj,
+                    'status': 'active',
+                },
+            )
+
+            options = definition.get('options', [])
+            existing_codes = set()
+            for option in options:
+                existing_codes.add(option['code'])
+                AttributeOption.objects.update_or_create(
+                    company_id=company_id,
+                    attribute=attr_obj,
+                    code=option['code'],
+                    defaults={
+                        'label': option['label'],
+                        'display_order': option.get('display_order', 0),
+                        'status': 'active',
+                    },
+                )
+
+            if existing_codes:
+                AttributeOption.objects.filter(
+                    company_id=company_id,
+                    attribute=attr_obj,
+                ).exclude(code__in=existing_codes).update(status='inactive')
+
+            imported += 1
+
+        return imported
     
     @staticmethod
     def _import_workflows(company_id: str, workflows_data: List[Dict[str, Any]]) -> int:
         """Import workflow definitions."""
-        # TODO: Implement actual import logic
-        return len(workflows_data)
+        imported = 0
+
+        for workflow in workflows_data:
+            wf_obj, _ = Workflow.objects.update_or_create(
+                company_id=company_id,
+                code=workflow['code'],
+                defaults={
+                    'name': workflow['name'],
+                    'description': workflow.get('description', ''),
+                    'entity_type': workflow['entity_type'],
+                    'status': 'active',
+                },
+            )
+
+            state_map: Dict[str, WorkflowState] = {}
+            initial_state = None
+            state_codes = set()
+            for state in workflow.get('states', []):
+                state_codes.add(state['code'])
+                state_obj, _ = WorkflowState.objects.update_or_create(
+                    company_id=company_id,
+                    workflow=wf_obj,
+                    code=state['code'],
+                    defaults={
+                        'name': state['name'],
+                        'is_initial': state.get('is_initial', False),
+                        'is_final': state.get('is_final', False),
+                        'allow_edit': state.get('allow_edit', True),
+                        'allow_delete': state.get('allow_delete', False),
+                        'status': 'active',
+                    },
+                )
+                if state.get('is_initial'):
+                    initial_state = state_obj
+                state_map[state['code']] = state_obj
+
+            if state_codes:
+                WorkflowState.objects.filter(
+                    company_id=company_id,
+                    workflow=wf_obj,
+                ).exclude(code__in=state_codes).update(status='inactive')
+
+            if initial_state and wf_obj.initial_state_id != initial_state.id:
+                wf_obj.initial_state = initial_state
+                wf_obj.save(update_fields=['initial_state', 'updated_at', 'version'])
+
+            transition_keys = set()
+            for transition in workflow.get('transitions', []):
+                from_state = state_map.get(transition['from_state'])
+                to_state = state_map.get(transition['to_state'])
+                if not from_state or not to_state:
+                    continue
+
+                approver_role = None
+                approver_role_code = transition.get('approver_role')
+                if approver_role_code:
+                    approver_role, _ = Role.objects.get_or_create(
+                        company_id=company_id,
+                        code=approver_role_code,
+                        defaults={'name': approver_role_code.replace('_', ' ').title(), 'description': ''},
+                    )
+
+                transition_obj, _ = WorkflowTransition.objects.update_or_create(
+                    company_id=company_id,
+                    workflow=wf_obj,
+                    from_state=from_state,
+                    to_state=to_state,
+                    defaults={
+                        'name': transition['name'],
+                        'condition_expression': transition.get('condition_expression', {}),
+                        'requires_approval': transition.get('requires_approval', False),
+                        'approver_role': approver_role,
+                        'actions': transition.get('actions', []),
+                        'display_order': transition.get('display_order', 0),
+                        'status': 'active',
+                    },
+                )
+                transition_keys.add(transition_obj.id)
+
+            if transition_keys:
+                WorkflowTransition.objects.filter(
+                    company_id=company_id,
+                    workflow=wf_obj,
+                ).exclude(id__in=transition_keys).update(status='inactive')
+
+            imported += 1
+
+        return imported
     
     @staticmethod
     def _import_rules(company_id: str, rules_data: List[Dict[str, Any]]) -> int:
         """Import rule definitions."""
-        # TODO: Implement actual import logic
-        return len(rules_data)
+        imported = 0
+        seen_codes = set()
+        for rule in rules_data:
+            seen_codes.add(rule['code'])
+            Rule.objects.update_or_create(
+                company_id=company_id,
+                code=rule['code'],
+                defaults={
+                    'name': rule['name'],
+                    'description': rule.get('description', ''),
+                    'rule_type': rule.get('rule_type', 'validation'),
+                    'trigger': rule.get('trigger', 'pre_save'),
+                    'entity_type': rule.get('entity_type', 'sku'),
+                    'condition_expression': rule.get('condition_expression', {}),
+                    'error_message': rule.get('error_message', ''),
+                    'error_code': rule.get('error_code', ''),
+                    'priority': rule.get('priority', 100),
+                    'is_blocking': rule.get('is_blocking', True),
+                    'status': 'active',
+                },
+            )
+            imported += 1
+
+        if seen_codes:
+            Rule.objects.filter(company_id=company_id).exclude(code__in=seen_codes).update(status='inactive')
+
+        return imported
+
+    @staticmethod
+    def _import_numbering(company_id: str, numbering_data: List[Dict[str, Any]]) -> int:
+        imported = 0
+        for seq in numbering_data:
+            NumberingSequence.objects.update_or_create(
+                company_id=company_id,
+                code=seq['code'],
+                defaults={
+                    'name': seq['name'],
+                    'format_pattern': seq['format_pattern'],
+                    'prefix': seq.get('prefix', ''),
+                    'scope_by_year': seq.get('scope_by_year', True),
+                    'scope_by_month': seq.get('scope_by_month', False),
+                    'scope_by_location': seq.get('scope_by_location', False),
+                    'start_number': seq.get('start_number', 1),
+                    'increment_by': seq.get('increment_by', 1),
+                    'padding_length': seq.get('padding_length', 5),
+                    'status': 'active',
+                },
+            )
+            imported += 1
+        return imported
+
+    @staticmethod
+    def _ensure_default_document_workflow(company_id: str) -> Workflow:
+        workflow, _ = Workflow.objects.get_or_create(
+            company_id=company_id,
+            code='document_lifecycle',
+            defaults={
+                'name': 'Document Lifecycle',
+                'description': 'Default workflow for commercial documents',
+                'entity_type': 'document',
+                'status': 'active',
+            },
+        )
+
+        draft_state, _ = WorkflowState.objects.get_or_create(
+            company_id=company_id,
+            workflow=workflow,
+            code='draft',
+            defaults={
+                'name': 'Draft',
+                'is_initial': True,
+                'is_final': False,
+                'allow_edit': True,
+                'allow_delete': True,
+                'status': 'active',
+            },
+        )
+
+        WorkflowState.objects.get_or_create(
+            company_id=company_id,
+            workflow=workflow,
+            code='posted',
+            defaults={
+                'name': 'Posted',
+                'is_initial': False,
+                'is_final': True,
+                'allow_edit': False,
+                'allow_delete': False,
+                'status': 'active',
+            },
+        )
+
+        if not workflow.initial_state_id:
+            workflow.initial_state = draft_state
+            workflow.save(update_fields=['initial_state', 'updated_at', 'version'])
+
+        return workflow
+
+    @staticmethod
+    def _import_document_types(company_id: str, document_types_data: List[Dict[str, Any]]) -> int:
+        default_workflow = MetadataService._ensure_default_document_workflow(company_id)
+        imported = 0
+
+        for doc_type in document_types_data:
+            code = doc_type['code']
+            sequence_code = f"{code}_sequence"
+            sequence = NumberingSequence.objects.filter(company_id=company_id, code=sequence_code).first()
+            if not sequence:
+                sequence, _ = NumberingSequence.objects.get_or_create(
+                    company_id=company_id,
+                    code=sequence_code,
+                    defaults={
+                        'name': f"{doc_type['name']} Sequence",
+                        'format_pattern': f"{code.upper()}-{{year}}-{{sequence}}",
+                        'prefix': f"{code.upper()}-",
+                        'scope_by_year': True,
+                        'scope_by_month': False,
+                        'scope_by_location': False,
+                        'start_number': 1,
+                        'increment_by': 1,
+                        'padding_length': 5,
+                        'status': 'active',
+                    },
+                )
+
+            DocumentType.objects.update_or_create(
+                company_id=company_id,
+                code=code,
+                defaults={
+                    'name': doc_type['name'],
+                    'description': doc_type.get('description', ''),
+                    'numbering_sequence': sequence,
+                    'workflow': default_workflow,
+                    'has_lines': doc_type.get('has_lines', True),
+                    'requires_approval': doc_type.get('requires_approval', False),
+                    'affects_inventory': doc_type.get('affects_inventory', False),
+                    'affects_financials': doc_type.get('affects_financials', False),
+                    'status': 'active',
+                },
+            )
+            imported += 1
+
+        return imported
 
 
 class TemplateService:
@@ -472,3 +768,18 @@ class TemplateService:
         )
         
         return template
+
+    @staticmethod
+    @transaction.atomic
+    def bootstrap_fashion_for_company(company_id: str) -> Dict[str, Any]:
+        template_path = Path(__file__).resolve().parent / 'templates' / 'fashion_retail.json'
+        with open(template_path, 'r', encoding='utf-8') as fp:
+            template_data = json.load(fp)
+
+        result = MetadataService.import_configuration(company_id, template_data, validate_only=False)
+        result['template'] = {
+            'name': template_data.get('name'),
+            'industry': template_data.get('industry'),
+            'version': template_data.get('version'),
+        }
+        return result

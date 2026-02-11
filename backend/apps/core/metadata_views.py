@@ -9,6 +9,14 @@ from django.http import HttpResponse
 from .metadata_service import MetadataService, TemplateService
 from .metadata_models import ConfigurationTemplate, ConfigurationSandbox
 import json
+from apps.mdm.models import Product, SKU, Location, Company
+from apps.mdm.models import SKUBarcode
+from apps.documents.models import DocumentType, Document
+from apps.inventory.models import InventoryBalance, GoodsReceiptScan
+from apps.workflow.models import Workflow
+from apps.rules.models import Rule
+from apps.attributes.models import AttributeDefinition
+from apps.integrations.shopify_models import ShopifyStore
 
 
 class MetadataViewSet(viewsets.ViewSet):
@@ -106,6 +114,73 @@ class MetadataViewSet(viewsets.ViewSet):
         """
         impact = MetadataService.get_impact_analysis(entity_type, entity_id)
         return Response(impact)
+
+    @action(detail=False, methods=['post'])
+    def fashion_bootstrap(self, request):
+        company_id = request.user.company_id
+        result = TemplateService.bootstrap_fashion_for_company(company_id)
+        return Response(result)
+
+    @action(detail=False, methods=['get'])
+    def fashion_readiness(self, request):
+        company_id = request.user.company_id
+
+        metrics = {
+            'companies': Company.objects.filter(id=company_id, status='active').count(),
+            'locations': Location.objects.filter(company_id=company_id, status='active').count(),
+            'products': Product.objects.filter(company_id=company_id, status='active').count(),
+            'skus': SKU.objects.filter(company_id=company_id, status='active').count(),
+            'sku_barcodes': SKUBarcode.objects.filter(company_id=company_id, status='active').count(),
+            'document_types': DocumentType.objects.filter(company_id=company_id, status='active').count(),
+            'documents': Document.objects.filter(company_id=company_id, status='active').count(),
+            'inventory_balances': InventoryBalance.objects.filter(company_id=company_id, status='active').count(),
+            'receiving_scans': GoodsReceiptScan.objects.filter(company_id=company_id, status='active').count(),
+            'workflows': Workflow.objects.filter(company_id=company_id, status='active').count(),
+            'rules': Rule.objects.filter(company_id=company_id, status='active').count(),
+            'attributes': AttributeDefinition.objects.filter(company_id=company_id, status='active').count(),
+            'shopify_stores': ShopifyStore.objects.filter(company_id=company_id, status='active').count(),
+        }
+
+        stages = [
+            {
+                'id': 'setup',
+                'name': 'Foundation Setup',
+                'done': metrics['locations'] > 0 and metrics['document_types'] > 0 and metrics['attributes'] > 0,
+                'required': ['locations', 'document_types', 'attributes'],
+            },
+            {
+                'id': 'catalog',
+                'name': 'Catalog and SKU Readiness',
+                'done': metrics['products'] > 0 and metrics['skus'] > 0,
+                'required': ['products', 'skus'],
+            },
+            {
+                'id': 'factory',
+                'name': 'Factory and Inbound Control',
+                'done': metrics['sku_barcodes'] > 0 and metrics['receiving_scans'] > 0,
+                'required': ['sku_barcodes', 'receiving_scans'],
+            },
+            {
+                'id': 'sales',
+                'name': 'Sales Channel Readiness',
+                'done': metrics['documents'] > 0 and (metrics['shopify_stores'] > 0 or metrics['inventory_balances'] > 0),
+                'required': ['documents', 'shopify_stores_or_inventory_balances'],
+            },
+        ]
+
+        progress = int((sum(1 for stage in stages if stage['done']) / len(stages)) * 100)
+
+        return Response({
+            'metrics': metrics,
+            'stages': stages,
+            'progress_percent': progress,
+            'advice': [
+                'Run Fashion Bootstrap to load defaults for attributes/workflows/rules/document types.',
+                'Create products and SKUs before barcode assignment.',
+                'Assign barcode labels and run at least one receiving scan.',
+                'Create sales documents and connect Shopify for channel sync.',
+            ],
+        })
 
 
 class TemplateViewSet(viewsets.ViewSet):

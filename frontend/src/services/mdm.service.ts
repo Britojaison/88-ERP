@@ -56,6 +56,16 @@ export interface Location {
   updated_at: string
 }
 
+export interface BusinessUnit {
+  id: string
+  company: string
+  code: string
+  name: string
+  status: string
+  created_at: string
+  updated_at: string
+}
+
 export interface SKUBarcode {
   id: string
   company: string
@@ -144,9 +154,30 @@ export const mdmService = {
     return extractListData<Company>(response.data)
   },
 
+  createCompany: async (data: Partial<Company> & { code: string; name: string }) => {
+    const response = await api.post('/mdm/companies/', data)
+    return response.data as Company
+  },
+
+  // Business Units
+  getBusinessUnits: async (params?: any) => {
+    const response = await api.get('/mdm/business-units/', { params })
+    return extractListData<BusinessUnit>(response.data)
+  },
+
+  createBusinessUnit: async (data: Partial<BusinessUnit> & { code: string; name: string }) => {
+    const response = await api.post('/mdm/business-units/', data)
+    return response.data as BusinessUnit
+  },
+
   // Locations
   getLocations: async (params?: any) => {
     const response = await api.get('/mdm/locations/', { params })
     return extractListData<Location>(response.data)
+  },
+
+  createLocation: async (data: Partial<Location> & { code: string; name: string; location_type: Location['location_type']; business_unit: string }) => {
+    const response = await api.post('/mdm/locations/', data)
+    return response.data as Location
   },
 }

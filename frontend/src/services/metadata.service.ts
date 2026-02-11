@@ -46,6 +46,18 @@ export interface ImpactAnalysis {
   total_affected: number
 }
 
+export interface FashionReadiness {
+  metrics: Record<string, number>
+  stages: Array<{
+    id: string
+    name: string
+    done: boolean
+    required: string[]
+  }>
+  progress_percent: number
+  advice: string[]
+}
+
 export const metadataService = {
   // Export/Import
   exportConfiguration: async (entityTypes?: string[], format: string = 'json'): Promise<Blob> => {
@@ -79,6 +91,16 @@ export const metadataService = {
   getImpactAnalysis: async (entityType: string, entityId: string): Promise<ImpactAnalysis> => {
     const response = await api.get(`/metadata/impact/${entityType}/${entityId}/`)
     return response.data
+  },
+
+  bootstrapFashion: async (): Promise<ImportResult & { template?: Record<string, string> }> => {
+    const response = await api.post('/metadata/fashion_bootstrap/', {}, { timeout: 30000 })
+    return response.data
+  },
+
+  getFashionReadiness: async (): Promise<FashionReadiness> => {
+    const response = await api.get('/metadata/fashion_readiness/', { timeout: 15000 })
+    return response.data as FashionReadiness
   },
 
   // Templates

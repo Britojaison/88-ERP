@@ -22,7 +22,7 @@ import {
 } from '@mui/material'
 import { Add } from '@mui/icons-material'
 import PageHeader from '../components/ui/PageHeader'
-import { mdmService, type Company, type Location, type Product, type SKU } from '../services/mdm.service'
+import { mdmService, type BusinessUnit, type Company, type Location, type Product, type SKU } from '../services/mdm.service'
 
 interface TabPanelProps {
   children?: React.ReactNode
@@ -44,12 +44,40 @@ export default function MasterData() {
   const [products, setProducts] = useState<Product[]>([])
   const [skus, setSkus] = useState<SKU[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
+  const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>([])
   const [locations, setLocations] = useState<Location[]>([])
   const [openProductDialog, setOpenProductDialog] = useState(false)
+  const [openSkuDialog, setOpenSkuDialog] = useState(false)
+  const [openCompanyDialog, setOpenCompanyDialog] = useState(false)
+  const [openLocationDialog, setOpenLocationDialog] = useState(false)
   const [productForm, setProductForm] = useState({
     code: '',
     name: '',
     description: '',
+  })
+  const [skuForm, setSkuForm] = useState({
+    code: '',
+    name: '',
+    product: '',
+    base_price: '',
+    cost_price: '',
+    weight: '',
+    is_serialized: false,
+    is_batch_tracked: false,
+  })
+  const [companyForm, setCompanyForm] = useState({
+    code: '',
+    name: '',
+    legal_name: '',
+    tax_id: '',
+    currency: 'USD',
+  })
+  const [locationForm, setLocationForm] = useState({
+    code: '',
+    name: '',
+    location_type: 'warehouse' as Location['location_type'],
+    business_unit: '',
+    is_inventory_location: true,
   })
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>(
     { open: false, message: '', severity: 'info' },
@@ -57,15 +85,17 @@ export default function MasterData() {
 
   const loadData = async () => {
     try {
-      const [productData, skuData, companyData, locationData] = await Promise.all([
+      const [productData, skuData, companyData, businessUnitData, locationData] = await Promise.all([
         mdmService.getProducts(),
         mdmService.getSKUs(),
         mdmService.getCompanies(),
+        mdmService.getBusinessUnits(),
         mdmService.getLocations(),
       ])
       setProducts(productData)
       setSkus(skuData)
       setCompanies(companyData)
+      setBusinessUnits(businessUnitData)
       setLocations(locationData)
     } catch (error) {
       setSnackbar({ open: true, message: 'Failed to load master data.', severity: 'error' })
@@ -79,6 +109,26 @@ export default function MasterData() {
   const handleAddNew = () => {
     if (tabValue === 0) {
       setOpenProductDialog(true)
+      return
+    }
+    if (tabValue === 1) {
+      if (products.length === 0) {
+        setSnackbar({
+          open: true,
+          message: 'Create at least one product first, then add SKUs.',
+          severity: 'info',
+        })
+        return
+      }
+      setOpenSkuDialog(true)
+      return
+    }
+    if (tabValue === 2) {
+      setOpenCompanyDialog(true)
+      return
+    }
+    if (tabValue === 3) {
+      setOpenLocationDialog(true)
       return
     }
     setSnackbar({
@@ -101,6 +151,107 @@ export default function MasterData() {
       setSnackbar({ open: true, message: 'Product created.', severity: 'success' })
     } catch (error) {
       setSnackbar({ open: true, message: 'Failed to create product.', severity: 'error' })
+    }
+  }
+
+  const handleCreateSKU = async () => {
+    if (!skuForm.code || !skuForm.name || !skuForm.product || !skuForm.base_price || !skuForm.cost_price) {
+      setSnackbar({ open: true, message: 'Code, name, product, base price, and cost price are required.', severity: 'error' })
+      return
+    }
+
+    try {
+      await mdmService.createSKU({
+        code: skuForm.code,
+        name: skuForm.name,
+        product: skuForm.product,
+        base_price: skuForm.base_price,
+        cost_price: skuForm.cost_price,
+        weight: skuForm.weight || undefined,
+        is_serialized: skuForm.is_serialized,
+        is_batch_tracked: skuForm.is_batch_tracked,
+      })
+      setOpenSkuDialog(false)
+      setSkuForm({
+        code: '',
+        name: '',
+        product: '',
+        base_price: '',
+        cost_price: '',
+        weight: '',
+        is_serialized: false,
+        is_batch_tracked: false,
+      })
+      await loadData()
+      setSnackbar({ open: true, message: 'SKU created.', severity: 'success' })
+    } catch (error) {
+      setSnackbar({ open: true, message: 'Failed to create SKU.', severity: 'error' })
+    }
+  }
+
+  const handleCreateCompany = async () => {
+    if (!companyForm.code || !companyForm.name) {
+      setSnackbar({ open: true, message: 'Company code and name are required.', severity: 'error' })
+      return
+    }
+
+    try {
+      await mdmService.createCompany({
+        code: companyForm.code,
+        name: companyForm.name,
+        legal_name: companyForm.legal_name || undefined,
+        tax_id: companyForm.tax_id || undefined,
+        currency: companyForm.currency,
+      })
+      setOpenCompanyDialog(false)
+      setCompanyForm({ code: '', name: '', legal_name: '', tax_id: '', currency: 'USD' })
+      await loadData()
+      setSnackbar({ open: true, message: 'Company created.', severity: 'success' })
+    } catch (error) {
+      setSnackbar({ open: true, message: 'Failed to create company.', severity: 'error' })
+    }
+  }
+
+  const handleCreateLocation = async () => {
+    if (!locationForm.code || !locationForm.name) {
+      setSnackbar({ open: true, message: 'Location code and name are required.', severity: 'error' })
+      return
+    }
+
+    try {
+      let businessUnitId = locationForm.business_unit
+      if (!businessUnitId) {
+        const fallback = businessUnits[0]
+        if (fallback) {
+          businessUnitId = fallback.id
+        } else {
+          const createdBU = await mdmService.createBusinessUnit({
+            code: 'MAIN',
+            name: 'Main Unit',
+          })
+          businessUnitId = createdBU.id
+        }
+      }
+
+      await mdmService.createLocation({
+        code: locationForm.code,
+        name: locationForm.name,
+        location_type: locationForm.location_type,
+        business_unit: businessUnitId,
+        is_inventory_location: locationForm.is_inventory_location,
+      })
+      setOpenLocationDialog(false)
+      setLocationForm({
+        code: '',
+        name: '',
+        location_type: 'warehouse',
+        business_unit: '',
+        is_inventory_location: true,
+      })
+      await loadData()
+      setSnackbar({ open: true, message: 'Location created.', severity: 'success' })
+    } catch (error) {
+      setSnackbar({ open: true, message: 'Failed to create location.', severity: 'error' })
     }
   }
 
@@ -298,6 +449,209 @@ export default function MasterData() {
         <DialogActions>
           <Button onClick={() => setOpenProductDialog(false)}>Cancel</Button>
           <Button variant="contained" onClick={() => void handleCreateProduct()}>
+            Create
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog open={openSkuDialog} onClose={() => setOpenSkuDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Create SKU</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            margin="normal"
+            label="SKU Code"
+            value={skuForm.code}
+            onChange={(e) => setSkuForm((prev) => ({ ...prev, code: e.target.value }))}
+          />
+          <TextField
+            fullWidth
+            margin="normal"
+            label="SKU Name"
+            value={skuForm.name}
+            onChange={(e) => setSkuForm((prev) => ({ ...prev, name: e.target.value }))}
+          />
+          <TextField
+            fullWidth
+            select
+            margin="normal"
+            label="Product"
+            value={skuForm.product}
+            onChange={(e) => setSkuForm((prev) => ({ ...prev, product: e.target.value }))}
+            SelectProps={{ native: true }}
+          >
+            <option value="">Select product</option>
+            {products.map((product) => (
+              <option key={product.id} value={product.id}>
+                {product.code} - {product.name}
+              </option>
+            ))}
+          </TextField>
+          <TextField
+            fullWidth
+            margin="normal"
+            label="Base Price"
+            type="number"
+            value={skuForm.base_price}
+            onChange={(e) => setSkuForm((prev) => ({ ...prev, base_price: e.target.value }))}
+          />
+          <TextField
+            fullWidth
+            margin="normal"
+            label="Cost Price"
+            type="number"
+            value={skuForm.cost_price}
+            onChange={(e) => setSkuForm((prev) => ({ ...prev, cost_price: e.target.value }))}
+          />
+          <TextField
+            fullWidth
+            margin="normal"
+            label="Weight (optional)"
+            type="number"
+            value={skuForm.weight}
+            onChange={(e) => setSkuForm((prev) => ({ ...prev, weight: e.target.value }))}
+          />
+          <TextField
+            fullWidth
+            select
+            margin="normal"
+            label="Serialized Tracking"
+            value={skuForm.is_serialized ? 'yes' : 'no'}
+            onChange={(e) => setSkuForm((prev) => ({ ...prev, is_serialized: e.target.value === 'yes' }))}
+            SelectProps={{ native: true }}
+          >
+            <option value="no">No</option>
+            <option value="yes">Yes</option>
+          </TextField>
+          <TextField
+            fullWidth
+            select
+            margin="normal"
+            label="Batch Tracking"
+            value={skuForm.is_batch_tracked ? 'yes' : 'no'}
+            onChange={(e) => setSkuForm((prev) => ({ ...prev, is_batch_tracked: e.target.value === 'yes' }))}
+            SelectProps={{ native: true }}
+          >
+            <option value="no">No</option>
+            <option value="yes">Yes</option>
+          </TextField>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenSkuDialog(false)}>Cancel</Button>
+          <Button variant="contained" onClick={() => void handleCreateSKU()}>
+            Create
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog open={openCompanyDialog} onClose={() => setOpenCompanyDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Create Company</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            margin="normal"
+            label="Company Code"
+            value={companyForm.code}
+            onChange={(e) => setCompanyForm((prev) => ({ ...prev, code: e.target.value }))}
+          />
+          <TextField
+            fullWidth
+            margin="normal"
+            label="Company Name"
+            value={companyForm.name}
+            onChange={(e) => setCompanyForm((prev) => ({ ...prev, name: e.target.value }))}
+          />
+          <TextField
+            fullWidth
+            margin="normal"
+            label="Legal Name (optional)"
+            value={companyForm.legal_name}
+            onChange={(e) => setCompanyForm((prev) => ({ ...prev, legal_name: e.target.value }))}
+          />
+          <TextField
+            fullWidth
+            margin="normal"
+            label="Tax ID (optional)"
+            value={companyForm.tax_id}
+            onChange={(e) => setCompanyForm((prev) => ({ ...prev, tax_id: e.target.value }))}
+          />
+          <TextField
+            fullWidth
+            margin="normal"
+            label="Currency"
+            value={companyForm.currency}
+            onChange={(e) => setCompanyForm((prev) => ({ ...prev, currency: e.target.value.toUpperCase() }))}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenCompanyDialog(false)}>Cancel</Button>
+          <Button variant="contained" onClick={() => void handleCreateCompany()}>
+            Create
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog open={openLocationDialog} onClose={() => setOpenLocationDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Create Location</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            margin="normal"
+            label="Location Code"
+            value={locationForm.code}
+            onChange={(e) => setLocationForm((prev) => ({ ...prev, code: e.target.value }))}
+          />
+          <TextField
+            fullWidth
+            margin="normal"
+            label="Location Name"
+            value={locationForm.name}
+            onChange={(e) => setLocationForm((prev) => ({ ...prev, name: e.target.value }))}
+          />
+          <TextField
+            fullWidth
+            select
+            margin="normal"
+            label="Location Type"
+            value={locationForm.location_type}
+            onChange={(e) => setLocationForm((prev) => ({ ...prev, location_type: e.target.value as Location['location_type'] }))}
+            SelectProps={{ native: true }}
+          >
+            <option value="warehouse">Warehouse</option>
+            <option value="store">Store</option>
+            <option value="office">Office</option>
+            <option value="virtual">Virtual</option>
+          </TextField>
+          <TextField
+            fullWidth
+            select
+            margin="normal"
+            label="Business Unit"
+            value={locationForm.business_unit}
+            onChange={(e) => setLocationForm((prev) => ({ ...prev, business_unit: e.target.value }))}
+            SelectProps={{ native: true }}
+            helperText={businessUnits.length === 0 ? 'A default business unit will be created automatically.' : ''}
+          >
+            <option value="">Auto / First available</option>
+            {businessUnits.map((unit) => (
+              <option key={unit.id} value={unit.id}>
+                {unit.code} - {unit.name}
+              </option>
+            ))}
+          </TextField>
+          <TextField
+            fullWidth
+            select
+            margin="normal"
+            label="Inventory Location"
+            value={locationForm.is_inventory_location ? 'yes' : 'no'}
+            onChange={(e) => setLocationForm((prev) => ({ ...prev, is_inventory_location: e.target.value === 'yes' }))}
+            SelectProps={{ native: true }}
+          >
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+          </TextField>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenLocationDialog(false)}>Cancel</Button>
+          <Button variant="contained" onClick={() => void handleCreateLocation()}>
             Create
           </Button>
         </DialogActions>
