@@ -1,4 +1,4 @@
-import api from './api'
+import api, { extractListData } from './api'
 
 export interface ShopifyStore {
   id: string
@@ -70,7 +70,7 @@ export const shopifyService = {
   // Stores
   listStores: async (): Promise<ShopifyStore[]> => {
     const response = await api.get('/integrations/shopify/stores/')
-    return response.data
+    return extractListData<ShopifyStore>(response.data)
   },
 
   getStore: async (id: string): Promise<ShopifyStore> => {
@@ -152,7 +152,7 @@ export const shopifyService = {
     sync_status?: string
   }): Promise<ShopifyProduct[]> => {
     const response = await api.get('/integrations/shopify/products/', { params })
-    return response.data
+    return extractListData<ShopifyProduct>(response.data)
   },
 
   getProduct: async (id: string): Promise<ShopifyProduct> => {
@@ -174,7 +174,7 @@ export const shopifyService = {
   listSyncJobs: async (storeId?: string): Promise<ShopifySyncJob[]> => {
     const params = storeId ? { store: storeId } : {}
     const response = await api.get('/integrations/shopify/sync-jobs/', { params })
-    return response.data
+    return extractListData<ShopifySyncJob>(response.data)
   },
 
   getSyncJob: async (id: string): Promise<ShopifySyncJob> => {

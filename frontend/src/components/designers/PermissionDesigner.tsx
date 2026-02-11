@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import {
+  Alert,
   Box,
   Paper,
   Grid,
@@ -16,6 +17,7 @@ import {
   Chip,
   IconButton,
   Tooltip,
+  Snackbar,
 } from '@mui/material'
 import {
   Save,
@@ -91,8 +93,22 @@ const defaultRoles: Role[] = [
 ]
 
 export default function PermissionDesigner() {
-  const [roles, setRoles] = useState<Role[]>(defaultRoles)
+  const [roles, setRoles] = useState<Role[]>(() => {
+    const saved = localStorage.getItem('metadata_permission_roles')
+    if (!saved) return defaultRoles
+    try {
+      const parsed = JSON.parse(saved)
+      return Array.isArray(parsed) ? parsed : defaultRoles
+    } catch {
+      return defaultRoles
+    }
+  })
   const [newRoleName, setNewRoleName] = useState('')
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
+    open: false,
+    message: '',
+    severity: 'info',
+  })
 
   const handleTogglePermission = (roleCode: string, permissionCode: string) => {
     setRoles(
@@ -112,19 +128,25 @@ export default function PermissionDesigner() {
   }
 
   const handleAddRole = () => {
-    if (!newRoleName) return
+    if (!newRoleName.trim()) return
     const code = newRoleName.toLowerCase().replace(/\s+/g, '_')
+    if (roles.some((role) => role.code === code)) {
+      setSnackbar({ open: true, message: 'Role already exists.', severity: 'error' })
+      return
+    }
     setRoles([...roles, { code, name: newRoleName, permissions: [] }])
     setNewRoleName('')
+    setSnackbar({ open: true, message: 'Role added.', severity: 'success' })
   }
 
   const handleRemoveRole = (roleCode: string) => {
     setRoles(roles.filter((r) => r.code !== roleCode))
+    setSnackbar({ open: true, message: 'Role removed.', severity: 'info' })
   }
 
   const handleSave = () => {
-    console.log('Saving permissions:', roles)
-    // TODO: Call API to save permissions
+    localStorage.setItem('metadata_permission_roles', JSON.stringify(roles))
+    setSnackbar({ open: true, message: 'Permissions saved.', severity: 'success' })
   }
 
   const handleSelectAll = (roleCode: string, category: string) => {
@@ -310,6 +332,16 @@ export default function PermissionDesigner() {
           ))}
         </Grid>
       </Paper>
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={3500}
+        onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert severity={snackbar.severity} onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   )
 }

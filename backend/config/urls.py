@@ -3,13 +3,20 @@ URL configuration for ERP platform.
 """
 from django.contrib import admin
 from django.urls import path, include
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from rest_framework_simplejwt.views import TokenRefreshView
+from apps.mdm.serializers import CustomTokenObtainPairSerializer
+from rest_framework_simplejwt.views import TokenObtainPairView
+
+
+class CustomTokenObtainPairView(TokenObtainPairView):
+    serializer_class = CustomTokenObtainPairSerializer
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     
     # Authentication
-    path('api/auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/auth/token/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     
     # Metadata Management
@@ -30,4 +37,5 @@ urlpatterns = [
     path('api/reporting/', include('apps.reporting.urls')),
     path('api/imports/', include('apps.imports.urls')),
     path('api/search/', include('apps.search.urls')),
+    path('api/integrations/', include('apps.integrations.urls')),
 ]

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import {
+  Alert,
   Box,
   Typography,
   Paper,
@@ -13,6 +14,7 @@ import {
   Grid,
   Card,
   CardContent,
+  Snackbar,
 } from '@mui/material'
 import {
   Save,
@@ -22,6 +24,7 @@ import {
   Palette,
   Language,
 } from '@mui/icons-material'
+import PageHeader from '../components/ui/PageHeader'
 
 interface TabPanelProps {
   children?: React.ReactNode
@@ -40,17 +43,24 @@ function TabPanel(props: TabPanelProps) {
 
 export default function Settings() {
   const [tabValue, setTabValue] = useState(0)
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
+    open: false,
+    message: '',
+    severity: 'info',
+  })
+
+  const handleSave = (section: string) => {
+    const key = `settings:last_saved:${section.toLowerCase().replace(/\s+/g, '_')}`
+    localStorage.setItem(key, new Date().toISOString())
+    setSnackbar({ open: true, message: `${section} settings saved.`, severity: 'success' })
+  }
 
   return (
     <Box>
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="h4" gutterBottom sx={{ fontWeight: 700 }}>
-          Settings
-        </Typography>
-        <Typography variant="body1" color="text.secondary">
-          Configure your ERP system preferences
-        </Typography>
-      </Box>
+      <PageHeader
+        title="Settings"
+        subtitle="Configure company, security, notification, and localization preferences."
+      />
 
       <Paper sx={{ width: '100%' }}>
         <Tabs value={tabValue} onChange={(_, v) => setTabValue(v)}>
@@ -109,7 +119,7 @@ export default function Settings() {
                 <Button
                   variant="contained"
                   startIcon={<Save />}
-                  sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
+                  onClick={() => handleSave('Company')}
                 >
                   Save Changes
                 </Button>
@@ -150,7 +160,7 @@ export default function Settings() {
               <Button
                 variant="contained"
                 startIcon={<Save />}
-                sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
+                onClick={() => handleSave('Security')}
               >
                 Save Security Settings
               </Button>
@@ -195,7 +205,7 @@ export default function Settings() {
               <Button
                 variant="contained"
                 startIcon={<Save />}
-                sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
+                onClick={() => handleSave('Notifications')}
               >
                 Save Notification Settings
               </Button>
@@ -230,7 +240,7 @@ export default function Settings() {
               <Button
                 variant="contained"
                 startIcon={<Save />}
-                sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
+                onClick={() => handleSave('Appearance')}
               >
                 Save Appearance Settings
               </Button>
@@ -311,7 +321,7 @@ export default function Settings() {
                 <Button
                   variant="contained"
                   startIcon={<Save />}
-                  sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
+                  onClick={() => handleSave('Localization')}
                 >
                   Save Localization Settings
                 </Button>
@@ -320,6 +330,16 @@ export default function Settings() {
           </Box>
         </TabPanel>
       </Paper>
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={3500}
+        onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert severity={snackbar.severity} onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   )
 }

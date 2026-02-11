@@ -18,7 +18,11 @@ export interface AuthResponse {
 
 export const authService = {
   login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
-    const response = await api.post('/auth/token/', credentials)
+    const response = await api.post('/auth/token/', {
+      email: credentials.email,
+      username: credentials.email,
+      password: credentials.password,
+    })
     if (response.data.access) {
       localStorage.setItem('token', response.data.access)
       localStorage.setItem('refreshToken', response.data.refresh)

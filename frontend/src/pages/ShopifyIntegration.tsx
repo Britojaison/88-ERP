@@ -43,6 +43,7 @@ import {
   Inventory,
 } from '@mui/icons-material'
 import { shopifyService, ShopifyStore, ShopifyProduct, ShopifySyncJob } from '../services/shopify.service'
+import PageHeader from '../components/ui/PageHeader'
 
 interface TabPanelProps {
   children?: React.ReactNode
@@ -270,36 +271,49 @@ export default function ShopifyIntegration() {
     }
   }
 
+  const handleSaveStoreSettings = async () => {
+    if (!selectedStore) return
+
+    try {
+      const updated = await shopifyService.updateStore(selectedStore.id, {
+        auto_sync_products: selectedStore.auto_sync_products,
+        auto_sync_inventory: selectedStore.auto_sync_inventory,
+        auto_sync_orders: selectedStore.auto_sync_orders,
+        sync_interval_minutes: Number(selectedStore.sync_interval_minutes),
+      })
+
+      setSelectedStore(updated)
+      setStores((prev) => prev.map((store) => (store.id === updated.id ? updated : store)))
+      setSnackbar({
+        open: true,
+        message: 'Store settings saved.',
+        severity: 'success',
+      })
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: 'Failed to save store settings.',
+        severity: 'error',
+      })
+    }
+  }
+
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Box>
-          <Typography variant="h4" gutterBottom sx={{ fontWeight: 700 }}>
-            Shopify Integration
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Connect and sync your Shopify stores with the ERP
-          </Typography>
-        </Box>
-        <Box sx={{ display: 'flex', gap: 2 }}>
-          <Button
-            variant="outlined"
-            startIcon={<Refresh />}
-            onClick={loadStores}
-            disabled={loadingStores}
-          >
-            Refresh
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={<Add />}
-            onClick={() => setOpenStoreDialog(true)}
-            sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
-          >
-            Connect Store
-          </Button>
-        </Box>
-      </Box>
+      <PageHeader
+        title="Shopify Integration"
+        subtitle="Connect, sync, and monitor your Shopify storefront data."
+        actions={
+          <Box sx={{ display: 'flex', gap: 1.25 }}>
+            <Button variant="outlined" startIcon={<Refresh />} onClick={loadStores} disabled={loadingStores}>
+              Refresh
+            </Button>
+            <Button variant="contained" startIcon={<Add />} onClick={() => setOpenStoreDialog(true)}>
+              Connect Store
+            </Button>
+          </Box>
+        }
+      />
 
       {loadingStores ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', p: 5 }}>
@@ -318,7 +332,6 @@ export default function ShopifyIntegration() {
             variant="contained"
             startIcon={<Add />}
             onClick={() => setOpenStoreDialog(true)}
-            sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
           >
             Connect Store
           </Button>
@@ -568,19 +581,52 @@ export default function ShopifyIntegration() {
                 <Grid container spacing={2}>
                   <Grid item xs={12}>
                     <FormControlLabel
-                      control={<Checkbox checked={selectedStore.auto_sync_products} />}
+                      control={
+                        <Checkbox
+                          checked={selectedStore.auto_sync_products}
+                          onChange={(e) =>
+                            setSelectedStore((prev) =>
+                              prev
+                                ? { ...prev, auto_sync_products: e.target.checked }
+                                : prev,
+                            )
+                          }
+                        />
+                      }
                       label="Auto-sync Products"
                     />
                   </Grid>
                   <Grid item xs={12}>
                     <FormControlLabel
-                      control={<Checkbox checked={selectedStore.auto_sync_inventory} />}
+                      control={
+                        <Checkbox
+                          checked={selectedStore.auto_sync_inventory}
+                          onChange={(e) =>
+                            setSelectedStore((prev) =>
+                              prev
+                                ? { ...prev, auto_sync_inventory: e.target.checked }
+                                : prev,
+                            )
+                          }
+                        />
+                      }
                       label="Auto-sync Inventory"
                     />
                   </Grid>
                   <Grid item xs={12}>
                     <FormControlLabel
-                      control={<Checkbox checked={selectedStore.auto_sync_orders} />}
+                      control={
+                        <Checkbox
+                          checked={selectedStore.auto_sync_orders}
+                          onChange={(e) =>
+                            setSelectedStore((prev) =>
+                              prev
+                                ? { ...prev, auto_sync_orders: e.target.checked }
+                                : prev,
+                            )
+                          }
+                        />
+                      }
                       label="Auto-sync Orders"
                     />
                   </Grid>
@@ -590,7 +636,19 @@ export default function ShopifyIntegration() {
                       label="Sync Interval (minutes)"
                       type="number"
                       value={selectedStore.sync_interval_minutes}
+                      onChange={(e) =>
+                        setSelectedStore((prev) =>
+                          prev
+                            ? { ...prev, sync_interval_minutes: Number(e.target.value) || 0 }
+                            : prev,
+                        )
+                      }
                     />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Button variant="contained" onClick={() => void handleSaveStoreSettings()}>
+                      Save Store Settings
+                    </Button>
                   </Grid>
                 </Grid>
               </TabPanel>

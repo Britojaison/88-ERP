@@ -1,128 +1,71 @@
-import {
-  Box,
-  Typography,
-  Paper,
-  Grid,
-  Card,
-  CardContent,
-} from '@mui/material'
-import {
-  TrendingUp,
-  TrendingDown,
-  Warning,
-} from '@mui/icons-material'
-
-const inventoryStats = [
-  {
-    title: 'Total Items',
-    value: '0',
-    change: '+0%',
-    trend: 'up',
-    color: '#667eea',
-  },
-  {
-    title: 'Low Stock Items',
-    value: '0',
-    change: '0 items',
-    trend: 'warning',
-    color: '#fa709a',
-  },
-  {
-    title: 'Out of Stock',
-    value: '0',
-    change: '0 items',
-    trend: 'down',
-    color: '#f093fb',
-  },
-  {
-    title: 'Total Value',
-    value: '$0',
-    change: '+0%',
-    trend: 'up',
-    color: '#4facfe',
-  },
-]
+import { useNavigate } from 'react-router-dom'
+import { Box, Button, Grid, Paper, Stack, Typography } from '@mui/material'
+import { Inventory2, LocalOffer, QrCodeScanner } from '@mui/icons-material'
+import PageHeader from '../components/ui/PageHeader'
+import MetricCard from '../components/ui/MetricCard'
 
 export default function Inventory() {
+  const navigate = useNavigate()
+
   return (
     <Box>
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="h4" gutterBottom sx={{ fontWeight: 700 }}>
-          Inventory Management
-        </Typography>
-        <Typography variant="body1" color="text.secondary">
-          Track and manage your inventory levels
-        </Typography>
-      </Box>
+      <PageHeader
+        title="Inventory Control Center"
+        subtitle="Manage stock operations, barcode labeling, and receiving validation."
+        actions={
+          <Stack direction="row" spacing={1.25}>
+            <Button variant="outlined" onClick={() => navigate('/inventory/barcodes')}>
+              Barcode Workspace
+            </Button>
+            <Button variant="contained" onClick={() => navigate('/inventory/receiving')}>
+              Goods Receipt
+            </Button>
+          </Stack>
+        }
+      />
 
-      <Grid container spacing={3}>
-        {inventoryStats.map((stat) => (
-          <Grid item xs={12} sm={6} lg={3} key={stat.title}>
-            <Card
-              sx={{
-                height: '100%',
-                background: `linear-gradient(135deg, ${stat.color}15 0%, ${stat.color}05 100%)`,
-                border: `1px solid ${stat.color}30`,
-              }}
-            >
-              <CardContent>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    {stat.title}
-                  </Typography>
-                  {stat.trend === 'up' && <TrendingUp sx={{ color: 'success.main' }} />}
-                  {stat.trend === 'down' && <TrendingDown sx={{ color: 'error.main' }} />}
-                  {stat.trend === 'warning' && <Warning sx={{ color: 'warning.main' }} />}
-                </Box>
-                <Typography variant="h3" sx={{ fontWeight: 700, color: stat.color, mb: 1 }}>
-                  {stat.value}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {stat.change}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
-
-      <Grid container spacing={3} sx={{ mt: 1 }}>
-        <Grid item xs={12} lg={8}>
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
-              Inventory by Location
-            </Typography>
-            <Box sx={{ mt: 2 }}>
-              <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 4 }}>
-                No inventory data available
-              </Typography>
-            </Box>
-          </Paper>
+      <Grid container spacing={2.5}>
+        <Grid item xs={12} md={4}>
+          <MetricCard
+            label="Barcode Operations"
+            value="Ready"
+            icon={<LocalOffer />}
+            note="Assign barcode per SKU and preview printable labels."
+          />
         </Grid>
-
-        <Grid item xs={12} lg={4}>
-          <Paper sx={{ p: 3, height: '100%' }}>
-            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
-              Stock Alerts
-            </Typography>
-            <Box sx={{ mt: 2 }}>
-              <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 4 }}>
-                No alerts
-              </Typography>
-            </Box>
-          </Paper>
+        <Grid item xs={12} md={4}>
+          <MetricCard
+            label="Scan Receiving"
+            value="Ready"
+            icon={<QrCodeScanner />}
+            tone="success"
+            note="Confirm inbound goods via barcode scanning and validation."
+          />
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <MetricCard
+            label="Inventory Ledger"
+            value="Tracked"
+            icon={<Inventory2 />}
+            tone="info"
+            note="All movements and scan confirmations are audit-tracked."
+          />
         </Grid>
 
         <Grid item xs={12}>
           <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
-              Recent Movements
+            <Typography variant="h6" gutterBottom>
+              Workflow
             </Typography>
-            <Box sx={{ mt: 2 }}>
-              <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 4 }}>
-                No recent inventory movements
-              </Typography>
-            </Box>
+            <Typography variant="body2" color="text.secondary">
+              1) Assign barcode to SKU and print labels.
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              2) Receive goods by scan against location and optional source document.
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              3) Review scan audit logs and exception outcomes (mismatch/over-receipt).
+            </Typography>
           </Paper>
         </Grid>
       </Grid>

@@ -1,4 +1,4 @@
-import api from './api'
+import api, { extractListData } from './api'
 
 export interface ConfigurationExport {
   version: string
@@ -85,7 +85,7 @@ export const metadataService = {
   listTemplates: async (industry?: string): Promise<Template[]> => {
     const params = industry ? { industry } : {}
     const response = await api.get('/templates/', { params })
-    return response.data
+    return extractListData<Template>(response.data)
   },
 
   getTemplate: async (id: string): Promise<Template> => {
@@ -109,7 +109,7 @@ export const metadataService = {
   // Sandboxes
   listSandboxes: async (): Promise<Sandbox[]> => {
     const response = await api.get('/sandboxes/')
-    return response.data
+    return extractListData<Sandbox>(response.data)
   },
 
   createSandbox: async (name: string, changes: any): Promise<Sandbox> => {

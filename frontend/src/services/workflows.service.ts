@@ -1,4 +1,4 @@
-import api from './api'
+import api, { extractListData } from './api'
 
 export interface WorkflowState {
   id?: string
@@ -47,7 +47,7 @@ export const workflowsService = {
   listWorkflows: async (entityType?: string): Promise<Workflow[]> => {
     const params = entityType ? { entity_type: entityType } : {}
     const response = await api.get('/workflow/workflows/', { params })
-    return response.data
+    return extractListData<Workflow>(response.data)
   },
 
   getWorkflow: async (id: string): Promise<Workflow> => {
@@ -108,7 +108,7 @@ export const workflowsService = {
   listStates: async (workflowId?: string): Promise<WorkflowState[]> => {
     const params = workflowId ? { workflow: workflowId } : {}
     const response = await api.get('/workflow/states/', { params })
-    return response.data
+    return extractListData<WorkflowState>(response.data)
   },
 
   getState: async (id: string): Promise<WorkflowState> => {
@@ -134,7 +134,7 @@ export const workflowsService = {
   listTransitions: async (workflowId?: string): Promise<WorkflowTransition[]> => {
     const params = workflowId ? { workflow: workflowId } : {}
     const response = await api.get('/workflow/transitions/', { params })
-    return response.data
+    return extractListData<WorkflowTransition>(response.data)
   },
 
   getTransition: async (id: string): Promise<WorkflowTransition> => {

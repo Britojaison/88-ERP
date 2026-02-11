@@ -152,7 +152,11 @@ export default function DocumentationGenerator() {
 
   const handleExport = () => {
     const content = filteredDocs.map((doc) => doc.content).join('\n\n---\n\n')
-    const blob = new Blob([content], { type: 'text/markdown' })
+    const exportContent =
+      format === 'html'
+        ? `<!doctype html><html><head><meta charset="utf-8"><title>Configuration Documentation</title></head><body><pre>${content.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre></body></html>`
+        : content
+    const blob = new Blob([exportContent], { type: format === 'html' ? 'text/html' : 'text/markdown' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
@@ -211,7 +215,7 @@ export default function DocumentationGenerator() {
           <Grid item xs={12} key={index}>
             <Card>
               <CardContent>
-                <Box sx={{ display: 'flex', justifyContent: 'between', alignItems: 'center', mb: 2 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Description color="primary" />
                     <Typography variant="h6" sx={{ fontWeight: 600 }}>

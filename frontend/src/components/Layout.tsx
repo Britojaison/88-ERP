@@ -1,57 +1,82 @@
-import { useState } from 'react'
-import { Outlet, useNavigate } from 'react-router-dom'
+import { useMemo, useState, type MouseEvent } from 'react'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useDispatch } from 'react-redux'
 import {
-  Box,
   AppBar,
-  Toolbar,
-  Typography,
+  Avatar,
+  Box,
+  Divider,
   Drawer,
+  IconButton,
   List,
+  ListItemButton,
   ListItemIcon,
   ListItemText,
-  IconButton,
-  Avatar,
   Menu,
   MenuItem,
-  Divider,
-  ListItemButton,
+  Toolbar,
+  Typography,
 } from '@mui/material'
 import {
-  Dashboard as DashboardIcon,
-  Inventory as InventoryIcon,
-  Description as DocumentIcon,
-  People as PeopleIcon,
-  Settings as SettingsIcon,
-  Assessment as ReportIcon,
   AccountCircle,
+  Assessment as ReportIcon,
+  FactCheck as ReceivingIcon,
+  Dashboard as DashboardIcon,
+  Description as DocumentIcon,
+  Inventory as InventoryIcon,
   Logout,
   Menu as MenuIcon,
-  Tune as MetadataIcon,
+  Settings as SettingsIcon,
   ShoppingCart as ShopifyIcon,
+  Tune as MetadataIcon,
+  LocalOffer as BarcodeIcon,
+  People as PeopleIcon,
 } from '@mui/icons-material'
 import { logout } from '../store/slices/authSlice'
+import { authService } from '../services/auth.service'
 
-const drawerWidth = 260
+const drawerWidth = 272
 
-const menuItems = [
-  { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
-  { text: 'Master Data', icon: <PeopleIcon />, path: '/master-data' },
-  { text: 'Documents', icon: <DocumentIcon />, path: '/documents' },
-  { text: 'Inventory', icon: <InventoryIcon />, path: '/inventory' },
-  { text: 'Reports', icon: <ReportIcon />, path: '/reports' },
-  { text: 'Shopify', icon: <ShopifyIcon />, path: '/shopify' },
-  { text: 'Metadata', icon: <MetadataIcon />, path: '/metadata' },
-  { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
+const navSections = [
+  {
+    heading: 'Operations',
+    items: [
+      { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
+      { text: 'Master Data', icon: <PeopleIcon />, path: '/master-data' },
+      { text: 'Documents', icon: <DocumentIcon />, path: '/documents' },
+      { text: 'Inventory', icon: <InventoryIcon />, path: '/inventory' },
+      { text: 'Barcodes', icon: <BarcodeIcon />, path: '/inventory/barcodes' },
+      { text: 'Receiving', icon: <ReceivingIcon />, path: '/inventory/receiving' },
+      { text: 'Reports', icon: <ReportIcon />, path: '/reports' },
+    ],
+  },
+  {
+    heading: 'Platform',
+    items: [
+      { text: 'Metadata', icon: <MetadataIcon />, path: '/metadata' },
+      { text: 'Shopify', icon: <ShopifyIcon />, path: '/shopify' },
+      { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
+    ],
+  },
 ]
 
 export default function Layout() {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
   const [mobileOpen, setMobileOpen] = useState(false)
   const navigate = useNavigate()
+  const location = useLocation()
   const dispatch = useDispatch()
 
-  const handleMenu = (event: React.MouseEvent<HTMLElement>) => {
+  const activeTitle = useMemo(() => {
+    const matched = navSections
+      .flatMap((section) => section.items)
+      .find((item) =>
+        item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path),
+      )
+    return matched?.text ?? 'ERP Platform'
+  }, [location.pathname])
+
+  const handleMenu = (event: MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget)
   }
 
@@ -60,51 +85,56 @@ export default function Layout() {
   }
 
   const handleLogout = () => {
+    authService.logout()
     dispatch(logout())
     navigate('/login')
     handleClose()
   }
 
-  const handleDrawerToggle = () => {
-    setMobileOpen(!mobileOpen)
-  }
-
   const drawer = (
     <Box>
-      <Toolbar sx={{ 
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        color: 'white',
-      }}>
-        <Typography variant="h6" noWrap component="div" sx={{ fontWeight: 700 }}>
-          88 ERP
-        </Typography>
+      <Toolbar sx={{ px: 2.5, py: 1 }}>
+        <Box>
+          <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: '0.12em' }}>
+            88 ERP
+          </Typography>
+          <Typography variant="h6">Control Center</Typography>
+        </Box>
       </Toolbar>
       <Divider />
-      <List sx={{ px: 1, py: 2 }}>
-        {menuItems.map((item) => (
-          <ListItemButton
-            key={item.text}
-            onClick={() => navigate(item.path)}
-            sx={{
-              borderRadius: 2,
-              mb: 0.5,
-              '&:hover': {
-                backgroundColor: 'primary.light',
-                color: 'white',
-                '& .MuiListItemIcon-root': {
-                  color: 'white',
-                },
-              },
-            }}
-          >
-            <ListItemIcon sx={{ color: 'primary.main', minWidth: 40 }}>
-              {item.icon}
-            </ListItemIcon>
-            <ListItemText 
-              primary={item.text}
-              primaryTypographyProps={{ fontWeight: 500 }}
-            />
-          </ListItemButton>
+      <List sx={{ px: 1.5, py: 2 }}>
+        {navSections.map((section) => (
+          <Box key={section.heading} sx={{ mb: 1.5 }}>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{ px: 1.5, mb: 0.75, display: 'block', textTransform: 'uppercase', letterSpacing: '0.08em' }}
+            >
+              {section.heading}
+            </Typography>
+            {section.items.map((item) => (
+              <ListItemButton
+                key={item.text}
+                component={NavLink}
+                to={item.path}
+                sx={{
+                  borderRadius: 2,
+                  mb: 0.5,
+                  '&.active': {
+                    backgroundColor: 'primary.main',
+                    color: 'white',
+                    '& .MuiListItemIcon-root': {
+                      color: 'white',
+                    },
+                  },
+                }}
+                onClick={() => setMobileOpen(false)}
+              >
+                <ListItemIcon sx={{ color: 'text.secondary', minWidth: 38 }}>{item.icon}</ListItemIcon>
+                <ListItemText primary={item.text} primaryTypographyProps={{ fontWeight: 600 }} />
+              </ListItemButton>
+            ))}
+          </Box>
         ))}
       </List>
     </Box>
@@ -112,32 +142,35 @@ export default function Layout() {
 
   return (
     <Box sx={{ display: 'flex' }}>
-      <AppBar 
-        position="fixed" 
-        sx={{ 
-          zIndex: (theme) => theme.zIndex.drawer + 1,
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+      <AppBar
+        position="fixed"
+        color="inherit"
+        sx={{
+          zIndex: (muiTheme) => muiTheme.zIndex.drawer + 1,
+          borderBottom: '1px solid rgba(15, 23, 42, 0.08)',
+          boxShadow: 'none',
+          backdropFilter: 'blur(12px)',
+          backgroundColor: 'rgba(255,255,255,0.9)',
         }}
       >
         <Toolbar>
           <IconButton
-            color="inherit"
             edge="start"
-            onClick={handleDrawerToggle}
+            onClick={() => setMobileOpen(!mobileOpen)}
             sx={{ mr: 2, display: { sm: 'none' } }}
           >
             <MenuIcon />
           </IconButton>
-          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1, fontWeight: 700 }}>
-            Metadata-Driven ERP Platform
-          </Typography>
-          <IconButton
-            size="large"
-            onClick={handleMenu}
-            color="inherit"
-          >
-            <Avatar sx={{ width: 32, height: 32, bgcolor: 'rgba(255,255,255,0.2)' }}>
+          <Box sx={{ flexGrow: 1 }}>
+            <Typography variant="caption" color="text.secondary">
+              Workspace
+            </Typography>
+            <Typography variant="h6" sx={{ lineHeight: 1.2 }}>
+              {activeTitle}
+            </Typography>
+          </Box>
+          <IconButton size="large" onClick={handleMenu}>
+            <Avatar sx={{ width: 34, height: 34, bgcolor: 'primary.main' }}>
               <AccountCircle />
             </Avatar>
           </IconButton>
@@ -148,19 +181,7 @@ export default function Layout() {
             transformOrigin={{ horizontal: 'right', vertical: 'top' }}
             anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
           >
-            <MenuItem onClick={handleClose}>
-              <ListItemIcon>
-                <AccountCircle fontSize="small" />
-              </ListItemIcon>
-              Profile
-            </MenuItem>
-            <MenuItem onClick={handleClose}>
-              <ListItemIcon>
-                <SettingsIcon fontSize="small" />
-              </ListItemIcon>
-              Settings
-            </MenuItem>
-            <Divider />
+            <MenuItem onClick={() => { navigate('/settings'); handleClose() }}>Settings</MenuItem>
             <MenuItem onClick={handleLogout}>
               <ListItemIcon>
                 <Logout fontSize="small" />
@@ -176,10 +197,12 @@ export default function Layout() {
           display: { xs: 'none', sm: 'block' },
           width: drawerWidth,
           flexShrink: 0,
-          '& .MuiDrawer-paper': { 
-            width: drawerWidth, 
+          '& .MuiDrawer-paper': {
+            width: drawerWidth,
             boxSizing: 'border-box',
-            borderRight: '1px solid rgba(0,0,0,0.08)',
+            borderRight: '1px solid rgba(15, 23, 42, 0.08)',
+            backgroundColor: 'rgba(255,255,255,0.85)',
+            backdropFilter: 'blur(12px)',
           },
         }}
       >
@@ -188,7 +211,7 @@ export default function Layout() {
       <Drawer
         variant="temporary"
         open={mobileOpen}
-        onClose={handleDrawerToggle}
+        onClose={() => setMobileOpen(false)}
         ModalProps={{ keepMounted: true }}
         sx={{
           display: { xs: 'block', sm: 'none' },
@@ -197,15 +220,7 @@ export default function Layout() {
       >
         {drawer}
       </Drawer>
-      <Box 
-        component="main" 
-        sx={{ 
-          flexGrow: 1, 
-          p: 3,
-          backgroundColor: 'background.default',
-          minHeight: '100vh',
-        }}
-      >
+      <Box component="main" sx={{ flexGrow: 1, p: { xs: 2, sm: 3 }, minHeight: '100vh' }}>
         <Toolbar />
         <Outlet />
       </Box>

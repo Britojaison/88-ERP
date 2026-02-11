@@ -168,3 +168,69 @@ class InventoryMovement(BaseModel):
         if self.pk:
             raise ValueError("Inventory movements are immutable")
         super().save(*args, **kwargs)
+
+
+class GoodsReceiptScan(TenantAwareModel):
+    """
+    Barcode scan audit trail for goods receiving.
+    """
+    RESULT_MATCHED = "matched"
+    RESULT_MISMATCH = "mismatch"
+    RESULT_OVER_RECEIPT = "over_receipt"
+    RESULT_UNKNOWN = "unknown"
+
+    RESULT_CHOICES = [
+        (RESULT_MATCHED, "Matched"),
+        (RESULT_MISMATCH, "Mismatch"),
+        (RESULT_OVER_RECEIPT, "Over Receipt"),
+        (RESULT_UNKNOWN, "Unknown"),
+    ]
+
+    barcode_value = models.CharField(max_length=255, db_index=True)
+    sku = models.ForeignKey(
+        'mdm.SKU',
+        on_delete=models.PROTECT,
+        related_name='goods_receipt_scans',
+        null=True,
+        blank=True,
+    )
+    barcode = models.ForeignKey(
+        'mdm.SKUBarcode',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='scan_logs',
+    )
+    location = models.ForeignKey(
+        'mdm.Location',
+        on_delete=models.PROTECT,
+        related_name='goods_receipt_scans'
+    )
+    document = models.ForeignKey(
+        'documents.Document',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='goods_receipt_scans'
+    )
+
+    quantity = models.DecimalField(max_digits=15, decimal_places=3, default=1)
+    batch_number = models.CharField(max_length=100, blank=True)
+    serial_number = models.CharField(max_length=100, blank=True)
+    result = models.CharField(max_length=20, choices=RESULT_CHOICES, db_index=True)
+    message = models.CharField(max_length=500, blank=True)
+    scanned_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    objects = models.Manager()
+    active = ActiveManager()
+
+    class Meta:
+        db_table = 'inv_goods_receipt_scan'
+        ordering = ['-scanned_at']
+        indexes = [
+            models.Index(fields=['company', 'result', '-scanned_at']),
+            models.Index(fields=['barcode_value', '-scanned_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.barcode_value} - {self.result}"

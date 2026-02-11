@@ -1,15 +1,17 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import {
+  Alert,
   Box,
+  Button,
+  Card,
+  CardActions,
+  CardContent,
+  Grid,
   Typography,
   Paper,
   Tabs,
   Tab,
-  Button,
-  Grid,
-  Card,
-  CardContent,
-  CardActions,
+  Snackbar,
 } from '@mui/material'
 import {
   Settings,
@@ -29,6 +31,8 @@ import PermissionDesigner from '../components/designers/PermissionDesigner'
 import DependencyGraph from '../components/designers/DependencyGraph'
 import ConfigDiffViewer from '../components/designers/ConfigDiffViewer'
 import DocumentationGenerator from '../components/designers/DocumentationGenerator'
+import PageHeader from '../components/ui/PageHeader'
+import { metadataService } from '../services/metadata.service'
 
 interface TabPanelProps {
   children?: React.ReactNode
@@ -85,52 +89,82 @@ const metadataCategories = [
 
 export default function MetadataManagement() {
   const [tabValue, setTabValue] = useState(0)
+  const importInputRef = useRef<HTMLInputElement | null>(null)
+  const [snackbar, setSnackbar] = useState<{
+    open: boolean
+    message: string
+    severity: 'success' | 'error' | 'info'
+  }>({
+    open: false,
+    message: '',
+    severity: 'info',
+  })
 
-  const handleExport = () => {
-    // TODO: Implement export
-    console.log('Export configuration')
+  const handleExport = async () => {
+    try {
+      const fileBlob = await metadataService.exportConfiguration(undefined, 'json')
+      const url = URL.createObjectURL(fileBlob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `metadata-export-${new Date().toISOString().slice(0, 10)}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+      setSnackbar({ open: true, message: 'Configuration exported successfully.', severity: 'success' })
+    } catch (error) {
+      setSnackbar({ open: true, message: 'Failed to export configuration.', severity: 'error' })
+    }
   }
 
   const handleImport = () => {
-    // TODO: Implement import
-    console.log('Import configuration')
+    importInputRef.current?.click()
+  }
+
+  const handleImportFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    try {
+      const text = await file.text()
+      const config = JSON.parse(text)
+      const result = await metadataService.importConfiguration(config, false)
+      if (result.success) {
+        setSnackbar({ open: true, message: 'Configuration imported successfully.', severity: 'success' })
+      } else {
+        setSnackbar({ open: true, message: 'Import completed with validation issues.', severity: 'info' })
+      }
+    } catch (error) {
+      setSnackbar({ open: true, message: 'Invalid configuration file.', severity: 'error' })
+    } finally {
+      event.target.value = ''
+    }
   }
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Box>
-          <Typography variant="h4" gutterBottom sx={{ fontWeight: 700 }}>
-            Metadata Management
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Configure your ERP system without code
-          </Typography>
-        </Box>
-        <Box sx={{ display: 'flex', gap: 2 }}>
-          <Button
-            variant="outlined"
-            startIcon={<Download />}
-            onClick={handleExport}
-          >
-            Export
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<Upload />}
-            onClick={handleImport}
-          >
-            Import
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={<ContentCopy />}
-            sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
-          >
-            Templates
-          </Button>
-        </Box>
-      </Box>
+      <PageHeader
+        title="Metadata Management"
+        subtitle="Configure and version your ERP behavior without code."
+        actions={
+          <Box sx={{ display: 'flex', gap: 1.25 }}>
+            <Button variant="outlined" startIcon={<Download />} onClick={handleExport}>
+              Export
+            </Button>
+            <Button variant="outlined" startIcon={<Upload />} onClick={handleImport}>
+              Import
+            </Button>
+            <Button variant="contained" startIcon={<ContentCopy />} onClick={() => setTabValue(9)}>
+              Templates
+            </Button>
+          </Box>
+        }
+      />
+      <input
+        ref={importInputRef}
+        type="file"
+        accept=".json,application/json"
+        hidden
+        onChange={handleImportFile}
+      />
 
       <Paper sx={{ width: '100%' }}>
         <Tabs value={tabValue} onChange={(_, v) => setTabValue(v)} variant="scrollable" scrollButtons="auto">
@@ -189,10 +223,16 @@ export default function MetadataManagement() {
                     </Typography>
                   </CardContent>
                   <CardActions>
-                    <Button size="small" sx={{ color: category.color }}>
+                    <Button size="small" sx={{ color: category.color }} onClick={() => {
+                      if (category.title === 'Attributes') setTabValue(1)
+                      if (category.title === 'Workflows') setTabValue(2)
+                      if (category.title === 'Rules') setTabValue(3)
+                      if (category.title === 'Document Types') setTabValue(4)
+                      if (category.title === 'Permissions') setTabValue(5)
+                    }}>
                       Configure
                     </Button>
-                    <Button size="small">View All</Button>
+                    <Button size="small" onClick={() => setTabValue(9)}>View All</Button>
                   </CardActions>
                 </Card>
               </Grid>
@@ -220,6 +260,7 @@ export default function MetadataManagement() {
                       color: 'white',
                     },
                   }}
+                  onClick={() => setTabValue(1)}
                 >
                   <Typography variant="body2">Create Attribute</Typography>
                 </Box>
@@ -240,6 +281,7 @@ export default function MetadataManagement() {
                       color: 'white',
                     },
                   }}
+                  onClick={() => setTabValue(2)}
                 >
                   <Typography variant="body2">Design Workflow</Typography>
                 </Box>
@@ -260,6 +302,7 @@ export default function MetadataManagement() {
                       color: 'white',
                     },
                   }}
+                  onClick={() => setTabValue(3)}
                 >
                   <Typography variant="body2">Add Rule</Typography>
                 </Box>
@@ -280,6 +323,7 @@ export default function MetadataManagement() {
                       color: 'white',
                     },
                   }}
+                  onClick={() => setTabValue(9)}
                 >
                   <Typography variant="body2">Apply Template</Typography>
                 </Box>
@@ -368,6 +412,16 @@ export default function MetadataManagement() {
           </Grid>
         </TabPanel>
       </Paper>
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert severity={snackbar.severity} onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   )
 }

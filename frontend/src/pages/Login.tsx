@@ -1,113 +1,110 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useDispatch } from 'react-redux'
-import { 
-  Box, 
-  Paper, 
-  TextField, 
-  Button, 
-  Typography, 
-  InputAdornment,
-  IconButton,
+import {
   Alert,
-  Divider,
+  Box,
+  Button,
   Chip,
+  CircularProgress,
+  Divider,
+  IconButton,
+  InputAdornment,
+  Paper,
+  Stack,
+  TextField,
+  Typography,
 } from '@mui/material'
-import { 
-  Visibility, 
-  VisibilityOff, 
-  Email, 
-  Lock,
+import {
   Business,
+  Email,
+  Lock,
+  Visibility,
+  VisibilityOff,
 } from '@mui/icons-material'
 import { setCredentials } from '../store/slices/authSlice'
+import { authService } from '../services/auth.service'
 
 export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
   const dispatch = useDispatch()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    
-    // TODO: Implement actual API call
-    // For now, just simulate login
-    if (email && password) {
-      dispatch(setCredentials({
-        user: { email, name: 'Demo User', role: 'Admin' },
-        token: 'dummy-token'
-      }))
+    setLoading(true)
+
+    try {
+      const response = await authService.login({ email, password })
+      
+      dispatch(
+        setCredentials({
+          user: response.user,
+          token: response.access,
+        }),
+      )
+      
       navigate('/')
-    } else {
-      setError('Please enter valid credentials')
+    } catch (err: any) {
+      console.error('Login error:', err)
+      setError(
+        err.response?.data?.detail || 
+        err.response?.data?.message || 
+        'Invalid email or password. Please try again.'
+      )
+    } finally {
+      setLoading(false)
     }
   }
 
   return (
     <Box
       sx={{
-        display: 'flex',
         minHeight: '100vh',
-        width: '100%',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        display: 'grid',
+        gridTemplateColumns: { xs: '1fr', md: '1.1fr 1fr' },
+        bgcolor: '#0b1020',
       }}
     >
       <Box
         sx={{
-          flex: 1,
-          display: { xs: 'none', md: 'flex' },
+          px: { xs: 3, md: 6 },
+          py: { xs: 5, md: 8 },
+          display: 'flex',
           flexDirection: 'column',
           justifyContent: 'center',
-          alignItems: 'center',
           color: 'white',
-          p: 4,
+          background:
+            'radial-gradient(circle at 20% 10%, rgba(37,99,235,0.42), transparent 48%), radial-gradient(circle at 80% 80%, rgba(15,109,106,0.4), transparent 44%)',
         }}
       >
-        <Business sx={{ fontSize: 80, mb: 3 }} />
-        <Typography variant="h3" gutterBottom sx={{ fontWeight: 700 }}>
+        <Business sx={{ fontSize: 52, mb: 2 }} />
+        <Typography variant="h3" gutterBottom>
           88 ERP Platform
         </Typography>
-        <Typography variant="h6" sx={{ maxWidth: 500, textAlign: 'center', opacity: 0.9 }}>
-          Metadata-Driven, Industry-Agnostic Enterprise Resource Planning
+        <Typography variant="h6" sx={{ maxWidth: 520, opacity: 0.92 }}>
+          Metadata-driven operations for inventory, documents, workflow, and integrations.
         </Typography>
-        <Box sx={{ mt: 4, display: 'flex', gap: 2, flexWrap: 'wrap', justifyContent: 'center' }}>
-          <Chip label="ACID Compliant" sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white' }} />
-          <Chip label="Audit-Safe" sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white' }} />
-          <Chip label="Configurable" sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white' }} />
-          <Chip label="Scalable" sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white' }} />
-        </Box>
+        <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mt: 3 }}>
+          <Chip label="Audit Ready" sx={{ bgcolor: 'rgba(255,255,255,0.16)', color: 'white' }} />
+          <Chip label="Multi-module" sx={{ bgcolor: 'rgba(255,255,255,0.16)', color: 'white' }} />
+          <Chip label="Scalable" sx={{ bgcolor: 'rgba(255,255,255,0.16)', color: 'white' }} />
+        </Stack>
       </Box>
 
-      <Box
-        sx={{
-          flex: 1,
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          p: 3,
-        }}
-      >
-        <Paper 
-          elevation={24}
-          sx={{ 
-            p: 4, 
-            maxWidth: 450, 
-            width: '100%',
-            borderRadius: 3,
-          }}
-        >
-          <Box sx={{ textAlign: 'center', mb: 3 }}>
-            <Typography variant="h4" gutterBottom sx={{ fontWeight: 700, color: 'primary.main' }}>
-              Welcome Back
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Sign in to access your ERP dashboard
-            </Typography>
-          </Box>
+      <Box sx={{ display: 'grid', placeItems: 'center', p: 3, bgcolor: '#f3f6f9' }}>
+        <Paper sx={{ width: '100%', maxWidth: 430, p: 4 }}>
+          <Typography variant="h4" gutterBottom>
+            Sign In
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Access your workspace dashboard and system controls.
+          </Typography>
 
           {error && (
             <Alert severity="error" sx={{ mb: 2 }}>
@@ -118,12 +115,13 @@ export default function Login() {
           <form onSubmit={handleSubmit}>
             <TextField
               fullWidth
-              label="Email Address"
+              required
+              label="Email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               margin="normal"
-              required
+              disabled={loading}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
@@ -134,12 +132,13 @@ export default function Login() {
             />
             <TextField
               fullWidth
+              required
               label="Password"
               type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               margin="normal"
-              required
+              disabled={loading}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
@@ -148,53 +147,29 @@ export default function Login() {
                 ),
                 endAdornment: (
                   <InputAdornment position="end">
-                    <IconButton
-                      onClick={() => setShowPassword(!showPassword)}
-                      edge="end"
-                    >
+                    <IconButton edge="end" onClick={() => setShowPassword(!showPassword)} disabled={loading}>
                       {showPassword ? <VisibilityOff /> : <Visibility />}
                     </IconButton>
                   </InputAdornment>
                 ),
               }}
             />
-            <Button
-              fullWidth
-              type="submit"
-              variant="contained"
-              size="large"
-              sx={{ 
-                mt: 3,
-                py: 1.5,
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                fontWeight: 600,
-                fontSize: '1rem',
-              }}
+            <Button 
+              fullWidth 
+              type="submit" 
+              variant="contained" 
+              size="large" 
+              sx={{ mt: 2, py: 1.35 }}
+              disabled={loading}
             >
-              Sign In
+              {loading ? <CircularProgress size={24} color="inherit" /> : 'Continue'}
             </Button>
           </form>
 
-          <Divider sx={{ my: 3 }}>
-            <Typography variant="body2" color="text.secondary">
-              Demo Credentials
-            </Typography>
-          </Divider>
-
-          <Box sx={{ 
-            p: 2, 
-            bgcolor: 'grey.50', 
-            borderRadius: 2,
-            border: '1px solid',
-            borderColor: 'grey.200',
-          }}>
-            <Typography variant="caption" color="text.secondary" display="block">
-              Email: demo@88erp.com
-            </Typography>
-            <Typography variant="caption" color="text.secondary" display="block">
-              Password: demo123
-            </Typography>
-          </Box>
+          <Divider sx={{ my: 2.5 }} />
+          <Typography variant="caption" color="text.secondary" display="block">
+            Demo: admin@88erp.com / admin123
+          </Typography>
         </Paper>
       </Box>
     </Box>

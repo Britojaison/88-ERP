@@ -1,4 +1,4 @@
-import api from './api'
+import api, { extractListData } from './api'
 
 export interface Report {
   id: string
@@ -8,10 +8,15 @@ export interface Report {
   created_at: string
 }
 
+export interface ReportType {
+  value: string
+  label: string
+}
+
 export const reportingService = {
   getReports: async (params?: any) => {
     const response = await api.get('/reporting/reports/', { params })
-    return response.data
+    return extractListData<Report>(response.data)
   },
 
   generateReport: async (reportType: string, parameters?: any) => {
@@ -30,8 +35,8 @@ export const reportingService = {
     return response.data
   },
 
-  getReportTypes: async () => {
+  getReportTypes: async (): Promise<ReportType[]> => {
     const response = await api.get('/reporting/types/')
-    return response.data
+    return extractListData<ReportType>(response.data)
   },
 }

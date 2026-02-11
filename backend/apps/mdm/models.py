@@ -2,9 +2,40 @@
 Master Data Management models.
 Industry-agnostic core entities: Company, User, Customer, Vendor, Product, etc.
 """
-from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
+from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 from django.db import models
 from apps.core.models import BaseModel, TenantAwareModel, ActiveManager
+
+
+class UserManager(BaseUserManager):
+    """Custom manager for User model."""
+    
+    def get_by_natural_key(self, username):
+        """Get user by email (natural key)."""
+        return self.get(**{self.model.USERNAME_FIELD: username})
+    
+    def create_user(self, email, username, password=None, **extra_fields):
+        """Create and save a regular user."""
+        if not email:
+            raise ValueError('Email is required')
+        email = self.normalize_email(email)
+        user = self.model(email=email, username=username, **extra_fields)
+        user.set_password(password)
+        user.save(using=self._db)
+        return user
+    
+    def create_superuser(self, email, username, password=None, **extra_fields):
+        """Create and save a superuser."""
+        extra_fields.setdefault('is_staff', True)
+        extra_fields.setdefault('is_superuser', True)
+        extra_fields.setdefault('is_active', True)
+        
+        if extra_fields.get('is_staff') is not True:
+            raise ValueError('Superuser must have is_staff=True')
+        if extra_fields.get('is_superuser') is not True:
+            raise ValueError('Superuser must have is_superuser=True')
+        
+        return self.create_user(email, username, password, **extra_fields)
 
 
 class Company(BaseModel):
@@ -128,7 +159,9 @@ class User(AbstractBaseUser, PermissionsMixin, BaseModel):
     company = models.ForeignKey(
         Company,
         on_delete=models.PROTECT,
-        related_name='users'
+        related_name='users',
+        null=True,
+        blank=True
     )
     
     is_staff = models.BooleanField(default=False)
@@ -137,7 +170,7 @@ class User(AbstractBaseUser, PermissionsMixin, BaseModel):
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username']
     
-    objects = models.Manager()
+    objects = UserManager()
     active = ActiveManager()
     
     class Meta:
@@ -323,6 +356,53 @@ class SKU(TenantAwareModel):
     
     def __str__(self):
         return f"{self.code} - {self.name}"
+
+
+class SKUBarcode(TenantAwareModel):
+    """
+    Barcode assignment per SKU/variant.
+    Supports label rendering fields for factory/warehouse operations.
+    """
+    TYPE_CODE128 = "code128"
+    TYPE_GS1_128 = "gs1_128"
+    TYPE_EAN13 = "ean13"
+
+    TYPE_CHOICES = [
+        (TYPE_CODE128, "Code 128"),
+        (TYPE_GS1_128, "GS1-128"),
+        (TYPE_EAN13, "EAN-13"),
+    ]
+
+    sku = models.ForeignKey(
+        SKU,
+        on_delete=models.CASCADE,
+        related_name="barcodes",
+    )
+
+    barcode_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default=TYPE_CODE128)
+    barcode_value = models.CharField(max_length=255, unique=True, db_index=True)
+    is_primary = models.BooleanField(default=True)
+
+    # Label data
+    display_code = models.CharField(max_length=100, blank=True)
+    label_title = models.CharField(max_length=255, blank=True)
+    size_label = models.CharField(max_length=50, blank=True)
+    selling_price = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
+    mrp = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
+    barcode_svg = models.TextField(blank=True)
+
+    objects = models.Manager()
+    active = ActiveManager()
+
+    class Meta:
+        db_table = "mdm_sku_barcode"
+        unique_together = [["company", "sku", "barcode_value"]]
+        indexes = [
+            models.Index(fields=["company", "sku", "status"]),
+        ]
+
+    def __str__(self):
+        return f"{self.sku.code} - {self.barcode_value}"
 
 
 class ChartOfAccounts(TenantAwareModel):

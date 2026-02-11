@@ -1,30 +1,61 @@
-import api from './api'
+import api, { extractListData } from './api'
 
 export interface InventoryBalance {
   id: string
+  company: string
   sku: string
+  sku_code?: string
   location: string
-  quantity: number
-  reserved_quantity: number
-  available_quantity: number
+  location_code?: string
+  quantity_on_hand: string
+  quantity_reserved: string
+  quantity_available: string
+  condition: 'new' | 'used' | 'damaged'
+  average_cost: string
+  status: string
   updated_at: string
 }
 
 export interface InventoryMovement {
   id: string
+  movement_type: 'receipt' | 'issue' | 'transfer' | 'adjustment' | 'return'
+  movement_date: string
   sku: string
-  location: string
-  movement_type: string
-  quantity: number
-  reference_type?: string
-  reference_id?: string
+  sku_code?: string
+  from_location?: string
+  from_location_code?: string
+  to_location?: string
+  to_location_code?: string
+  quantity: string
+  unit_cost: string
+  total_cost: string
+  document?: string
+  reference_number?: string
+  notes?: string
   created_at: string
+}
+
+export interface GoodsReceiptScanLog {
+  id: string
+  barcode_value: string
+  sku?: string
+  sku_code?: string
+  barcode?: string
+  location: string
+  location_code?: string
+  document?: string
+  quantity: string
+  batch_number?: string
+  serial_number?: string
+  result: 'matched' | 'mismatch' | 'over_receipt' | 'unknown'
+  message: string
+  scanned_at: string
 }
 
 export const inventoryService = {
   getBalances: async (params?: any) => {
     const response = await api.get('/inventory/balances/', { params })
-    return response.data
+    return extractListData<InventoryBalance>(response.data)
   },
 
   getBalance: async (id: string) => {
@@ -34,7 +65,7 @@ export const inventoryService = {
 
   getMovements: async (params?: any) => {
     const response = await api.get('/inventory/movements/', { params })
-    return response.data
+    return extractListData<InventoryMovement>(response.data)
   },
 
   createMovement: async (data: Partial<InventoryMovement>) => {
@@ -43,7 +74,23 @@ export const inventoryService = {
   },
 
   getStockAlerts: async () => {
-    const response = await api.get('/inventory/alerts/')
-    return response.data
+    const response = await api.get('/inventory/movements/alerts/')
+    return extractListData(response.data)
+  },
+
+  getGoodsReceiptScans: async () => {
+    const response = await api.get('/inventory/goods-receipt-scans/')
+    return extractListData<GoodsReceiptScanLog>(response.data)
+  },
+
+  scanGoodsReceipt: async (data: {
+    barcode_value: string
+    location_id: string
+    document_id?: string
+    quantity?: number
+    strict?: boolean
+  }) => {
+    const response = await api.post('/inventory/goods-receipt-scans/scan/', data)
+    return response.data as GoodsReceiptScanLog
   },
 }

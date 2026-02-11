@@ -1,4 +1,4 @@
-import api from './api'
+import api, { extractListData } from './api'
 
 export interface AttributeOption {
   id?: string
@@ -43,7 +43,7 @@ export const attributesService = {
   listDefinitions: async (entityType?: string): Promise<AttributeDefinition[]> => {
     const params = entityType ? { entity_type: entityType } : {}
     const response = await api.get('/attributes/definitions/', { params })
-    return response.data
+    return extractListData<AttributeDefinition>(response.data)
   },
 
   getDefinition: async (id: string): Promise<AttributeDefinition> => {
@@ -85,7 +85,7 @@ export const attributesService = {
   listGroups: async (entityType?: string): Promise<AttributeGroup[]> => {
     const params = entityType ? { entity_type: entityType } : {}
     const response = await api.get('/attributes/groups/', { params })
-    return response.data
+    return extractListData<AttributeGroup>(response.data)
   },
 
   getGroup: async (id: string): Promise<AttributeGroup> => {

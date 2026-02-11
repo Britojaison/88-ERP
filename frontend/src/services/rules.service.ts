@@ -1,4 +1,4 @@
-import api from './api'
+import api, { extractListData } from './api'
 
 export interface Rule {
   id?: string
@@ -47,7 +47,7 @@ export const rulesService = {
     trigger?: string
   }): Promise<Rule[]> => {
     const response = await api.get('/rules/rules/', { params })
-    return response.data
+    return extractListData<Rule>(response.data)
   },
 
   getRule: async (id: string): Promise<Rule> => {
@@ -110,7 +110,7 @@ export const rulesService = {
     entity_id?: string
   }): Promise<RuleExecution[]> => {
     const response = await api.get('/rules/executions/', { params })
-    return response.data
+    return extractListData<RuleExecution>(response.data)
   },
 
   getExecution: async (id: string): Promise<RuleExecution> => {

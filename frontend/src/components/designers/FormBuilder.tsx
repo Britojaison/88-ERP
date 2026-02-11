@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import {
+  Alert,
   Box,
   Paper,
   Grid,
@@ -19,6 +20,7 @@ import {
   InputLabel,
   Divider,
   Chip,
+  Snackbar,
 } from '@mui/material'
 import {
   Add,
@@ -71,6 +73,11 @@ export default function FormBuilder() {
 
   const [selectedField, setSelectedField] = useState<FormField | null>(null)
   const [showPreview, setShowPreview] = useState(false)
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
+    open: false,
+    message: '',
+    severity: 'info',
+  })
 
   const handleAddField = () => {
     const newField: FormField = {
@@ -106,8 +113,13 @@ export default function FormBuilder() {
   }
 
   const handleSave = () => {
-    console.log('Saving form:', form)
-    // TODO: Call API to save form
+    if (!form.name.trim()) {
+      setSnackbar({ open: true, message: 'Form name is required.', severity: 'error' })
+      return
+    }
+    const storageKey = `metadata_form_builder:${form.entityType}:${form.name.trim().toLowerCase().replace(/\s+/g, '_')}`
+    localStorage.setItem(storageKey, JSON.stringify(form))
+    setSnackbar({ open: true, message: 'Form layout saved.', severity: 'success' })
   }
 
   const renderFieldPreview = (field: FormField) => {
@@ -407,6 +419,16 @@ export default function FormBuilder() {
           </Grid>
         )}
       </Grid>
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={3500}
+        onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert severity={snackbar.severity} onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   )
 }

@@ -7,9 +7,10 @@ from datetime import timedelta
 import dj_database_url
 from dotenv import load_dotenv
 
-load_dotenv()
-
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load .env file from BASE_DIR
+load_dotenv(BASE_DIR / '.env')
 
 SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-change-this-in-production')
 DEBUG = os.getenv('DEBUG', 'False') == 'True'
@@ -81,15 +82,36 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
-# Database - Logical separation via schemas
-# Using SQLite for development if PostgreSQL not configured
+# Database Configuration
+# Try DATABASE_URL first (full connection string), then individual variables
 DATABASE_URL = os.getenv('DATABASE_URL', '')
-if DATABASE_URL and DATABASE_URL.startswith('postgresql'):
+DB_ENGINE = os.getenv('DB_ENGINE', '')
+DB_HOST = os.getenv('DB_HOST', '')
+
+if DATABASE_URL and 'postgresql' in DATABASE_URL:
+    # Use full connection string
+    import dj_database_url
     DATABASES = {
         'default': dj_database_url.config(
             default=DATABASE_URL,
             conn_max_age=600
         )
+    }
+elif DB_ENGINE == 'django.db.backends.postgresql' and DB_HOST:
+    # Use individual Supabase variables
+    DATABASES = {
+        'default': {
+            'ENGINE': DB_ENGINE,
+            'NAME': os.getenv('DB_NAME', 'postgres'),
+            'USER': os.getenv('DB_USER', 'postgres'),
+            'PASSWORD': os.getenv('DB_PASSWORD'),
+            'HOST': DB_HOST,
+            'PORT': os.getenv('DB_PORT', '5432'),
+            'OPTIONS': {
+                'sslmode': 'require',
+            },
+            'CONN_MAX_AGE': 600,
+        }
     }
 else:
     # Fallback to SQLite for development
@@ -155,6 +177,9 @@ SIMPLE_JWT = {
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://localhost:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:5174",
 ]
 
 # Celery Configuration
