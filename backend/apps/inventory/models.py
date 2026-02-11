@@ -165,7 +165,7 @@ class InventoryMovement(BaseModel):
     
     def save(self, *args, **kwargs):
         """Only allow creation, no updates."""
-        if self.pk:
+        if self.pk and InventoryMovement.objects.filter(pk=self.pk).exists():
             raise ValueError("Inventory movements are immutable")
         super().save(*args, **kwargs)
 

@@ -222,6 +222,7 @@ class GoodsReceiptScanViewSet(viewsets.GenericViewSet):
         if data.get("document_id"):
             document = Document.objects.get(id=data["document_id"], company_id=request.user.company_id)
 
+        # Try exact barcode match first
         barcode = SKUBarcode.objects.filter(
             company_id=request.user.company_id,
             barcode_value=barcode_value,
@@ -232,6 +233,15 @@ class GoodsReceiptScanViewSet(viewsets.GenericViewSet):
         batch_number = ""
         serial_number = ""
 
+        # If no exact match, try SKU code lookup
+        if not sku:
+            sku = SKU.objects.filter(
+                company_id=request.user.company_id,
+                code=barcode_value,
+                status="active"
+            ).first()
+
+        # Try pipe-delimited format (SKU|Batch|Serial)
         if not sku and "|" in barcode_value:
             parts = barcode_value.split("|")
             sku_code = parts[0].strip()
