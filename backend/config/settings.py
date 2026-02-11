@@ -87,18 +87,42 @@ WSGI_APPLICATION = 'config.wsgi.application'
 DATABASE_URL = os.getenv('DATABASE_URL', '')
 DB_ENGINE = os.getenv('DB_ENGINE', '')
 DB_HOST = os.getenv('DB_HOST', '')
+DB_PORT = os.getenv('DB_PORT', '5432')
+
+# Check if using Supabase Transaction pooler (port 6543)
+is_transaction_pooler = DB_PORT == '6543' or ':6543' in DATABASE_URL
 
 if DATABASE_URL and 'postgresql' in DATABASE_URL:
     # Use full connection string
     import dj_database_url
-    DATABASES = {
-        'default': dj_database_url.config(
-            default=DATABASE_URL,
-            conn_max_age=600
-        )
-    }
+    db_config = dj_database_url.config(
+        default=DATABASE_URL,
+        conn_max_age=0 if is_transaction_pooler else 60
+    )
+    
+    # Add pgbouncer compatibility for transaction pooler
+    if is_transaction_pooler:
+        db_config['OPTIONS'] = {
+            'sslmode': 'require',
+            # Disable server-side cursors for pgbouncer transaction mode
+            'options': '-c statement_timeout=60000',
+        }
+        db_config['DISABLE_SERVER_SIDE_CURSORS'] = True
+    else:
+        db_config['OPTIONS'] = {'sslmode': 'require'}
+    
+    DATABASES = {'default': db_config}
+    
 elif DB_ENGINE == 'django.db.backends.postgresql' and DB_HOST:
     # Use individual Supabase variables
+    db_options = {
+        'sslmode': 'require',
+    }
+    
+    # Add pgbouncer compatibility for transaction pooler
+    if is_transaction_pooler:
+        db_options['options'] = '-c statement_timeout=60000'
+    
     DATABASES = {
         'default': {
             'ENGINE': DB_ENGINE,
@@ -106,11 +130,10 @@ elif DB_ENGINE == 'django.db.backends.postgresql' and DB_HOST:
             'USER': os.getenv('DB_USER', 'postgres'),
             'PASSWORD': os.getenv('DB_PASSWORD'),
             'HOST': DB_HOST,
-            'PORT': os.getenv('DB_PORT', '5432'),
-            'OPTIONS': {
-                'sslmode': 'require',
-            },
-            'CONN_MAX_AGE': 600,
+            'PORT': DB_PORT,
+            'OPTIONS': db_options,
+            'CONN_MAX_AGE': 0 if is_transaction_pooler else 60,
+            'DISABLE_SERVER_SIDE_CURSORS': is_transaction_pooler,
         }
     }
 else:
