@@ -44,12 +44,16 @@ class BusinessUnitSerializer(serializers.ModelSerializer):
     class Meta:
         model = BusinessUnit
         fields = '__all__'
+        extra_kwargs = {'company': {'required': False}}
+        validators = []
 
 
 class LocationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Location
         fields = '__all__'
+        extra_kwargs = {'company': {'required': False}}
+        validators = []
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -63,33 +67,45 @@ class CustomerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Customer
         fields = '__all__'
+        extra_kwargs = {'company': {'required': False}}
+        validators = []
 
 
 class VendorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Vendor
         fields = '__all__'
+        extra_kwargs = {'company': {'required': False}}
+        validators = []
 
 
 class ProductSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
         fields = '__all__'
+        extra_kwargs = {'company': {'required': False}}
+        validators = []
 
 
 class StyleSerializer(serializers.ModelSerializer):
     class Meta:
         model = Style
         fields = '__all__'
+        extra_kwargs = {'company': {'required': False}}
+        validators = []
 
 
 class SKUSerializer(serializers.ModelSerializer):
     class Meta:
         model = SKU
         fields = '__all__'
+        extra_kwargs = {'company': {'required': False}}
+        validators = []
 
 
 class SKUBarcodeSerializer(serializers.ModelSerializer):
     class Meta:
         model = SKUBarcode
         fields = '__all__'
+        extra_kwargs = {'company': {'required': False}}
+        validators = []
