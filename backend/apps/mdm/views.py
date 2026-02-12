@@ -127,14 +127,16 @@ class SKUBarcodeViewSet(TenantScopedViewSet):
     @action(detail=True, methods=["get"], url_path="label")
     def label(self, request, pk=None):
         barcode = self.get_object()
+        # Always regenerate barcode SVG for fresh rendering
+        barcode_svg = BarcodeService.generate_barcode_svg(
+            barcode.barcode_value, barcode.barcode_type
+        )
         label_svg = BarcodeService.build_label_svg(
             display_code=barcode.display_code or barcode.sku.code,
             title=barcode.label_title or barcode.sku.name,
             size_label=barcode.size_label or "",
             barcode_value=barcode.barcode_value,
-            barcode_svg=barcode.barcode_svg or BarcodeService.generate_barcode_svg(
-                barcode.barcode_value, barcode.barcode_type
-            ),
+            barcode_svg=barcode_svg,
             selling_price=str(barcode.selling_price or barcode.sku.base_price),
             mrp=str(barcode.mrp or barcode.sku.base_price),
         )

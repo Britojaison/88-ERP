@@ -40,10 +40,10 @@ class BarcodeService:
             barcode_obj.write(
                 buffer,
                 options={
-                    "write_text": True,
-                    "module_height": 15.0,
-                    "module_width": 0.3,
-                    "quiet_zone": 3.0,
+                    "write_text": False,
+                    "module_height": 12.0,
+                    "module_width": 0.25,
+                    "quiet_zone": 2.0,
                 },
             )
             return buffer.getvalue().decode("utf-8")
@@ -61,16 +61,31 @@ class BarcodeService:
         mrp: str,
     ) -> str:
         encoded = base64.b64encode(barcode_svg.encode("utf-8")).decode("ascii")
-        return f"""<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="600" viewBox="0 0 1000 600">
-  <rect width="1000" height="600" fill="#ffffff"/>
-  <text x="500" y="70" text-anchor="middle" font-size="56" font-family="Arial" font-weight="700">{display_code}</text>
-  <text x="500" y="130" text-anchor="middle" font-size="44" font-family="Arial">{title}</text>
-  <text x="500" y="180" text-anchor="middle" font-size="44" font-family="Arial">- {size_label}</text>
-  <image x="140" y="200" width="720" height="230" href="data:image/svg+xml;base64,{encoded}" />
-  <text x="500" y="465" text-anchor="middle" font-size="48" font-family="Arial">{barcode_value}</text>
-  <text x="300" y="545" text-anchor="middle" font-size="62" font-family="Arial" font-weight="700">Rs{selling_price}</text>
-  <text x="700" y="545" text-anchor="middle" font-size="62" font-family="Arial" fill="#000">{mrp}</text>
-  <line x1="620" y1="522" x2="780" y2="522" stroke="#000" stroke-width="5"/>
+        return f"""<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="500" viewBox="0 0 1000 500">
+  <rect width="1000" height="500" fill="#ffffff"/>
+  
+  <!-- Display Code (Top) -->
+  <text x="500" y="70" text-anchor="middle" font-size="60" font-family="Arial" font-weight="700">{display_code}</text>
+  
+  <!-- Title and Size (Second Line) -->
+  <text x="500" y="120" text-anchor="middle" font-size="38" font-family="Arial">{title} - {size_label}</text>
+  
+  <!-- Barcode Image -->
+  <foreignObject x="300" y="145" width="400" height="150">
+    <div xmlns="http://www.w3.org/1999/xhtml" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">
+      <img src="data:image/svg+xml;base64,{encoded}" style="max-width:350px;max-height:130px;object-fit:contain;" />
+    </div>
+  </foreignObject>
+  
+  <!-- Barcode Value (Below Barcode) -->
+  <text x="500" y="325" text-anchor="middle" font-size="42" font-family="Arial">{barcode_value}</text>
+  
+  <!-- Prices (Bottom Row) -->
+  <text x="300" y="430" text-anchor="middle" font-size="62" font-family="Arial" font-weight="700">₹{selling_price}</text>
+  <text x="700" y="430" text-anchor="middle" font-size="62" font-family="Arial" font-weight="400">₹{mrp}</text>
+  
+  <!-- Strikethrough on MRP -->
+  <line x1="620" y1="400" x2="780" y2="400" stroke="#000" stroke-width="4"/>
 </svg>"""
 
     @staticmethod
