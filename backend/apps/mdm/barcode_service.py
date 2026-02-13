@@ -18,12 +18,14 @@ class BarcodeService:
     @staticmethod
     def generate_barcode_svg(value: str, barcode_type: str = "code128") -> str:
         """
-        Generate barcode SVG.
+        Generate barcode SVG with custom styling: spaced bars and variable heights.
         Uses python-barcode when available; otherwise returns a deterministic fallback SVG.
         """
         try:
             from barcode import get_barcode_class
             from barcode.writer import SVGWriter
+            import re
+            import random
 
             normalized = barcode_type.lower()
             if normalized in ("gs1_128", "gs1-128"):
@@ -41,13 +43,50 @@ class BarcodeService:
                 buffer,
                 options={
                     "write_text": False,
-                    "module_height": 12.0,
-                    "module_width": 0.25,
-                    "quiet_zone": 2.0,
+                    "module_height": 15.0,
+                    "module_width": 0.8,  # Wider bars for more spacing
+                    "quiet_zone": 6.0,
                 },
             )
-            return buffer.getvalue().decode("utf-8")
-        except Exception:
+            svg_content = buffer.getvalue().decode("utf-8")
+            
+            print(f"DEBUG: Generated barcode for value: {value}")
+            print(f"DEBUG: SVG length: {len(svg_content)}")
+            
+            # Parse and modify the SVG to add variable heights
+            # Extract all rect elements
+            rect_pattern = r'<rect\s+x="([\d.]+)"\s+y="([\d.]+)"\s+width="([\d.]+)"\s+height="([\d.]+)"([^>]*)/>'
+            
+            # Seed random for consistent results per barcode value
+            random.seed(hash(value) % 10000)
+            
+            def modify_rect(match):
+                x, y, width, height, rest = match.groups()
+                x_val = float(x)
+                y_val = float(y)
+                width_val = float(width)
+                height_val = float(height)
+                
+                # 25% chance to extend bar height
+                if random.random() < 0.25:
+                    extension = height_val * random.uniform(0.10, 0.20)
+                    new_y = y_val - extension
+                    new_height = height_val + extension
+                    return f'<rect x="{x}" y="{new_y:.2f}" width="{width}" height="{new_height:.2f}"{rest}/>'
+                
+                return match.group(0)
+            
+            # Apply modifications
+            modified_svg = re.sub(rect_pattern, modify_rect, svg_content)
+            
+            print(f"DEBUG: Modified SVG length: {len(modified_svg)}")
+            print(f"DEBUG: Number of rects found: {len(re.findall(rect_pattern, svg_content))}")
+            
+            return modified_svg
+        except Exception as e:
+            print(f"ERROR in generate_barcode_svg: {e}")
+            import traceback
+            traceback.print_exc()
             return BarcodeService._fallback_svg(value)
 
     @staticmethod
@@ -71,14 +110,12 @@ class BarcodeService:
   <text x="500" y="120" text-anchor="middle" font-size="38" font-family="Arial">{title} - {size_label}</text>
   
   <!-- Barcode Image -->
-  <foreignObject x="300" y="145" width="400" height="150">
-    <div xmlns="http://www.w3.org/1999/xhtml" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">
-      <img src="data:image/svg+xml;base64,{encoded}" style="max-width:350px;max-height:130px;object-fit:contain;" />
-    </div>
-  </foreignObject>
+  <g transform="translate(600, 235)">
+    <image x="-300" y="-85" width="600" height="170" href="data:image/svg+xml;base64,{encoded}" preserveAspectRatio="xMidYMid meet" />
+  </g>
   
   <!-- Barcode Value (Below Barcode) -->
-  <text x="500" y="325" text-anchor="middle" font-size="42" font-family="Arial">{barcode_value}</text>
+  <text x="500" y="345" text-anchor="middle" font-size="42" font-family="Arial" letter-spacing="8">{barcode_value}</text>
   
   <!-- Prices (Bottom Row) -->
   <text x="300" y="430" text-anchor="middle" font-size="62" font-family="Arial" font-weight="700">₹{selling_price}</text>

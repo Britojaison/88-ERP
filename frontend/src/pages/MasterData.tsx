@@ -156,7 +156,7 @@ export default function MasterData() {
 
   const handleCreateSKU = async () => {
     if (!skuForm.code || !skuForm.name || !skuForm.product || !skuForm.base_price || !skuForm.cost_price) {
-      setSnackbar({ open: true, message: 'Code, name, product, base price, and cost price are required.', severity: 'error' })
+      setSnackbar({ open: true, message: 'Code, name, product, selling price, and MRP are required.', severity: 'error' })
       return
     }
 
@@ -168,6 +168,7 @@ export default function MasterData() {
         base_price: skuForm.base_price,
         cost_price: skuForm.cost_price,
         weight: skuForm.weight || undefined,
+        size: skuForm.size || undefined,
         is_serialized: skuForm.is_serialized,
         is_batch_tracked: skuForm.is_batch_tracked,
       })
@@ -179,6 +180,7 @@ export default function MasterData() {
         base_price: '',
         cost_price: '',
         weight: '',
+        size: '',
         is_serialized: false,
         is_batch_tracked: false,
       })
@@ -425,16 +427,41 @@ export default function MasterData() {
           <TextField
             fullWidth
             margin="normal"
-            label="Product Code"
-            value={productForm.code}
-            onChange={(e) => setProductForm((prev) => ({ ...prev, code: e.target.value }))}
+            label="Product Name"
+            value={productForm.name}
+            onChange={(e) => {
+              const name = e.target.value;
+              setProductForm((prev) => {
+                // Auto-suggest code from name if code is empty or was auto-generated
+                const baseCode = name
+                  .toLowerCase()
+                  .replace(/[^a-z0-9\s]/g, '')
+                  .trim()
+                  .split(/\s+/)
+                  .slice(0, 2)
+                  .join('-');
+                
+                // Add a random 3-digit number for uniqueness
+                const randomSuffix = Math.floor(100 + Math.random() * 900);
+                const suggestedCode = baseCode ? `${baseCode}-${randomSuffix}` : '';
+                
+                return {
+                  ...prev,
+                  name,
+                  // Only update code if it's empty or matches a previous auto-suggestion pattern
+                  code: prev.code === '' || /^[a-z0-9-]+-\d{3}$/.test(prev.code)
+                    ? suggestedCode
+                    : prev.code
+                };
+              });
+            }}
           />
           <TextField
             fullWidth
             margin="normal"
-            label="Product Name"
-            value={productForm.name}
-            onChange={(e) => setProductForm((prev) => ({ ...prev, name: e.target.value }))}
+            label="Product Code"
+            value={productForm.code}
+            onChange={(e) => setProductForm((prev) => ({ ...prev, code: e.target.value }))}
           />
           <TextField
             fullWidth
@@ -458,25 +485,35 @@ export default function MasterData() {
         <DialogContent>
           <TextField
             fullWidth
-            margin="normal"
-            label="SKU Code"
-            value={skuForm.code}
-            onChange={(e) => setSkuForm((prev) => ({ ...prev, code: e.target.value }))}
-          />
-          <TextField
-            fullWidth
-            margin="normal"
-            label="SKU Name"
-            value={skuForm.name}
-            onChange={(e) => setSkuForm((prev) => ({ ...prev, name: e.target.value }))}
-          />
-          <TextField
-            fullWidth
             select
             margin="normal"
-            label="Product"
+            label="Product *"
             value={skuForm.product}
-            onChange={(e) => setSkuForm((prev) => ({ ...prev, product: e.target.value }))}
+            onChange={(e) => {
+              const productId = e.target.value;
+              const selectedProduct = products.find(p => p.id === productId);
+              
+              setSkuForm((prev) => {
+                // Auto-suggest SKU code from product code if SKU code is empty
+                const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+                const suggestedCode = selectedProduct 
+                  ? `${selectedProduct.code}-${randomSuffix}`
+                  : '';
+                
+                return {
+                  ...prev,
+                  product: productId,
+                  // Only update code if it's empty or matches previous auto-suggestion pattern
+                  code: prev.code === '' || /^[a-z0-9-]+-\d{4}$/.test(prev.code)
+                    ? suggestedCode
+                    : prev.code,
+                  // Auto-suggest name from product name
+                  name: prev.name === '' && selectedProduct
+                    ? selectedProduct.name
+                    : prev.name
+                };
+              });
+            }}
             SelectProps={{ native: true }}
           >
             <option value="">Select product</option>
@@ -489,18 +526,67 @@ export default function MasterData() {
           <TextField
             fullWidth
             margin="normal"
-            label="Base Price"
-            type="number"
-            value={skuForm.base_price}
-            onChange={(e) => setSkuForm((prev) => ({ ...prev, base_price: e.target.value }))}
+            label="SKU Code *"
+            value={skuForm.code}
+            onChange={(e) => setSkuForm((prev) => ({ ...prev, code: e.target.value }))}
+            helperText="Auto-suggested, editable"
           />
           <TextField
             fullWidth
             margin="normal"
-            label="Cost Price"
+            label="SKU Name *"
+            value={skuForm.name}
+            onChange={(e) => setSkuForm((prev) => ({ ...prev, name: e.target.value }))}
+          />
+          <TextField
+            fullWidth
+            select
+            margin="normal"
+            label="Size"
+            value={skuForm.size || ''}
+            onChange={(e) => setSkuForm((prev) => ({ ...prev, size: e.target.value }))}
+            SelectProps={{ native: true }}
+            helperText="Optional: Select size for this SKU"
+          >
+            <option value="">No Size</option>
+            <option value="XS">XS - Extra Small</option>
+            <option value="S">S - Small</option>
+            <option value="M">M - Medium</option>
+            <option value="L">L - Large</option>
+            <option value="XL">XL - Extra Large</option>
+            <option value="XXL">XXL - Double Extra Large</option>
+            <option value="XXXL">XXXL - Triple Extra Large</option>
+            <option value="Free Size">Free Size</option>
+            <option value="One Size">One Size</option>
+            <option value="28">28</option>
+            <option value="30">30</option>
+            <option value="32">32</option>
+            <option value="34">34</option>
+            <option value="36">36</option>
+            <option value="38">38</option>
+            <option value="40">40</option>
+            <option value="42">42</option>
+            <option value="44">44</option>
+          </TextField>
+          <TextField
+            fullWidth
+            margin="normal"
+            label="Selling Price *"
+            type="number"
+            value={skuForm.base_price}
+            onChange={(e) => setSkuForm((prev) => ({ ...prev, base_price: e.target.value }))}
+            helperText="Actual selling price"
+            inputProps={{ min: 0, step: 0.01 }}
+          />
+          <TextField
+            fullWidth
+            margin="normal"
+            label="MRP *"
             type="number"
             value={skuForm.cost_price}
             onChange={(e) => setSkuForm((prev) => ({ ...prev, cost_price: e.target.value }))}
+            helperText="Maximum Retail Price"
+            inputProps={{ min: 0, step: 0.01 }}
           />
           <TextField
             fullWidth

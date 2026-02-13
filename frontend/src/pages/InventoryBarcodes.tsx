@@ -3,7 +3,9 @@ import {
   Alert,
   Box,
   Button,
+  Checkbox,
   FormControl,
+  FormControlLabel,
   Grid,
   InputLabel,
   MenuItem,
@@ -42,12 +44,20 @@ export default function InventoryBarcodes() {
     size_label: '',
     selling_price: '',
     mrp: '',
+    is_primary: true,
   })
 
   const loadData = async () => {
     try {
       const [skus, barcodes] = await Promise.all([mdmService.getSKUs(), mdmService.getSKUBarcodes()])
-      setSkuList(skus)
+      
+      // Get SKU IDs that already have barcodes
+      const skusWithBarcodes = new Set(barcodes.map(barcode => barcode.sku))
+      
+      // Filter out SKUs that already have barcodes
+      const availableSkus = skus.filter(sku => !skusWithBarcodes.has(sku.id))
+      
+      setSkuList(availableSkus)
       setBarcodeList(barcodes)
     } catch (error) {
       setSnackbar({ open: true, message: 'Failed to load barcode workspace data.', severity: 'error' })
@@ -112,6 +122,7 @@ export default function InventoryBarcodes() {
         size_label: form.size_label,
         selling_price: form.selling_price,
         mrp: form.mrp,
+        is_primary: form.is_primary,
       })
       setBarcodeList((prev) => [created, ...prev])
       setSnackbar({ open: true, message: 'Barcode assigned successfully.', severity: 'success' })
@@ -125,7 +136,10 @@ export default function InventoryBarcodes() {
         size_label: '',
         selling_price: '',
         mrp: '',
+        is_primary: true,
       })
+      // Reload data to update available SKUs list
+      await loadData()
     } catch (error) {
       setSnackbar({ open: true, message: 'Failed to assign barcode.', severity: 'error' })
     }
@@ -194,7 +208,24 @@ export default function InventoryBarcodes() {
                   <Select
                     value={form.sku}
                     label="SKU *"
-                    onChange={(e) => setForm((prev) => ({ ...prev, sku: e.target.value }))}
+                    onChange={(e) => {
+                      const skuId = e.target.value;
+                      const selectedSku = skuList.find(s => s.id === skuId);
+                      
+                      if (selectedSku) {
+                        setForm((prev) => ({
+                          ...prev,
+                          sku: skuId,
+                          display_code: selectedSku.code,
+                          label_title: selectedSku.name,
+                          size_label: selectedSku.size || '',
+                          selling_price: selectedSku.base_price || '',
+                          mrp: selectedSku.cost_price || '',
+                        }));
+                      } else {
+                        setForm((prev) => ({ ...prev, sku: skuId }));
+                      }
+                    }}
                     required
                   >
                     {skuList.map((sku) => (
@@ -219,15 +250,6 @@ export default function InventoryBarcodes() {
                     <MenuItem value="ean13">EAN-13</MenuItem>
                   </Select>
                 </FormControl>
-              </Grid>
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="Barcode Value (optional)"
-                  helperText="Leave blank to auto-generate."
-                  value={form.barcode_value}
-                  onChange={(e) => setForm((prev) => ({ ...prev, barcode_value: e.target.value }))}
-                />
               </Grid>
               <Grid item xs={12} md={4}>
                 <TextField 
@@ -301,6 +323,17 @@ export default function InventoryBarcodes() {
                   required
                   helperText="Maximum Retail Price"
                   inputProps={{ min: 0, step: 0.01 }}
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={form.is_primary ?? true}
+                      onChange={(e) => setForm((prev) => ({ ...prev, is_primary: e.target.checked }))}
+                    />
+                  }
+                  label="Primary Barcode (only one primary barcode allowed per SKU)"
                 />
               </Grid>
               <Grid item xs={12}>

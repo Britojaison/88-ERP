@@ -104,6 +104,8 @@ class SKUSerializer(serializers.ModelSerializer):
 
 
 class SKUBarcodeSerializer(serializers.ModelSerializer):
+    barcode_value = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    
     class Meta:
         model = SKUBarcode
         fields = '__all__'

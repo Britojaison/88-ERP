@@ -124,6 +124,16 @@ class SKUBarcodeViewSet(TenantScopedViewSet):
             queryset = queryset.filter(sku_id=sku_id)
         return queryset.order_by("-created_at")
 
+    def perform_create(self, serializer):
+        # Auto-generate barcode_value if not provided
+        if not serializer.validated_data.get('barcode_value'):
+            sku = serializer.validated_data.get('sku')
+            if sku:
+                barcode_value = BarcodeService.build_default_value(sku.code)
+                serializer.validated_data['barcode_value'] = barcode_value
+        
+        serializer.save(company_id=self.request.user.company_id)
+
     @action(detail=True, methods=["get"], url_path="label")
     def label(self, request, pk=None):
         barcode = self.get_object()
