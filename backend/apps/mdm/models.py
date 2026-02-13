@@ -341,6 +341,13 @@ class SKU(TenantAwareModel):
         help_text='Weight in kg'
     )
     
+    size = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        help_text='Size (e.g., S, M, L, XL, 28, 30, etc.)'
+    )
+    
     # Inventory control
     is_serialized = models.BooleanField(default=False)
     is_batch_tracked = models.BooleanField(default=False)

@@ -86,6 +86,85 @@ class ProductViewSet(TenantScopedViewSet):
         return Product.objects.filter(
             company_id=self.request.user.company_id, status="active"
         ).order_by("code")
+    
+    @action(detail=True, methods=["post"], url_path="create-variants")
+    def create_variants(self, request, pk=None):
+        """
+        Bulk create SKU variants for a product with different sizes.
+        """
+        product = self.get_object()
+        sizes = request.data.get('sizes', [])
+        selling_price = request.data.get('selling_price')
+        mrp = request.data.get('mrp')
+        
+        if not sizes:
+            return Response(
+                {'error': 'At least one size must be selected.'},
+                status=400
+            )
+        
+        if not selling_price or not mrp:
+            return Response(
+                {'error': 'Selling price and MRP are required.'},
+                status=400
+            )
+        
+        try:
+            selling_price = float(selling_price)
+            mrp = float(mrp)
+            
+            if selling_price <= 0 or mrp <= 0:
+                return Response(
+                    {'error': 'Prices must be positive numbers.'},
+                    status=400
+                )
+            
+            if selling_price > mrp:
+                return Response(
+                    {'error': 'Selling price cannot be greater than MRP.'},
+                    status=400
+                )
+        except (ValueError, TypeError):
+            return Response(
+                {'error': 'Invalid price format.'},
+                status=400
+            )
+        
+        created_skus = []
+        skipped_sizes = []
+        
+        for size in sizes:
+            # Generate SKU code: product-code-size
+            size_suffix = str(size).lower().replace(" ", "").replace("-", "")
+            sku_code = f"{product.code}-{size_suffix}"
+            
+            # Check if SKU already exists
+            if SKU.objects.filter(code=sku_code).exists():
+                skipped_sizes.append(size)
+                continue
+            
+            # Create SKU
+            sku = SKU.objects.create(
+                code=sku_code,
+                name=f"{product.name} - {size}",
+                product=product,
+                size=size,
+                base_price=selling_price,
+                cost_price=mrp,
+                company_id=request.user.company_id,
+                status='active'
+            )
+            created_skus.append(sku)
+        
+        # Serialize created SKUs
+        serializer = SKUSerializer(created_skus, many=True)
+        
+        return Response({
+            'created': len(created_skus),
+            'skipped': len(skipped_sizes),
+            'skipped_sizes': skipped_sizes,
+            'skus': serializer.data
+        })
 
 
 class StyleViewSet(TenantScopedViewSet):
@@ -124,17 +203,29 @@ class SKUBarcodeViewSet(TenantScopedViewSet):
             queryset = queryset.filter(sku_id=sku_id)
         return queryset.order_by("-created_at")
 
+    def perform_create(self, serializer):
+        # Auto-generate barcode_value if not provided
+        if not serializer.validated_data.get('barcode_value'):
+            sku = serializer.validated_data.get('sku')
+            if sku:
+                barcode_value = BarcodeService.build_default_value(sku.code)
+                serializer.validated_data['barcode_value'] = barcode_value
+        
+        serializer.save(company_id=self.request.user.company_id)
+
     @action(detail=True, methods=["get"], url_path="label")
     def label(self, request, pk=None):
         barcode = self.get_object()
+        # Always regenerate barcode SVG for fresh rendering
+        barcode_svg = BarcodeService.generate_barcode_svg(
+            barcode.barcode_value, barcode.barcode_type
+        )
         label_svg = BarcodeService.build_label_svg(
             display_code=barcode.display_code or barcode.sku.code,
             title=barcode.label_title or barcode.sku.name,
             size_label=barcode.size_label or "",
             barcode_value=barcode.barcode_value,
-            barcode_svg=barcode.barcode_svg or BarcodeService.generate_barcode_svg(
-                barcode.barcode_value, barcode.barcode_type
-            ),
+            barcode_svg=barcode_svg,
             selling_price=str(barcode.selling_price or barcode.sku.base_price),
             mrp=str(barcode.mrp or barcode.sku.base_price),
         )

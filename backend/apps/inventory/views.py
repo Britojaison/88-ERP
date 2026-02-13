@@ -209,19 +209,53 @@ class GoodsReceiptScanViewSet(viewsets.GenericViewSet):
     @transaction.atomic
     @action(detail=False, methods=["post"], url_path="scan")
     def scan(self, request):
+        """
+        Barcode scanning endpoint for goods receipt.
+        
+        Supports:
+        1. Exact barcode value match
+        2. SKU code direct lookup
+        3. Pipe-delimited format: SKU|Batch|Serial
+        
+        Validates:
+        - Barcode/SKU exists and is active
+        - Document line matching (if document provided)
+        - Over-receipt prevention (if strict mode)
+        """
         input_serializer = GoodsReceiptScanRequestSerializer(data=request.data)
         input_serializer.is_valid(raise_exception=True)
         data = input_serializer.validated_data
 
         barcode_value = data["barcode_value"].strip()
-        location = Location.objects.get(id=data["location_id"], company_id=request.user.company_id)
+        
+        # Validate location exists
+        try:
+            location = Location.objects.get(id=data["location_id"], company_id=request.user.company_id, status="active")
+        except Location.DoesNotExist:
+            return Response(
+                {"error": "Location not found or inactive."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
         quantity = data["quantity"]
         strict = data["strict"]
 
+        # Validate document if provided
         document = None
         if data.get("document_id"):
-            document = Document.objects.get(id=data["document_id"], company_id=request.user.company_id)
+            try:
+                document = Document.objects.get(
+                    id=data["document_id"], 
+                    company_id=request.user.company_id,
+                    status="active"
+                )
+            except Document.DoesNotExist:
+                return Response(
+                    {"error": "Document not found or inactive."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
+        # Step 1: Try exact barcode match
         barcode = SKUBarcode.objects.filter(
             company_id=request.user.company_id,
             barcode_value=barcode_value,
@@ -232,15 +266,27 @@ class GoodsReceiptScanViewSet(viewsets.GenericViewSet):
         batch_number = ""
         serial_number = ""
 
+        # Step 2: If no barcode match, try SKU code lookup
+        if not sku:
+            sku = SKU.objects.filter(
+                company_id=request.user.company_id,
+                code=barcode_value,
+                status="active"
+            ).first()
+
+        # Step 3: Try pipe-delimited format (SKU|Batch|Serial)
         if not sku and "|" in barcode_value:
             parts = barcode_value.split("|")
             sku_code = parts[0].strip()
             batch_number = parts[1].strip() if len(parts) > 1 else ""
             serial_number = parts[2].strip() if len(parts) > 2 else ""
             sku = SKU.objects.filter(
-                company_id=request.user.company_id, code=sku_code, status="active"
+                company_id=request.user.company_id, 
+                code=sku_code, 
+                status="active"
             ).first()
 
+        # SKU not found - log as unknown
         if not sku:
             log = GoodsReceiptScan.objects.create(
                 company_id=request.user.company_id,
@@ -249,14 +295,39 @@ class GoodsReceiptScanViewSet(viewsets.GenericViewSet):
                 document=document,
                 quantity=quantity,
                 result=GoodsReceiptScan.RESULT_UNKNOWN,
-                message="Barcode/SKU not recognized.",
+                message=f"Barcode/SKU '{barcode_value}' not recognized.",
                 created_by=request.user,
                 updated_by=request.user,
             )
             return Response(GoodsReceiptScanSerializer(log).data, status=status.HTTP_200_OK)
 
+        # Validate SKU has cost price
+        if not sku.cost_price or sku.cost_price <= 0:
+            log = GoodsReceiptScan.objects.create(
+                company_id=request.user.company_id,
+                barcode_value=barcode_value,
+                sku=sku,
+                barcode=barcode,
+                location=location,
+                document=document,
+                quantity=quantity,
+                batch_number=batch_number,
+                serial_number=serial_number,
+                result=GoodsReceiptScan.RESULT_UNKNOWN,
+                message=f"SKU {sku.code} has no valid cost price configured.",
+                created_by=request.user,
+                updated_by=request.user,
+            )
+            return Response(GoodsReceiptScanSerializer(log).data, status=status.HTTP_200_OK)
+
+        # Document validation
         if document:
-            line = DocumentLine.objects.filter(document=document, sku=sku, status="active").first()
+            line = DocumentLine.objects.filter(
+                document=document, 
+                sku=sku, 
+                status="active"
+            ).first()
+            
             if not line:
                 result = GoodsReceiptScan.RESULT_MISMATCH
                 msg = f"SKU {sku.code} is not part of document {document.document_number}."
@@ -277,22 +348,26 @@ class GoodsReceiptScanViewSet(viewsets.GenericViewSet):
                 )
                 return Response(GoodsReceiptScanSerializer(log).data, status=status.HTTP_200_OK)
 
+            # Check for over-receipt
             ordered_qty = line.quantity
             received_qty = (
                 InventoryMovement.objects.filter(
                     document=document,
                     sku=sku,
                     movement_type=InventoryMovement.MOVEMENT_TYPE_RECEIPT,
+                    status="active",
                 )
                 .aggregate(total=Sum("quantity"))
                 .get("total")
                 or Decimal("0")
             )
+            
             if strict and (received_qty + quantity > ordered_qty):
                 result = GoodsReceiptScan.RESULT_OVER_RECEIPT
                 msg = (
-                    f"Over receipt blocked. Ordered={ordered_qty}, "
-                    f"already_received={received_qty}, trying={quantity}."
+                    f"Over receipt blocked. Ordered: {ordered_qty}, "
+                    f"Already received: {received_qty}, Attempting: {quantity}, "
+                    f"Remaining: {ordered_qty - received_qty}."
                 )
                 log = GoodsReceiptScan.objects.create(
                     company_id=request.user.company_id,
@@ -311,37 +386,60 @@ class GoodsReceiptScanViewSet(viewsets.GenericViewSet):
                 )
                 return Response(GoodsReceiptScanSerializer(log).data, status=status.HTTP_200_OK)
 
-        movement = InventoryMovement.objects.create(
-            movement_type=InventoryMovement.MOVEMENT_TYPE_RECEIPT,
-            movement_date=timezone.now(),
-            sku=sku,
-            to_location=location,
-            quantity=quantity,
-            unit_cost=sku.cost_price,
-            total_cost=quantity * sku.cost_price,
-            document=document,
-            reference_number=f"SCAN:{barcode_value}",
-            notes="Goods receipt via barcode scan",
-            created_by=request.user,
-            updated_by=request.user,
-            status="active",
-        )
+        # Create inventory movement
+        try:
+            movement = InventoryMovement.objects.create(
+                movement_type=InventoryMovement.MOVEMENT_TYPE_RECEIPT,
+                movement_date=timezone.now(),
+                sku=sku,
+                to_location=location,
+                quantity=quantity,
+                unit_cost=sku.cost_price,
+                total_cost=quantity * sku.cost_price,
+                document=document,
+                reference_number=f"SCAN:{barcode_value}",
+                notes=f"Goods receipt via barcode scan. Batch: {batch_number or 'N/A'}, Serial: {serial_number or 'N/A'}",
+                created_by=request.user,
+                updated_by=request.user,
+                status="active",
+            )
 
-        InventoryMovementViewSet()._apply_movement(movement, request.user.company_id)
+            # Apply movement to inventory balance
+            InventoryMovementViewSet()._apply_movement(movement, request.user.company_id)
 
-        log = GoodsReceiptScan.objects.create(
-            company_id=request.user.company_id,
-            barcode_value=barcode_value,
-            sku=sku,
-            barcode=barcode,
-            location=location,
-            document=document,
-            quantity=quantity,
-            batch_number=batch_number,
-            serial_number=serial_number,
-            result=GoodsReceiptScan.RESULT_MATCHED,
-            message="Scan received and inventory updated.",
-            created_by=request.user,
-            updated_by=request.user,
-        )
-        return Response(GoodsReceiptScanSerializer(log).data, status=status.HTTP_201_CREATED)
+            # Log successful scan
+            log = GoodsReceiptScan.objects.create(
+                company_id=request.user.company_id,
+                barcode_value=barcode_value,
+                sku=sku,
+                barcode=barcode,
+                location=location,
+                document=document,
+                quantity=quantity,
+                batch_number=batch_number,
+                serial_number=serial_number,
+                result=GoodsReceiptScan.RESULT_MATCHED,
+                message=f"Successfully received {quantity} units of {sku.code} at {location.code}.",
+                created_by=request.user,
+                updated_by=request.user,
+            )
+            return Response(GoodsReceiptScanSerializer(log).data, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            # Log error
+            log = GoodsReceiptScan.objects.create(
+                company_id=request.user.company_id,
+                barcode_value=barcode_value,
+                sku=sku,
+                barcode=barcode,
+                location=location,
+                document=document,
+                quantity=quantity,
+                batch_number=batch_number,
+                serial_number=serial_number,
+                result=GoodsReceiptScan.RESULT_UNKNOWN,
+                message=f"Error creating inventory movement: {str(e)}",
+                created_by=request.user,
+                updated_by=request.user,
+            )
+            return Response(GoodsReceiptScanSerializer(log).data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

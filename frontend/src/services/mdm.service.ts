@@ -23,6 +23,7 @@ export interface SKU {
   base_price: string
   cost_price: string
   weight?: string | null
+  size?: string | null
   is_serialized: boolean
   is_batch_tracked: boolean
   status: string
@@ -109,6 +110,16 @@ export const mdmService = {
 
   deleteProduct: async (id: string) => {
     await api.delete(`/mdm/products/${id}/`)
+  },
+
+  createProductVariants: async (productId: string, data: { sizes: string[], selling_price: string, mrp: string }) => {
+    const response = await api.post(`/mdm/products/${productId}/create-variants/`, data)
+    return response.data as {
+      created: number
+      skipped: number
+      skipped_sizes: string[]
+      skus: SKU[]
+    }
   },
 
   // SKUs
