@@ -1,16 +1,21 @@
 import { useEffect, useState } from 'react'
 import {
   Alert,
+  Autocomplete,
   Box,
   Typography,
   Paper,
   Tabs,
   Tab,
   Button,
+  Checkbox,
+  Chip,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControlLabel,
+  Grid,
   Snackbar,
   Table,
   TableBody,
@@ -50,6 +55,13 @@ export default function MasterData() {
   const [openSkuDialog, setOpenSkuDialog] = useState(false)
   const [openCompanyDialog, setOpenCompanyDialog] = useState(false)
   const [openLocationDialog, setOpenLocationDialog] = useState(false)
+  const [openVariantsDialog, setOpenVariantsDialog] = useState(false)
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const [variantForm, setVariantForm] = useState({
+    sizes: [] as string[],
+    selling_price: '',
+    mrp: '',
+  })
   const [productForm, setProductForm] = useState({
     code: '',
     name: '',
@@ -151,6 +163,55 @@ export default function MasterData() {
       setSnackbar({ open: true, message: 'Product created.', severity: 'success' })
     } catch (error) {
       setSnackbar({ open: true, message: 'Failed to create product.', severity: 'error' })
+    }
+  }
+
+  const handleCreateVariants = async () => {
+    if (!selectedProduct) return
+    
+    if (variantForm.sizes.length === 0) {
+      setSnackbar({ open: true, message: 'Please select at least one size.', severity: 'error' })
+      return
+    }
+    
+    if (!variantForm.selling_price || !variantForm.mrp) {
+      setSnackbar({ open: true, message: 'Selling price and MRP are required.', severity: 'error' })
+      return
+    }
+    
+    const sellingPrice = parseFloat(variantForm.selling_price)
+    const mrp = parseFloat(variantForm.mrp)
+    
+    if (isNaN(sellingPrice) || sellingPrice <= 0) {
+      setSnackbar({ open: true, message: 'Selling price must be a positive number.', severity: 'error' })
+      return
+    }
+    
+    if (isNaN(mrp) || mrp <= 0) {
+      setSnackbar({ open: true, message: 'MRP must be a positive number.', severity: 'error' })
+      return
+    }
+    
+    if (sellingPrice > mrp) {
+      setSnackbar({ open: true, message: 'Selling price cannot be greater than MRP.', severity: 'error' })
+      return
+    }
+    
+    try {
+      const result = await mdmService.createProductVariants(selectedProduct.id, variantForm)
+      setOpenVariantsDialog(false)
+      setVariantForm({ sizes: [], selling_price: '', mrp: '' })
+      setSelectedProduct(null)
+      await loadData()
+      
+      let message = `${result.created} SKU(s) created successfully.`
+      if (result.skipped > 0) {
+        message += ` ${result.skipped} size(s) skipped (already exist).`
+      }
+      
+      setSnackbar({ open: true, message, severity: 'success' })
+    } catch (error) {
+      setSnackbar({ open: true, message: 'Failed to create variants.', severity: 'error' })
     }
   }
 
@@ -287,12 +348,13 @@ export default function MasterData() {
                   <TableCell>Category</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell>Created</TableCell>
+                  <TableCell>Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {products.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} align="center">
+                    <TableCell colSpan={6} align="center">
                       <Typography variant="body2" color="text.secondary" sx={{ py: 4 }}>
                         No products found. Click "Add New" to create your first product.
                       </Typography>
@@ -306,6 +368,18 @@ export default function MasterData() {
                       <TableCell>{product.description || '-'}</TableCell>
                       <TableCell>{product.status}</TableCell>
                       <TableCell>{new Date(product.created_at).toLocaleDateString()}</TableCell>
+                      <TableCell>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={() => {
+                            setSelectedProduct(product)
+                            setOpenVariantsDialog(true)
+                          }}
+                        >
+                          Create Variants
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))
                 )}
@@ -483,46 +557,52 @@ export default function MasterData() {
       <Dialog open={openSkuDialog} onClose={() => setOpenSkuDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Create SKU</DialogTitle>
         <DialogContent>
-          <TextField
-            fullWidth
-            select
-            margin="normal"
-            label="Product *"
-            value={skuForm.product}
-            onChange={(e) => {
-              const productId = e.target.value;
-              const selectedProduct = products.find(p => p.id === productId);
-              
-              setSkuForm((prev) => {
-                // Auto-suggest SKU code from product code if SKU code is empty
+          <Autocomplete
+            options={products}
+            getOptionLabel={(option) => `${option.code} - ${option.name}`}
+            value={products.find(p => p.id === skuForm.product) || null}
+            onChange={(event, newValue) => {
+              if (newValue) {
                 const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-                const suggestedCode = selectedProduct 
-                  ? `${selectedProduct.code}-${randomSuffix}`
-                  : '';
+                const suggestedCode = `${newValue.code}-${randomSuffix}`;
                 
-                return {
+                setSkuForm((prev) => ({
                   ...prev,
-                  product: productId,
-                  // Only update code if it's empty or matches previous auto-suggestion pattern
+                  product: newValue.id,
                   code: prev.code === '' || /^[a-z0-9-]+-\d{4}$/.test(prev.code)
                     ? suggestedCode
                     : prev.code,
-                  // Auto-suggest name from product name
-                  name: prev.name === '' && selectedProduct
-                    ? selectedProduct.name
-                    : prev.name
-                };
-              });
+                  name: prev.name === '' ? newValue.name : prev.name
+                }));
+              } else {
+                setSkuForm((prev) => ({ ...prev, product: '', code: '', name: '' }));
+              }
             }}
-            SelectProps={{ native: true }}
-          >
-            <option value="">Select product</option>
-            {products.map((product) => (
-              <option key={product.id} value={product.id}>
-                {product.code} - {product.name}
-              </option>
-            ))}
-          </TextField>
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Product *"
+                required
+                margin="normal"
+                placeholder="Type to search product..."
+              />
+            )}
+            renderOption={(props, option) => (
+              <li {...props} key={option.id}>
+                <Box>
+                  <Typography variant="body2" fontWeight={500}>
+                    {option.code}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {option.name}
+                  </Typography>
+                </Box>
+              </li>
+            )}
+            isOptionEqualToValue={(option, value) => option.id === value.id}
+            noOptionsText="No products available"
+            fullWidth
+          />
           <TextField
             fullWidth
             margin="normal"
@@ -628,6 +708,113 @@ export default function MasterData() {
           </Button>
         </DialogActions>
       </Dialog>
+      
+      {/* Create Variants Dialog */}
+      <Dialog open={openVariantsDialog} onClose={() => setOpenVariantsDialog(false)} maxWidth="md" fullWidth>
+        <DialogTitle>Create Variants for "{selectedProduct?.name}"</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2, mt: 1 }}>
+            Select sizes to create SKU variants. Each variant will have the same pricing.
+          </Typography>
+          
+          <Typography variant="subtitle2" sx={{ mt: 3, mb: 1 }}>
+            Select Sizes:
+          </Typography>
+          <Grid container spacing={1}>
+            {['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'Free Size', 'One Size', '28', '30', '32', '34', '36', '38', '40', '42', '44'].map((size) => (
+              <Grid item key={size}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={variantForm.sizes.includes(size)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setVariantForm((prev) => ({ ...prev, sizes: [...prev.sizes, size] }))
+                        } else {
+                          setVariantForm((prev) => ({ ...prev, sizes: prev.sizes.filter(s => s !== size) }))
+                        }
+                      }}
+                    />
+                  }
+                  label={size}
+                />
+              </Grid>
+            ))}
+          </Grid>
+          
+          {variantForm.sizes.length > 0 && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="body2" color="text.secondary">
+                Selected: {variantForm.sizes.map(s => <Chip key={s} label={s} size="small" sx={{ mr: 0.5 }} />)}
+              </Typography>
+            </Box>
+          )}
+          
+          <Typography variant="subtitle2" sx={{ mt: 3, mb: 1 }}>
+            Pricing (applies to all variants):
+          </Typography>
+          <Grid container spacing={2}>
+            <Grid item xs={6}>
+              <TextField
+                fullWidth
+                label="Selling Price *"
+                type="number"
+                value={variantForm.selling_price}
+                onChange={(e) => setVariantForm((prev) => ({ ...prev, selling_price: e.target.value }))}
+                inputProps={{ min: 0, step: 0.01 }}
+              />
+            </Grid>
+            <Grid item xs={6}>
+              <TextField
+                fullWidth
+                label="MRP *"
+                type="number"
+                value={variantForm.mrp}
+                onChange={(e) => setVariantForm((prev) => ({ ...prev, mrp: e.target.value }))}
+                inputProps={{ min: 0, step: 0.01 }}
+              />
+            </Grid>
+          </Grid>
+          
+          {variantForm.sizes.length > 0 && selectedProduct && (
+            <Box sx={{ mt: 3, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+              <Typography variant="subtitle2" gutterBottom>
+                Preview ({variantForm.sizes.length} SKUs will be created):
+              </Typography>
+              {variantForm.sizes.slice(0, 5).map((size) => {
+                const sizeCode = size.toLowerCase().replace(/\s+/g, '')
+                return (
+                  <Typography key={size} variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
+                    • {selectedProduct.code}-{sizeCode} → {selectedProduct.name} - {size}
+                  </Typography>
+                )
+              })}
+              {variantForm.sizes.length > 5 && (
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                  ... and {variantForm.sizes.length - 5} more
+                </Typography>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => {
+            setOpenVariantsDialog(false)
+            setVariantForm({ sizes: [], selling_price: '', mrp: '' })
+            setSelectedProduct(null)
+          }}>
+            Cancel
+          </Button>
+          <Button 
+            variant="contained" 
+            onClick={() => void handleCreateVariants()}
+            disabled={variantForm.sizes.length === 0}
+          >
+            Create {variantForm.sizes.length} SKU{variantForm.sizes.length !== 1 ? 's' : ''}
+          </Button>
+        </DialogActions>
+      </Dialog>
+      
       <Dialog open={openCompanyDialog} onClose={() => setOpenCompanyDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Create Company</DialogTitle>
         <DialogContent>

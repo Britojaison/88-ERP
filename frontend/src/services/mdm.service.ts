@@ -112,6 +112,16 @@ export const mdmService = {
     await api.delete(`/mdm/products/${id}/`)
   },
 
+  createProductVariants: async (productId: string, data: { sizes: string[], selling_price: string, mrp: string }) => {
+    const response = await api.post(`/mdm/products/${productId}/create-variants/`, data)
+    return response.data as {
+      created: number
+      skipped: number
+      skipped_sizes: string[]
+      skus: SKU[]
+    }
+  },
+
   // SKUs
   getSKUs: async (params?: any) => {
     const response = await api.get('/mdm/skus/', { params })

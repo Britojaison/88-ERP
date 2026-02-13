@@ -86,6 +86,85 @@ class ProductViewSet(TenantScopedViewSet):
         return Product.objects.filter(
             company_id=self.request.user.company_id, status="active"
         ).order_by("code")
+    
+    @action(detail=True, methods=["post"], url_path="create-variants")
+    def create_variants(self, request, pk=None):
+        """
+        Bulk create SKU variants for a product with different sizes.
+        """
+        product = self.get_object()
+        sizes = request.data.get('sizes', [])
+        selling_price = request.data.get('selling_price')
+        mrp = request.data.get('mrp')
+        
+        if not sizes:
+            return Response(
+                {'error': 'At least one size must be selected.'},
+                status=400
+            )
+        
+        if not selling_price or not mrp:
+            return Response(
+                {'error': 'Selling price and MRP are required.'},
+                status=400
+            )
+        
+        try:
+            selling_price = float(selling_price)
+            mrp = float(mrp)
+            
+            if selling_price <= 0 or mrp <= 0:
+                return Response(
+                    {'error': 'Prices must be positive numbers.'},
+                    status=400
+                )
+            
+            if selling_price > mrp:
+                return Response(
+                    {'error': 'Selling price cannot be greater than MRP.'},
+                    status=400
+                )
+        except (ValueError, TypeError):
+            return Response(
+                {'error': 'Invalid price format.'},
+                status=400
+            )
+        
+        created_skus = []
+        skipped_sizes = []
+        
+        for size in sizes:
+            # Generate SKU code: product-code-size
+            size_suffix = str(size).lower().replace(" ", "").replace("-", "")
+            sku_code = f"{product.code}-{size_suffix}"
+            
+            # Check if SKU already exists
+            if SKU.objects.filter(code=sku_code).exists():
+                skipped_sizes.append(size)
+                continue
+            
+            # Create SKU
+            sku = SKU.objects.create(
+                code=sku_code,
+                name=f"{product.name} - {size}",
+                product=product,
+                size=size,
+                base_price=selling_price,
+                cost_price=mrp,
+                company_id=request.user.company_id,
+                status='active'
+            )
+            created_skus.append(sku)
+        
+        # Serialize created SKUs
+        serializer = SKUSerializer(created_skus, many=True)
+        
+        return Response({
+            'created': len(created_skus),
+            'skipped': len(skipped_sizes),
+            'skipped_sizes': skipped_sizes,
+            'skus': serializer.data
+        })
 
 
 class StyleViewSet(TenantScopedViewSet):

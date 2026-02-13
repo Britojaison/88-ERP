@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   Checkbox,
@@ -203,38 +204,57 @@ export default function InventoryBarcodes() {
             </Typography>
             <Grid container spacing={2}>
               <Grid item xs={12} md={6}>
-                <FormControl fullWidth required>
-                  <InputLabel>SKU *</InputLabel>
-                  <Select
-                    value={form.sku}
-                    label="SKU *"
-                    onChange={(e) => {
-                      const skuId = e.target.value;
-                      const selectedSku = skuList.find(s => s.id === skuId);
-                      
-                      if (selectedSku) {
-                        setForm((prev) => ({
-                          ...prev,
-                          sku: skuId,
-                          display_code: selectedSku.code,
-                          label_title: selectedSku.name,
-                          size_label: selectedSku.size || '',
-                          selling_price: selectedSku.base_price || '',
-                          mrp: selectedSku.cost_price || '',
-                        }));
-                      } else {
-                        setForm((prev) => ({ ...prev, sku: skuId }));
-                      }
-                    }}
-                    required
-                  >
-                    {skuList.map((sku) => (
-                      <MenuItem key={sku.id} value={sku.id}>
-                        {sku.code} - {sku.name}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
+                <Autocomplete
+                  options={skuList}
+                  getOptionLabel={(option) => `${option.code} - ${option.name}${option.size ? ` (${option.size})` : ''}`}
+                  value={skuList.find(s => s.id === form.sku) || null}
+                  onChange={(event, newValue) => {
+                    if (newValue) {
+                      setForm((prev) => ({
+                        ...prev,
+                        sku: newValue.id,
+                        display_code: newValue.code,
+                        label_title: newValue.name,
+                        size_label: newValue.size || '',
+                        selling_price: newValue.base_price || '',
+                        mrp: newValue.cost_price || '',
+                      }));
+                    } else {
+                      setForm((prev) => ({ 
+                        ...prev, 
+                        sku: '',
+                        display_code: '',
+                        label_title: '',
+                        size_label: '',
+                        selling_price: '',
+                        mrp: '',
+                      }));
+                    }
+                  }}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="SKU *"
+                      required
+                      placeholder="Type to search SKU..."
+                    />
+                  )}
+                  renderOption={(props, option) => (
+                    <li {...props} key={option.id}>
+                      <Box>
+                        <Typography variant="body2" fontWeight={500}>
+                          {option.code}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {option.name}{option.size ? ` • Size: ${option.size}` : ''} • ₹{option.base_price}
+                        </Typography>
+                      </Box>
+                    </li>
+                  )}
+                  isOptionEqualToValue={(option, value) => option.id === value.id}
+                  noOptionsText="No SKUs available"
+                  fullWidth
+                />
               </Grid>
               <Grid item xs={12} md={6}>
                 <FormControl fullWidth required>
@@ -272,34 +292,14 @@ export default function InventoryBarcodes() {
                 />
               </Grid>
               <Grid item xs={12} md={4}>
-                <FormControl fullWidth required>
-                  <InputLabel>Size Label *</InputLabel>
-                  <Select
-                    value={form.size_label}
-                    label="Size Label *"
-                    onChange={(e) => setForm((prev) => ({ ...prev, size_label: e.target.value }))}
-                    required
-                  >
-                    <MenuItem value="XS">XS - Extra Small</MenuItem>
-                    <MenuItem value="S">S - Small</MenuItem>
-                    <MenuItem value="M">M - Medium</MenuItem>
-                    <MenuItem value="L">L - Large</MenuItem>
-                    <MenuItem value="XL">XL - Extra Large</MenuItem>
-                    <MenuItem value="XXL">XXL - Double Extra Large</MenuItem>
-                    <MenuItem value="XXXL">XXXL - Triple Extra Large</MenuItem>
-                    <MenuItem value="Free Size">Free Size</MenuItem>
-                    <MenuItem value="One Size">One Size</MenuItem>
-                    <MenuItem value="28">28</MenuItem>
-                    <MenuItem value="30">30</MenuItem>
-                    <MenuItem value="32">32</MenuItem>
-                    <MenuItem value="34">34</MenuItem>
-                    <MenuItem value="36">36</MenuItem>
-                    <MenuItem value="38">38</MenuItem>
-                    <MenuItem value="40">40</MenuItem>
-                    <MenuItem value="42">42</MenuItem>
-                    <MenuItem value="44">44</MenuItem>
-                  </Select>
-                </FormControl>
+                <TextField 
+                  fullWidth 
+                  label="Size Label *" 
+                  value={form.size_label} 
+                  onChange={(e) => setForm((prev) => ({ ...prev, size_label: e.target.value }))}
+                  required
+                  helperText="Size shown on label"
+                />
               </Grid>
               <Grid item xs={12} md={6}>
                 <TextField 
