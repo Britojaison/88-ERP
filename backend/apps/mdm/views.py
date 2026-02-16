@@ -216,16 +216,12 @@ class SKUBarcodeViewSet(TenantScopedViewSet):
     @action(detail=True, methods=["get"], url_path="label")
     def label(self, request, pk=None):
         barcode = self.get_object()
-        # Always regenerate barcode SVG for fresh rendering
-        barcode_svg = BarcodeService.generate_barcode_svg(
-            barcode.barcode_value, barcode.barcode_type
-        )
         label_svg = BarcodeService.build_label_svg(
             display_code=barcode.display_code or barcode.sku.code,
             title=barcode.label_title or barcode.sku.name,
             size_label=barcode.size_label or "",
             barcode_value=barcode.barcode_value,
-            barcode_svg=barcode_svg,
+            barcode_type=barcode.barcode_type,
             selling_price=str(barcode.selling_price or barcode.sku.base_price),
             mrp=str(barcode.mrp or barcode.sku.base_price),
         )
@@ -237,3 +233,36 @@ class SKUBarcodeViewSet(TenantScopedViewSet):
                 "label_svg": label_svg,
             }
         )
+
+    @action(detail=True, methods=["get"], url_path="download")
+    def download(self, request, pk=None):
+        barcode = self.get_object()
+        fmt = request.query_params.get("format", "png").lower()
+        
+        display_code = barcode.display_code or barcode.sku.code
+        title = barcode.label_title or barcode.sku.name
+        size_label = barcode.size_label or ""
+        selling_price = str(barcode.selling_price or barcode.sku.base_price)
+        mrp = str(barcode.mrp or barcode.sku.base_price)
+
+        if fmt == "pdf":
+            content = BarcodeService.build_label_pdf(
+                display_code, title, size_label, 
+                barcode.barcode_value, barcode.barcode_type,
+                selling_price, mrp
+            )
+            filename = f"label_{barcode.barcode_value}.pdf"
+            content_type = "application/pdf"
+        else:
+            content = BarcodeService.build_label_png(
+                display_code, title, size_label, 
+                barcode.barcode_value, barcode.barcode_type,
+                selling_price, mrp
+            )
+            filename = f"label_{barcode.barcode_value}.png"
+            content_type = "image/png"
+
+        from django.http import HttpResponse
+        response = HttpResponse(content, content_type=content_type)
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response

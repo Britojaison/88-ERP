@@ -26,12 +26,14 @@ import {
 import { Download, LocalPrintshop, Refresh } from '@mui/icons-material'
 import PageHeader from '../components/ui/PageHeader'
 import { mdmService, type SKU, type SKUBarcode } from '../services/mdm.service'
+import api from '../services/api'
 
 export default function InventoryBarcodes() {
   const [skuList, setSkuList] = useState<SKU[]>([])
   const [barcodeList, setBarcodeList] = useState<SKUBarcode[]>([])
   const [selectedLabel, setSelectedLabel] = useState('')
   const [labelName, setLabelName] = useState('')
+  const [activeBarcodeId, setActiveBarcodeId] = useState<string | null>(null)
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>(
     { open: false, message: '', severity: 'info' },
   )
@@ -51,13 +53,13 @@ export default function InventoryBarcodes() {
   const loadData = async () => {
     try {
       const [skus, barcodes] = await Promise.all([mdmService.getSKUs(), mdmService.getSKUBarcodes()])
-      
+
       // Get SKU IDs that already have barcodes
       const skusWithBarcodes = new Set(barcodes.map(barcode => barcode.sku))
-      
+
       // Filter out SKUs that already have barcodes
       const availableSkus = skus.filter(sku => !skusWithBarcodes.has(sku.id))
-      
+
       setSkuList(availableSkus)
       setBarcodeList(barcodes)
     } catch (error) {
@@ -99,7 +101,7 @@ export default function InventoryBarcodes() {
     // Validate numeric fields
     const sellingPrice = parseFloat(form.selling_price)
     const mrp = parseFloat(form.mrp)
-    
+
     if (isNaN(sellingPrice) || sellingPrice <= 0) {
       setSnackbar({ open: true, message: 'Selling Price must be a positive number.', severity: 'error' })
       return
@@ -148,9 +150,10 @@ export default function InventoryBarcodes() {
 
   const handlePreview = async (barcode: SKUBarcode) => {
     try {
+      setActiveBarcodeId(barcode.id)
       const response = await mdmService.getSKUBarcodeLabel(barcode.id)
       setSelectedLabel(response.label_svg)
-      setLabelName(`${barcode.sku_code || 'barcode'}-${barcode.barcode_value}.svg`)
+      setLabelName(`${barcode.sku_code || 'barcode'}-${barcode.barcode_value}`)
     } catch (error) {
       setSnackbar({ open: true, message: 'Failed to load label preview.', severity: 'error' })
     }
@@ -171,15 +174,37 @@ export default function InventoryBarcodes() {
     printWindow.print()
   }
 
-  const handleDownload = () => {
+  const handleDownloadSVG = () => {
     if (!selectedLabel) return
     const blob = new Blob([selectedLabel], { type: 'image/svg+xml' })
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement('a')
     anchor.href = url
-    anchor.download = labelName || 'barcode-label.svg'
+    anchor.download = `${labelName || 'barcode-label'}.svg`
     anchor.click()
     URL.revokeObjectURL(url)
+  }
+
+  const handleDownloadFormat = async (format: 'png' | 'pdf') => {
+    if (!activeBarcodeId) return
+    try {
+      setSnackbar({ open: true, message: `Generating ${format.toUpperCase()}...`, severity: 'info' })
+      const response = await api.get(`/mdm/sku-barcodes/${activeBarcodeId}/download/`, {
+        params: { format },
+        responseType: 'blob'
+      })
+      const url = URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `${labelName}.${format}`)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+      setSnackbar({ open: true, message: `${format.toUpperCase()} downloaded successfully.`, severity: 'success' })
+    } catch (error) {
+      setSnackbar({ open: true, message: `Failed to download ${format.toUpperCase()}.`, severity: 'error' })
+    }
   }
 
   return (
@@ -220,8 +245,8 @@ export default function InventoryBarcodes() {
                         mrp: newValue.cost_price || '',
                       }));
                     } else {
-                      setForm((prev) => ({ 
-                        ...prev, 
+                      setForm((prev) => ({
+                        ...prev,
                         sku: '',
                         display_code: '',
                         label_title: '',
@@ -272,40 +297,40 @@ export default function InventoryBarcodes() {
                 </FormControl>
               </Grid>
               <Grid item xs={12} md={4}>
-                <TextField 
-                  fullWidth 
-                  label="Display Code *" 
-                  value={form.display_code} 
+                <TextField
+                  fullWidth
+                  label="Display Code *"
+                  value={form.display_code}
                   onChange={(e) => setForm((prev) => ({ ...prev, display_code: e.target.value }))}
                   required
                   helperText="Code shown on label"
                 />
               </Grid>
               <Grid item xs={12} md={4}>
-                <TextField 
-                  fullWidth 
-                  label="Label Title *" 
-                  value={form.label_title} 
+                <TextField
+                  fullWidth
+                  label="Label Title *"
+                  value={form.label_title}
                   onChange={(e) => setForm((prev) => ({ ...prev, label_title: e.target.value }))}
                   required
                   helperText="Product name on label"
                 />
               </Grid>
               <Grid item xs={12} md={4}>
-                <TextField 
-                  fullWidth 
-                  label="Size Label *" 
-                  value={form.size_label} 
+                <TextField
+                  fullWidth
+                  label="Size Label *"
+                  value={form.size_label}
                   onChange={(e) => setForm((prev) => ({ ...prev, size_label: e.target.value }))}
                   required
                   helperText="Size shown on label"
                 />
               </Grid>
               <Grid item xs={12} md={6}>
-                <TextField 
-                  fullWidth 
-                  label="Selling Price *" 
-                  value={form.selling_price} 
+                <TextField
+                  fullWidth
+                  label="Selling Price *"
+                  value={form.selling_price}
                   onChange={(e) => setForm((prev) => ({ ...prev, selling_price: e.target.value }))}
                   type="number"
                   required
@@ -314,10 +339,10 @@ export default function InventoryBarcodes() {
                 />
               </Grid>
               <Grid item xs={12} md={6}>
-                <TextField 
-                  fullWidth 
-                  label="MRP *" 
-                  value={form.mrp} 
+                <TextField
+                  fullWidth
+                  label="MRP *"
+                  value={form.mrp}
                   onChange={(e) => setForm((prev) => ({ ...prev, mrp: e.target.value }))}
                   type="number"
                   required
@@ -353,19 +378,25 @@ export default function InventoryBarcodes() {
                 <Button size="small" startIcon={<LocalPrintshop />} variant="outlined" onClick={handlePrint} disabled={!selectedLabel}>
                   Print
                 </Button>
-                <Button size="small" startIcon={<Download />} variant="outlined" onClick={handleDownload} disabled={!selectedLabel}>
-                  Download
+                <Button size="small" startIcon={<Download />} variant="outlined" onClick={handleDownloadSVG} disabled={!selectedLabel}>
+                  SVG
+                </Button>
+                <Button size="small" startIcon={<Download />} variant="outlined" onClick={() => void handleDownloadFormat('png')} disabled={!selectedLabel}>
+                  PNG
+                </Button>
+                <Button size="small" startIcon={<Download />} variant="outlined" onClick={() => void handleDownloadFormat('pdf')} disabled={!selectedLabel}>
+                  PDF
                 </Button>
               </Stack>
             </Stack>
             {!selectedLabel ? (
               <Alert severity="info">Select a barcode row and click "Preview".</Alert>
             ) : (
-              <Box 
-                sx={{ 
-                  overflow: 'auto', 
-                  bgcolor: '#fafafa', 
-                  p: 1.5, 
+              <Box
+                sx={{
+                  overflow: 'auto',
+                  bgcolor: '#fafafa',
+                  p: 1.5,
                   borderRadius: 1.5,
                   display: 'flex',
                   justifyContent: 'center',
@@ -376,8 +407,8 @@ export default function InventoryBarcodes() {
                     height: 'auto',
                     maxWidth: '100%'
                   }
-                }} 
-                dangerouslySetInnerHTML={{ __html: selectedLabel }} 
+                }}
+                dangerouslySetInnerHTML={{ __html: selectedLabel }}
               />
             )}
           </Paper>
