@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Load .env file from BASE_DIR
-load_dotenv(BASE_DIR / '.env')
+load_dotenv(BASE_DIR / '.env', override=True)
 
 SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-change-this-in-production')
 DEBUG = os.getenv('DEBUG', 'False') == 'True'
@@ -226,3 +226,10 @@ AUDIT_LOG_RETENTION_DAYS = 2555  # 7 years
 
 # Custom User Model
 AUTH_USER_MODEL = 'mdm.User'
+
+# Shopify Integration
+SHOPIFY_STORE_DOMAIN = os.getenv('SHOPIFY_STORE_DOMAIN', '')
+SHOPIFY_ACCESS_TOKEN = os.getenv('SHOPIFY_ACCESS_TOKEN', '')
+SHOPIFY_API_KEY = os.getenv('SHOPIFY_API_KEY', '')
+SHOPIFY_API_SECRET = os.getenv('SHOPIFY_API_SECRET', '')
+SHOPIFY_API_VERSION = os.getenv('SHOPIFY_API_VERSION', '2024-10')
