@@ -156,13 +156,21 @@ class BarcodeService:
         draw_text_centered(barcode_value, 400, font_small)
         draw_text_centered(barcode_value, 450, font_barcode)
 
-        # Prices
-        draw.text((200, 520), f"₹{selling_price}", fill="black", font=font_price)
+        # Prices - centered in their respective halves
+        sp_text = f"₹{selling_price}"
+        sp_bbox = draw.textbbox((0, 0), sp_text, font=font_price)
+        sp_w = sp_bbox[2] - sp_bbox[0]
+        sp_x = (width / 2 - sp_w) / 2  # center in left half
+        draw.text((sp_x, 520), sp_text, fill="black", font=font_price)
+
         mrp_text = f"₹{mrp}"
-        draw.text((600, 520), mrp_text, fill="black", font=font_price)
-        # Strikethrough for MRP - since drawing it on text is manual in Pillow
-        bbox = draw.textbbox((600, 520), mrp_text, font=font_price)
-        draw.line((bbox[0], (bbox[1]+bbox[3])/2, bbox[2], (bbox[1]+bbox[3])/2), fill="black", width=4)
+        mrp_bbox = draw.textbbox((0, 0), mrp_text, font=font_price)
+        mrp_w = mrp_bbox[2] - mrp_bbox[0]
+        mrp_x = width / 2 + (width / 2 - mrp_w) / 2  # center in right half
+        draw.text((mrp_x, 520), mrp_text, fill="black", font=font_price)
+        # Strikethrough for MRP
+        mrp_draw_bbox = draw.textbbox((mrp_x, 520), mrp_text, font=font_price)
+        draw.line((mrp_draw_bbox[0], (mrp_draw_bbox[1]+mrp_draw_bbox[3])/2, mrp_draw_bbox[2], (mrp_draw_bbox[1]+mrp_draw_bbox[3])/2), fill="black", width=4)
 
         out_buffer = io.BytesIO()
         img.save(out_buffer, format="PNG")
@@ -206,14 +214,14 @@ class BarcodeService:
         c.drawCentredString(50*mm, 12*mm, barcode_value)
         
         c.setFont("Helvetica-Bold", 18)
-        c.drawString(20*mm, 4*mm, f"₹{selling_price}")
+        c.drawCentredString(25*mm, 4*mm, f"₹{selling_price}")
         
         c.setFont("Helvetica", 18)
         mrp_text = f"₹{mrp}"
-        c.drawString(60*mm, 4*mm, mrp_text)
+        c.drawCentredString(75*mm, 4*mm, mrp_text)
         # Strikethrough
         tw = c.stringWidth(mrp_text, "Helvetica", 18)
-        c.line(60*mm, 10*mm, 60*mm + tw, 10*mm)
+        c.line(75*mm - tw/2, 7*mm, 75*mm + tw/2, 7*mm)
         
         c.showPage()
         c.save()

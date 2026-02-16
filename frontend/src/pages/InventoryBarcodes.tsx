@@ -165,8 +165,38 @@ export default function InventoryBarcodes() {
     if (!printWindow) return
     printWindow.document.write(`
       <html>
-        <head><title>Print Label</title></head>
-        <body style="margin:0;padding:16px;background:#fff;">${selectedLabel}</body>
+        <head>
+          <title>Print Label</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              min-height: 100vh;
+              background: #fff;
+            }
+            .label-container {
+              text-align: center;
+            }
+            .label-container svg {
+              max-width: 100%;
+              height: auto;
+            }
+            @media print {
+              @page { margin: 10mm; }
+              body {
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                min-height: 100vh;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="label-container">${selectedLabel}</div>
+        </body>
       </html>
     `)
     printWindow.document.close()
