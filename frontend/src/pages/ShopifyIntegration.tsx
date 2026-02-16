@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import {
   Box,
   Typography,
@@ -34,6 +34,7 @@ import {
   Select,
   MenuItem,
   InputAdornment,
+  Tooltip,
 } from '@mui/material'
 import {
   Add,
@@ -49,8 +50,13 @@ import {
   Search,
   FilterList,
   Info,
+  ShoppingCart,
+  Receipt,
+  LocalOffer,
+  MonetizationOn,
+  Assessment,
 } from '@mui/icons-material'
-import { shopifyService, ShopifyStore, ShopifyProduct, ShopifySyncJob } from '../services/shopify.service'
+import { shopifyService, ShopifyStore, ShopifyProduct, ShopifySyncJob, ShopifyDraftOrder, ShopifyDiscount, ProductDemandResponse } from '../services/shopify.service'
 import PageHeader from '../components/ui/PageHeader'
 
 interface TabPanelProps {
@@ -72,9 +78,15 @@ export default function ShopifyIntegration() {
   const [stores, setStores] = useState<ShopifyStore[]>([])
   const [selectedStore, setSelectedStore] = useState<ShopifyStore | null>(null)
   const [products, setProducts] = useState<ShopifyProduct[]>([])
+  const [productCount, setProductCount] = useState(0)
+  const [productPage, setProductPage] = useState(1)
   const [syncJobs, setSyncJobs] = useState<ShopifySyncJob[]>([])
   const [syncStatus, setSyncStatus] = useState<any>(null)
+  const [productDemand, setProductDemand] = useState<ProductDemandResponse | null>(null)
+  const [draftOrders, setDraftOrders] = useState<ShopifyDraftOrder[]>([])
+  const [discounts, setDiscounts] = useState<ShopifyDiscount[]>([])
   const [tabValue, setTabValue] = useState(0)
+  const [demandSearch, setDemandSearch] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [filterType, setFilterType] = useState('All')
   const [filterVendor, setFilterVendor] = useState('All')
@@ -105,13 +117,16 @@ export default function ShopifyIntegration() {
     loadStores()
   }, [])
 
+  const syncJobsRef = React.useRef(syncJobs)
+  syncJobsRef.current = syncJobs
+
   useEffect(() => {
     if (selectedStore) {
       loadStoreData(selectedStore.id)
 
-      // Set up polling if a sync is running
+      // Set up polling only if a sync is running
       const interval = setInterval(() => {
-        const isRunning = syncJobs.some(j => j.status === 'running')
+        const isRunning = syncJobsRef.current.some(j => j.status === 'running')
         if (isRunning) {
           loadStoreData(selectedStore.id)
         }
@@ -119,7 +134,7 @@ export default function ShopifyIntegration() {
 
       return () => clearInterval(interval)
     }
-  }, [selectedStore, syncJobs])
+  }, [selectedStore])
 
   const loadStores = async () => {
     setLoadingStores(true)
@@ -140,18 +155,47 @@ export default function ShopifyIntegration() {
     }
   }
 
+  const totalSales = useMemo(() => {
+    return productDemand?.total_revenue?.toFixed(2) || '0.00'
+  }, [productDemand])
+
   const loadStoreData = async (storeId: string) => {
     try {
-      const [productsData, jobsData, statusData] = await Promise.all([
-        shopifyService.listProducts({ store: storeId }),
-        shopifyService.listSyncJobs(storeId),
-        shopifyService.getSyncStatus(storeId),
-      ])
-      setProducts(productsData)
-      setSyncJobs(jobsData)
-      setSyncStatus(statusData)
+      // Load essential status first to ensure UI displays
+      const statusData = await shopifyService.getSyncStatus(storeId);
+      setSyncStatus(statusData);
+
+      // Load lightweight data in parallel — NO bulk order fetching
+      void Promise.all([
+        shopifyService.listProducts({ store: storeId, page: 1 }).then(res => {
+          setProducts(res.results)
+          setProductCount(res.count)
+          setProductPage(1)
+        }).catch(e => console.error('Failed to load products:', e)),
+        shopifyService.listSyncJobs(storeId).then(setSyncJobs).catch(e => console.error('Failed to load sync jobs:', e)),
+        shopifyService.getProductDemand(storeId).then(setProductDemand).catch(e => console.error('Failed to load product demand:', e)),
+        shopifyService.listDraftOrders(storeId).then(setDraftOrders).catch(e => console.error('Failed to load draft orders:', e)),
+        shopifyService.listDiscounts(storeId).then(setDiscounts).catch(e => console.error('Failed to load discounts:', e))
+      ]);
     } catch (error: any) {
-      console.error('Failed to load store data:', error)
+      console.error('Failed to load essential store data:', error)
+      setSnackbar({
+        open: true,
+        message: 'Could not fetch store status. Please check your connection.',
+        severity: 'error'
+      })
+    }
+  }
+
+  const loadProductPage = async (page: number) => {
+    if (!selectedStore) return
+    try {
+      const res = await shopifyService.listProducts({ store: selectedStore.id, page })
+      setProducts(res.results)
+      setProductCount(res.count)
+      setProductPage(page)
+    } catch (e) {
+      console.error('Failed to load products page:', e)
     }
   }
 
@@ -222,24 +266,6 @@ export default function ShopifyIntegration() {
     }
   }
 
-  const handleTestConnection = async (store: ShopifyStore) => {
-    try {
-      const result = await shopifyService.testConnection(store.id)
-      setSnackbar({
-        open: true,
-        message: result.message,
-        severity: result.connected ? 'success' : 'error'
-      })
-      loadStores()
-    } catch (error: any) {
-      setSnackbar({
-        open: true,
-        message: 'Connection test failed',
-        severity: 'error'
-      })
-    }
-  }
-
   const handleSyncProducts = async (store: ShopifyStore) => {
     try {
       const result = await shopifyService.syncProducts(store.id)
@@ -248,7 +274,6 @@ export default function ShopifyIntegration() {
         message: result.message,
         severity: 'info'
       })
-      // Reload data after a delay
       setTimeout(() => loadStoreData(store.id), 2000)
     } catch (error: any) {
       setSnackbar({
@@ -277,6 +302,7 @@ export default function ShopifyIntegration() {
     }
   }
 
+
   const handleSetupWebhooks = async (store: ShopifyStore) => {
     try {
       const result = await shopifyService.setupWebhooks(store.id)
@@ -291,6 +317,49 @@ export default function ShopifyIntegration() {
         message: 'Failed to setup webhooks',
         severity: 'error'
       })
+    }
+  }
+
+  const handleSyncOrders = async (store: ShopifyStore) => {
+    try {
+      const result = await shopifyService.syncOrders(store.id)
+      setSnackbar({ open: true, message: result.message, severity: 'info' })
+      setTimeout(() => loadStoreData(store.id), 2000)
+    } catch (error) {
+      setSnackbar({ open: true, message: 'Failed to sync orders', severity: 'error' })
+    }
+  }
+
+  const handleSyncDraftOrders = async (store: ShopifyStore) => {
+    try {
+      const result = await shopifyService.syncDraftOrders(store.id)
+      setSnackbar({ open: true, message: result.message, severity: 'info' })
+      setTimeout(() => loadStoreData(store.id), 2000)
+    } catch (error) {
+      setSnackbar({ open: true, message: 'Failed to sync draft orders', severity: 'error' })
+    }
+  }
+
+  const handleSyncDiscounts = async (store: ShopifyStore) => {
+    try {
+      const result = await shopifyService.syncDiscounts(store.id)
+      setSnackbar({ open: true, message: result.message, severity: 'info' })
+      setTimeout(() => loadStoreData(store.id), 2000)
+    } catch (error) {
+      setSnackbar({ open: true, message: 'Failed to sync discounts', severity: 'error' })
+    }
+  }
+
+  const handleTestConnection = async (store: ShopifyStore) => {
+    try {
+      const result = await shopifyService.testConnection(store.id)
+      setSnackbar({
+        open: true,
+        message: result.message,
+        severity: result.connected ? 'success' : 'error'
+      })
+    } catch (error) {
+      setSnackbar({ open: true, message: 'Connection test failed', severity: 'error' })
     }
   }
 
@@ -461,18 +530,20 @@ export default function ShopifyIntegration() {
             ))}
           </Grid>
 
-          {selectedStore && syncStatus && (
+          {selectedStore && (
             <Paper sx={{ mb: 3 }}>
-              <Tabs value={tabValue} onChange={(_, v) => setTabValue(v)}>
-                <Tab label="Overview" />
-                <Tab label="Products" />
-                <Tab label="Sync Jobs" />
-                <Tab label="Settings" />
+              <Tabs value={tabValue} onChange={(_, v) => setTabValue(v)} sx={{ borderBottom: 1, borderColor: 'divider', px: 2 }}>
+                <Tab label="Overview" icon={<Assessment />} iconPosition="start" />
+                <Tab label="Products" icon={<Inventory />} iconPosition="start" />
+                <Tab label="Product Demand" icon={<Assessment />} iconPosition="start" />
+                <Tab label="Sales" icon={<LocalOffer />} iconPosition="start" />
+                <Tab label="Sync Jobs" icon={<Sync />} iconPosition="start" />
+                <Tab label="Settings" icon={<Settings />} iconPosition="start" />
               </Tabs>
 
               <TabPanel value={tabValue} index={0}>
                 <Grid container spacing={3}>
-                  <Grid item xs={12} md={4}>
+                  <Grid item xs={12} md={4} lg={2.4}>
                     <Card sx={{ height: '100%', borderTop: '4px solid', borderColor: 'primary.main' }}>
                       <CardContent>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
@@ -485,17 +556,17 @@ export default function ShopifyIntegration() {
                           {syncStatus?.products?.total || 0}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                          Variants found in Shopify
+                          Shopify Variants
                         </Typography>
                       </CardContent>
                     </Card>
                   </Grid>
-                  <Grid item xs={12} md={4}>
+                  <Grid item xs={12} md={4} lg={2.4}>
                     <Card sx={{ height: '100%', borderTop: '4px solid', borderColor: 'success.main' }}>
                       <CardContent>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
                           <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 'bold' }}>
-                            Synced Products
+                            Synced SKUs
                           </Typography>
                           <CheckCircle color="success" sx={{ opacity: 0.5 }} />
                         </Box>
@@ -503,17 +574,17 @@ export default function ShopifyIntegration() {
                           {syncStatus?.products?.synced || 0}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                          Successfully mapped to ERP SKUs
+                          Mapped to ERP
                         </Typography>
                       </CardContent>
                     </Card>
                   </Grid>
-                  <Grid item xs={12} md={4}>
+                  <Grid item xs={12} md={4} lg={2.4}>
                     <Card sx={{ height: '100%', borderTop: '4px solid', borderColor: 'warning.main' }}>
                       <CardContent>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
                           <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 'bold' }}>
-                            Pending Mapping
+                            Pending
                           </Typography>
                           <Info color="warning" sx={{ opacity: 0.5 }} />
                         </Box>
@@ -521,7 +592,43 @@ export default function ShopifyIntegration() {
                           {syncStatus?.products?.pending || 0}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                          Waiting for ERP SKU association
+                          Needs Mapping
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                  <Grid item xs={12} md={6} lg={2.4}>
+                    <Card sx={{ height: '100%', borderTop: '4px solid', borderColor: 'info.main' }}>
+                      <CardContent>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                          <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 'bold' }}>
+                            Total Orders
+                          </Typography>
+                          <ShoppingCart color="info" sx={{ opacity: 0.5 }} />
+                        </Box>
+                        <Typography variant="h3" sx={{ fontWeight: 700, mb: 1 }}>
+                          {productDemand?.total_orders || 0}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Synced Orders
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                  <Grid item xs={12} md={6} lg={2.4}>
+                    <Card sx={{ height: '100%', borderTop: '4px solid', borderColor: 'secondary.main' }}>
+                      <CardContent>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                          <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 'bold' }}>
+                            Sales Volume
+                          </Typography>
+                          <MonetizationOn color="secondary" sx={{ opacity: 0.5 }} />
+                        </Box>
+                        <Typography variant="h3" sx={{ fontWeight: 700, mb: 1, color: 'secondary.main' }}>
+                          {'\u20B9'}{totalSales}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Total Value
                         </Typography>
                       </CardContent>
                     </Card>
@@ -533,44 +640,54 @@ export default function ShopifyIntegration() {
                     Quick Actions
                   </Typography>
                   <Grid container spacing={2} sx={{ mt: 1 }}>
-                    <Grid item xs={12} sm={6} md={3}>
+                    <Grid item xs={12} sm={4} md={2}>
                       <Button
                         fullWidth
                         variant="outlined"
                         startIcon={<Sync />}
-                        onClick={() => handleSyncProducts(selectedStore)}
+                        onClick={() => handleSyncProducts(selectedStore!)}
                       >
-                        Sync Products
+                        Products
                       </Button>
                     </Grid>
-                    <Grid item xs={12} sm={6} md={3}>
+                    <Grid item xs={12} sm={4} md={2}>
                       <Button
                         fullWidth
                         variant="outlined"
-                        startIcon={<Inventory />}
-                        onClick={() => handleSyncInventory(selectedStore)}
+                        startIcon={<ShoppingCart />}
+                        onClick={() => handleSyncOrders(selectedStore!)}
                       >
-                        Sync Inventory
+                        Orders
                       </Button>
                     </Grid>
-                    <Grid item xs={12} sm={6} md={3}>
+                    <Grid item xs={12} sm={4} md={2}>
+                      <Button
+                        fullWidth
+                        variant="outlined"
+                        startIcon={<LocalOffer />}
+                        onClick={() => handleSyncDiscounts(selectedStore!)}
+                      >
+                        Discounts
+                      </Button>
+                    </Grid>
+                    <Grid item xs={12} sm={4} md={2}>
+                      <Button
+                        fullWidth
+                        variant="outlined"
+                        startIcon={<Receipt />}
+                        onClick={() => handleSyncDraftOrders(selectedStore!)}
+                      >
+                        Sync Drafts
+                      </Button>
+                    </Grid>
+                    <Grid item xs={12} sm={4} md={2}>
                       <Button
                         fullWidth
                         variant="outlined"
                         startIcon={<Webhook />}
-                        onClick={() => handleSetupWebhooks(selectedStore)}
+                        onClick={() => handleSetupWebhooks(selectedStore!)}
                       >
-                        Setup Webhooks
-                      </Button>
-                    </Grid>
-                    <Grid item xs={12} sm={6} md={3}>
-                      <Button
-                        fullWidth
-                        variant="outlined"
-                        startIcon={<Settings />}
-                        onClick={() => setTabValue(3)}
-                      >
-                        Settings
+                        Webhooks
                       </Button>
                     </Grid>
                   </Grid>
@@ -578,6 +695,7 @@ export default function ShopifyIntegration() {
               </TabPanel>
 
               <TabPanel value={tabValue} index={1}>
+                {/* Product search and filtering */}
                 <Box sx={{ mb: 3 }}>
                   <Grid container spacing={2} alignItems="center">
                     <Grid item xs={12} md={4}>
@@ -644,8 +762,8 @@ export default function ShopifyIntegration() {
 
                 <TableContainer component={Paper} variant="outlined">
                   <Table>
-                    <TableHead>
-                      <TableRow sx={{ bgcolor: 'action.hover' }}>
+                    <TableHead sx={{ bgcolor: 'action.hover' }}>
+                      <TableRow>
                         <TableCell sx={{ fontWeight: 'bold' }}>Shopify Product</TableCell>
                         <TableCell sx={{ fontWeight: 'bold' }}>SKU/Barcode</TableCell>
                         <TableCell sx={{ fontWeight: 'bold' }}>Category/Vendor</TableCell>
@@ -685,10 +803,10 @@ export default function ShopifyIntegration() {
                                   <Box
                                     component="img"
                                     src={product.shopify_image_url}
-                                    sx={{ width: 40, height: 40, borderRadius: 1, mr: 2, objectFit: 'cover', border: '1px solid', borderColor: 'divider' }}
+                                    sx={{ width: 40, height: 40, borderRadius: 1, mr: 2, objectFit: 'cover' }}
                                   />
                                 ) : (
-                                  <Box sx={{ width: 40, height: 40, borderRadius: 1, mr: 2, bgcolor: 'action.hover', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid', borderColor: 'divider' }}>
+                                  <Box sx={{ width: 40, height: 40, borderRadius: 1, mr: 2, bgcolor: 'action.hover', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                     <Inventory sx={{ fontSize: 20, color: 'text.secondary', opacity: 0.5 }} />
                                   </Box>
                                 )}
@@ -696,39 +814,28 @@ export default function ShopifyIntegration() {
                                   <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
                                     {product.shopify_title}
                                   </Typography>
-                                  {product.shopify_product_id && (
-                                    <Typography variant="caption" color="text.secondary">
-                                      ID: {product.shopify_product_id}
-                                    </Typography>
-                                  )}
+                                  <Typography variant="caption" color="text.secondary">
+                                    ID: {product.shopify_product_id}
+                                  </Typography>
                                 </Box>
                               </Box>
                             </TableCell>
                             <TableCell>
                               <Typography variant="body2">{product.shopify_sku || '-'}</Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                {product.shopify_barcode || ''}
-                              </Typography>
+                              <Typography variant="caption" color="text.secondary">{product.shopify_barcode || ''}</Typography>
                             </TableCell>
                             <TableCell>
                               <Box sx={{ display: 'flex', flexDirection: 'column' }}>
                                 <Chip label={product.shopify_product_type || 'Uncategorized'} size="small" sx={{ mb: 0.5, maxWidth: 'fit-content' }} />
-                                <Typography variant="caption" color="text.secondary">
-                                  {product.shopify_vendor || 'No Vendor'}
-                                </Typography>
+                                <Typography variant="caption" color="text.secondary">{product.shopify_vendor}</Typography>
                               </Box>
                             </TableCell>
-                            <TableCell>
-                              <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                                ₹{product.shopify_price}
-                              </Typography>
-                            </TableCell>
+                            <TableCell>{'\u20B9'}{product.shopify_price}</TableCell>
                             <TableCell>
                               <Chip
                                 label={product.shopify_inventory_quantity}
                                 size="small"
                                 color={product.shopify_inventory_quantity > 0 ? 'default' : 'error'}
-                                variant={product.shopify_inventory_quantity > 0 ? 'outlined' : 'filled'}
                               />
                             </TableCell>
                             <TableCell>
@@ -736,11 +843,7 @@ export default function ShopifyIntegration() {
                                 <Chip
                                   label={product.sync_status}
                                   size="small"
-                                  color={
-                                    product.sync_status === 'synced' ? 'success' :
-                                      product.sync_status === 'error' ? 'error' : 'warning'
-                                  }
-                                  sx={{ textTransform: 'capitalize' }}
+                                  color={product.sync_status === 'synced' ? 'success' : 'warning'}
                                 />
                                 {product.erp_sku_code && (
                                   <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center' }}>
@@ -756,25 +859,339 @@ export default function ShopifyIntegration() {
                     </TableBody>
                   </Table>
                 </TableContainer>
+                {/* Pagination */}
+                {productCount > 50 && (
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2, px: 1 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      Showing {(productPage - 1) * 50 + 1}-{Math.min(productPage * 50, productCount)} of {productCount} products
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        disabled={productPage <= 1}
+                        onClick={() => loadProductPage(productPage - 1)}
+                      >
+                        Previous
+                      </Button>
+                      <Chip label={`Page ${productPage} of ${Math.ceil(productCount / 50)}`} variant="outlined" />
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        disabled={productPage * 50 >= productCount}
+                        onClick={() => loadProductPage(productPage + 1)}
+                      >
+                        Next
+                      </Button>
+                    </Box>
+                  </Box>
+                )}
               </TabPanel>
 
+
               <TabPanel value={tabValue} index={2}>
-                <TableContainer>
-                  <Table>
-                    <TableHead>
+                {/* Summary Cards */}
+                <Grid container spacing={2} sx={{ mb: 3 }}>
+                  <Grid item xs={6} md={3}>
+                    <Card variant="outlined" sx={{ textAlign: 'center', py: 1 }}>
+                      <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
+                        <Typography variant="overline" color="text.secondary">Total Orders</Typography>
+                        <Typography variant="h4" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                          {productDemand?.total_orders || 0}
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                  <Grid item xs={6} md={3}>
+                    <Card variant="outlined" sx={{ textAlign: 'center', py: 1 }}>
+                      <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
+                        <Typography variant="overline" color="text.secondary">Units Sold</Typography>
+                        <Typography variant="h4" sx={{ fontWeight: 700, color: 'success.main' }}>
+                          {productDemand?.total_units_sold?.toLocaleString() || 0}
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                  <Grid item xs={6} md={3}>
+                    <Card variant="outlined" sx={{ textAlign: 'center', py: 1 }}>
+                      <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
+                        <Typography variant="overline" color="text.secondary">Products Ordered</Typography>
+                        <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                          {productDemand?.total_products || 0}
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                  <Grid item xs={6} md={3}>
+                    <Card variant="outlined" sx={{ textAlign: 'center', py: 1 }}>
+                      <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
+                        <Typography variant="overline" color="text.secondary">Total Revenue</Typography>
+                        <Typography variant="h4" sx={{ fontWeight: 700, color: 'secondary.main' }}>
+                          INR {(productDemand?.total_revenue || 0).toLocaleString('en-IN', { minimumFractionDigits: 0 })}
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                </Grid>
+
+                {/* Search */}
+                <Box sx={{ mb: 2 }}>
+                  <TextField
+                    size="small"
+                    placeholder="Search by product name, variant, or SKU..."
+                    value={demandSearch}
+                    onChange={(e) => setDemandSearch(e.target.value)}
+                    sx={{ width: 400 }}
+                    InputProps={{ startAdornment: <Search sx={{ mr: 1, color: 'text.secondary' }} /> }}
+                  />
+                </Box>
+
+                {/* Product Demand Table */}
+                <TableContainer component={Paper} variant="outlined">
+                  <Table size="small">
+                    <TableHead sx={{ bgcolor: 'action.hover' }}>
                       <TableRow>
-                        <TableCell>Job Type</TableCell>
-                        <TableCell>Status</TableCell>
-                        <TableCell>Started</TableCell>
-                        <TableCell>Duration</TableCell>
-                        <TableCell>Items</TableCell>
-                        <TableCell>Progress</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold' }}>#</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold' }}>Product</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold' }}>Variant</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold' }}>SKU</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', textAlign: 'center' }}>Units Sold</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', textAlign: 'center' }}>Orders</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', textAlign: 'right' }}>Revenue</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', textAlign: 'center' }}>Current Stock</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold' }}>Status</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {!productDemand || productDemand.items.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={9} align="center" sx={{ py: 8 }}>
+                            <Typography color="text.secondary">
+                              No order data yet. Sync orders first using Quick Actions, then this view will show aggregated product demand.
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        productDemand.items
+                          .filter(item => {
+                            if (!demandSearch) return true
+                            const q = demandSearch.toLowerCase()
+                            return (
+                              item.title.toLowerCase().includes(q) ||
+                              (item.variant_title || '').toLowerCase().includes(q) ||
+                              (item.sku || '').toLowerCase().includes(q)
+                            )
+                          })
+                          .map((item, idx) => {
+                            const isLowStock = item.current_stock !== null && item.current_stock <= 10
+                            const isOutOfStock = item.current_stock !== null && item.current_stock <= 0
+                            return (
+                              <TableRow key={`${item.title}-${item.variant_title}-${item.sku}`} hover>
+                                <TableCell sx={{ color: 'text.secondary' }}>{idx + 1}</TableCell>
+                                <TableCell sx={{ fontWeight: 600 }}>{item.title}</TableCell>
+                                <TableCell>
+                                  {item.variant_title ? (
+                                    <Chip label={item.variant_title} size="small" variant="outlined" sx={{ fontSize: '0.75rem' }} />
+                                  ) : (
+                                    <Typography variant="caption" color="text.secondary">-</Typography>
+                                  )}
+                                </TableCell>
+                                <TableCell>
+                                  {item.sku ? (
+                                    <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{item.sku}</Typography>
+                                  ) : (
+                                    <Typography variant="caption" color="text.secondary">N/A</Typography>
+                                  )}
+                                </TableCell>
+                                <TableCell sx={{ textAlign: 'center', fontWeight: 'bold', fontSize: '1rem' }}>
+                                  {item.total_quantity_sold}
+                                </TableCell>
+                                <TableCell sx={{ textAlign: 'center' }}>
+                                  {item.order_count}
+                                </TableCell>
+                                <TableCell sx={{ textAlign: 'right', fontWeight: 'bold' }}>
+                                  INR {item.total_revenue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                </TableCell>
+                                <TableCell sx={{ textAlign: 'center' }}>
+                                  {item.current_stock !== null ? (
+                                    <Chip
+                                      label={item.current_stock}
+                                      size="small"
+                                      color={isOutOfStock ? 'error' : isLowStock ? 'warning' : 'default'}
+                                      variant={isOutOfStock || isLowStock ? 'filled' : 'outlined'}
+                                    />
+                                  ) : (
+                                    <Typography variant="caption" color="text.secondary">-</Typography>
+                                  )}
+                                </TableCell>
+                                <TableCell>
+                                  {isOutOfStock ? (
+                                    <Chip label="Out of Stock" size="small" color="error" />
+                                  ) : isLowStock ? (
+                                    <Chip label="Low Stock" size="small" color="warning" />
+                                  ) : item.current_stock !== null ? (
+                                    <Chip label="In Stock" size="small" color="success" variant="outlined" />
+                                  ) : null}
+                                </TableCell>
+                              </TableRow>
+                            )
+                          })
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </TabPanel>
+
+              <TabPanel value={tabValue} index={3}>
+                {/* Discounts Section */}
+                <Box sx={{ mb: 4 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                    <Box>
+                      <Typography variant="h6" sx={{ fontWeight: 600 }}>Discounts & Price Rules</Typography>
+                      <Typography variant="body2" color="text.secondary">{discounts.length} active discounts</Typography>
+                    </Box>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={<Sync />}
+                      onClick={() => handleSyncDiscounts(selectedStore!)}
+                    >
+                      Sync Discounts
+                    </Button>
+                  </Box>
+                  <TableContainer component={Paper} variant="outlined">
+                    <Table size="small">
+                      <TableHead sx={{ bgcolor: 'action.hover' }}>
+                        <TableRow>
+                          <TableCell sx={{ fontWeight: 'bold' }}>Code</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold' }}>Type</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold' }}>Value</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold' }}>Valid From</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold' }}>Valid Until</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold' }}>Status</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {discounts.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
+                              <Typography color="text.secondary">No discounts synced. Click "Sync Discounts" to pull from Shopify.</Typography>
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          discounts.map(d => (
+                            <TableRow key={d.id} hover>
+                              <TableCell sx={{ fontWeight: 'bold', fontFamily: 'monospace' }}>{d.code}</TableCell>
+                              <TableCell><Chip label={d.type || 'discount'} size="small" variant="outlined" /></TableCell>
+                              <TableCell sx={{ fontWeight: 'bold', color: 'success.main' }}>
+                                {d.value_type === 'percentage' ? `${d.value}%` : `INR ${Number(d.value).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
+                              </TableCell>
+                              <TableCell>{d.starts_at ? new Date(d.starts_at).toLocaleDateString() : '-'}</TableCell>
+                              <TableCell>{d.ends_at ? new Date(d.ends_at).toLocaleDateString() : 'No expiry'}</TableCell>
+                              <TableCell>
+                                <Chip label={d.is_active ? 'Active' : 'Expired'} size="small" color={d.is_active ? 'success' : 'default'} variant="outlined" />
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Box>
+
+                {/* Draft Orders Section */}
+                <Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                    <Box>
+                      <Typography variant="h6" sx={{ fontWeight: 600 }}>Draft Orders</Typography>
+                      <Typography variant="body2" color="text.secondary">{draftOrders.length} draft orders (quotations / proposals)</Typography>
+                    </Box>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={<Sync />}
+                      onClick={() => handleSyncDraftOrders(selectedStore!)}
+                    >
+                      Sync Draft Orders
+                    </Button>
+                  </Box>
+                  <TableContainer component={Paper} variant="outlined">
+                    <Table size="small">
+                      <TableHead sx={{ bgcolor: 'action.hover' }}>
+                        <TableRow>
+                          <TableCell sx={{ fontWeight: 'bold' }}>Draft #</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold' }}>Customer</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold' }}>Items</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', textAlign: 'right' }}>Total</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold' }}>Status</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold' }}>ERP Doc</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {draftOrders.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
+                              <Typography color="text.secondary">No draft orders synced. Click "Sync Draft Orders" to pull from Shopify.</Typography>
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          draftOrders.map(draft => (
+                            <TableRow key={draft.id} hover>
+                              <TableCell sx={{ fontWeight: 'bold' }}>#{draft.shopify_draft_order_id}</TableCell>
+                              <TableCell>{draft.customer_name || '-'}</TableCell>
+                              <TableCell>
+                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                  {(draft.line_items || []).length > 0 ? (
+                                    draft.line_items.map((item, idx) => (
+                                      <Tooltip key={idx} title={`${item.title}${item.variant_title ? ` - ${item.variant_title}` : ''} | SKU: ${item.sku || 'N/A'} | Qty: ${item.quantity} | Price: ${item.price}`}>
+                                        <Chip
+                                          label={`${item.title.substring(0, 25)}${item.title.length > 25 ? '...' : ''} x${item.quantity}`}
+                                          size="small"
+                                          variant="outlined"
+                                          sx={{ fontSize: '0.7rem' }}
+                                        />
+                                      </Tooltip>
+                                    ))
+                                  ) : (
+                                    <Typography variant="caption" color="text.secondary">No items</Typography>
+                                  )}
+                                </Box>
+                              </TableCell>
+                              <TableCell sx={{ fontWeight: 'bold', textAlign: 'right' }}>INR {Number(draft.total_price).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</TableCell>
+                              <TableCell><Chip label={draft.status} size="small" color={draft.status === 'open' ? 'info' : draft.status === 'completed' ? 'success' : 'default'} /></TableCell>
+                              <TableCell>
+                                {draft.erp_document_number ? (
+                                  <Chip label={draft.erp_document_number} size="small" color="primary" variant="outlined" />
+                                ) : (
+                                  <Typography variant="caption" color="text.secondary">Pending</Typography>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Box>
+              </TabPanel>
+
+              <TabPanel value={tabValue} index={4}>
+                <TableContainer component={Paper} variant="outlined">
+                  <Table>
+                    <TableHead sx={{ bgcolor: 'action.hover' }}>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 'bold' }}>Job Type</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold' }}>Status</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold' }}>Started</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold' }}>Duration</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold' }}>Items</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold' }}>Progress</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
                       {syncJobs.map((job) => (
                         <TableRow key={job.id}>
-                          <TableCell>{job.job_type}</TableCell>
+                          <TableCell sx={{ textTransform: 'capitalize' }}>{job.job_type.replace(/_/g, ' ')}</TableCell>
                           <TableCell>
                             <Chip
                               label={job.status}
@@ -807,61 +1224,45 @@ export default function ShopifyIntegration() {
                 </TableContainer>
               </TabPanel>
 
-              <TabPanel value={tabValue} index={3}>
-                <Typography variant="h6" gutterBottom>
-                  Store Settings
-                </Typography>
-                <Grid container spacing={2}>
-                  <Grid item xs={12}>
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={selectedStore.auto_sync_products}
-                          onChange={(e) =>
-                            setSelectedStore((prev) =>
-                              prev
-                                ? { ...prev, auto_sync_products: e.target.checked }
-                                : prev,
-                            )
-                          }
-                        />
-                      }
-                      label="Auto-sync Products"
-                    />
-                  </Grid>
-                  <Grid item xs={12}>
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={selectedStore.auto_sync_inventory}
-                          onChange={(e) =>
-                            setSelectedStore((prev) =>
-                              prev
-                                ? { ...prev, auto_sync_inventory: e.target.checked }
-                                : prev,
-                            )
-                          }
-                        />
-                      }
-                      label="Auto-sync Inventory"
-                    />
-                  </Grid>
-                  <Grid item xs={12}>
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={selectedStore.auto_sync_orders}
-                          onChange={(e) =>
-                            setSelectedStore((prev) =>
-                              prev
-                                ? { ...prev, auto_sync_orders: e.target.checked }
-                                : prev,
-                            )
-                          }
-                        />
-                      }
-                      label="Auto-sync Orders"
-                    />
+              <TabPanel value={tabValue} index={5}>
+                <Typography variant="h6" gutterBottom>Store Settings</Typography>
+                <Grid container spacing={3}>
+                  <Grid item xs={12} md={6}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={selectedStore.auto_sync_products}
+                            onChange={(e) =>
+                              setSelectedStore((prev) => prev ? { ...prev, auto_sync_products: e.target.checked } : prev)
+                            }
+                          />
+                        }
+                        label="Auto-sync Products"
+                      />
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={selectedStore.auto_sync_inventory}
+                            onChange={(e) =>
+                              setSelectedStore((prev) => prev ? { ...prev, auto_sync_inventory: e.target.checked } : prev)
+                            }
+                          />
+                        }
+                        label="Auto-sync Inventory"
+                      />
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={selectedStore.auto_sync_orders}
+                            onChange={(e) =>
+                              setSelectedStore((prev) => prev ? { ...prev, auto_sync_orders: e.target.checked } : prev)
+                            }
+                          />
+                        }
+                        label="Auto-sync Orders"
+                      />
+                    </Box>
                   </Grid>
                   <Grid item xs={12} md={6}>
                     <TextField
@@ -870,11 +1271,7 @@ export default function ShopifyIntegration() {
                       type="number"
                       value={selectedStore.sync_interval_minutes}
                       onChange={(e) =>
-                        setSelectedStore((prev) =>
-                          prev
-                            ? { ...prev, sync_interval_minutes: Number(e.target.value) || 0 }
-                            : prev,
-                        )
+                        setSelectedStore((prev) => prev ? { ...prev, sync_interval_minutes: Number(e.target.value) || 0 } : prev)
                       }
                     />
                   </Grid>
@@ -895,7 +1292,7 @@ export default function ShopifyIntegration() {
         <DialogTitle>Connect Shopify Store</DialogTitle>
         <DialogContent>
           <Alert severity="info" sx={{ mb: 2 }}>
-            You'll need a Shopify Admin API access token. Get it from your Shopify admin panel under Apps → Develop apps.
+            You'll need a Shopify Admin API access token with necessary scopes.
           </Alert>
           <TextField
             fullWidth
@@ -912,7 +1309,6 @@ export default function ShopifyIntegration() {
             onChange={(e) => setNewStore({ ...newStore, shop_domain: e.target.value })}
             margin="normal"
             placeholder="mystore.myshopify.com"
-            helperText="Your Shopify store domain"
           />
           <TextField
             fullWidth
@@ -921,7 +1317,6 @@ export default function ShopifyIntegration() {
             onChange={(e) => setNewStore({ ...newStore, access_token: e.target.value })}
             margin="normal"
             type="password"
-            helperText="Admin API access token"
           />
           <TextField
             fullWidth
@@ -930,30 +1325,11 @@ export default function ShopifyIntegration() {
             onChange={(e) => setNewStore({ ...newStore, webhook_secret: e.target.value })}
             margin="normal"
             type="password"
-            helperText="For webhook verification"
-          />
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={newStore.auto_sync_products}
-                onChange={(e) => setNewStore({ ...newStore, auto_sync_products: e.target.checked })}
-              />
-            }
-            label="Auto-sync Products"
-          />
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={newStore.auto_sync_inventory}
-                onChange={(e) => setNewStore({ ...newStore, auto_sync_inventory: e.target.checked })}
-              />
-            }
-            label="Auto-sync Inventory"
           />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpenStoreDialog(false)}>Cancel</Button>
-          <Button onClick={handleCreateStore} variant="contained" disabled={loading}>
+          <Button onClick={() => void handleCreateStore()} variant="contained" disabled={loading}>
             {loading ? <CircularProgress size={24} /> : 'Connect'}
           </Button>
         </DialogActions>

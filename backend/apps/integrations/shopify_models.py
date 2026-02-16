@@ -279,6 +279,9 @@ class ShopifySyncJob(BaseModel):
             ('products', 'Products'),
             ('inventory', 'Inventory'),
             ('orders', 'Orders'),
+            ('draft_orders', 'Draft Orders'),
+            ('discounts', 'Discounts'),
+            ('gift_cards', 'Gift Cards'),
             ('full_sync', 'Full Sync'),
         ]
     )
@@ -317,3 +320,135 @@ class ShopifySyncJob(BaseModel):
     
     def __str__(self):
         return f"{self.store.name} - {self.job_type} - {self.job_status}"
+
+
+class ShopifyOrder(BaseModel):
+    """
+    Synced orders from Shopify.
+    """
+    store = models.ForeignKey(ShopifyStore, on_delete=models.CASCADE, related_name='orders')
+    shopify_order_id = models.BigIntegerField(unique=True)
+    order_number = models.CharField(max_length=100)
+    
+    # ERP mapping
+    erp_document = models.OneToOneField(
+        'documents.Document',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='shopify_order'
+    )
+    
+    # Data
+    order_status = models.CharField(max_length=50)
+    financial_status = models.CharField(max_length=50)
+    fulfillment_status = models.CharField(max_length=50, null=True, blank=True)
+    
+    total_price = models.DecimalField(max_digits=15, decimal_places=2)
+    currency = models.CharField(max_length=10)
+    
+    customer_name = models.CharField(max_length=255, blank=True)
+    customer_email = models.EmailField(blank=True)
+    
+    shopify_data = models.JSONField(default=dict)
+    processed_at = models.DateTimeField(null=True, blank=True)
+    
+    objects = models.Manager()
+    
+    class Meta:
+        db_table = 'shopify_order'
+        ordering = ['-processed_at']
+
+
+class ShopifyFulfillment(BaseModel):
+    """
+    Track fulfillments (shipments) for Shopify orders.
+    """
+    order = models.ForeignKey(ShopifyOrder, on_delete=models.CASCADE, related_name='fulfillments')
+    shopify_fulfillment_id = models.BigIntegerField(unique=True)
+    
+    tracking_number = models.CharField(max_length=255, blank=True)
+    tracking_company = models.CharField(max_length=100, blank=True)
+    tracking_url = models.URLField(max_length=500, blank=True)
+    
+    status = models.CharField(max_length=50)
+    shopify_data = models.JSONField(default=dict)
+    
+    objects = models.Manager()
+    
+    class Meta:
+        db_table = 'shopify_fulfillment'
+
+
+class ShopifyDraftOrder(BaseModel):
+    """
+    Synced draft orders from Shopify (proposals/quotations).
+    """
+    store = models.ForeignKey(ShopifyStore, on_delete=models.CASCADE, related_name='draft_orders')
+    shopify_draft_order_id = models.BigIntegerField(unique=True)
+    
+    # ERP mapping
+    erp_document = models.OneToOneField(
+        'documents.Document',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='shopify_draft_order'
+    )
+    
+    status = models.CharField(max_length=50)
+    total_price = models.DecimalField(max_digits=15, decimal_places=2)
+    
+    shopify_data = models.JSONField(default=dict)
+    
+    objects = models.Manager()
+    
+    class Meta:
+        db_table = 'shopify_draft_order'
+
+
+class ShopifyDiscount(BaseModel):
+    """
+    Discounts and Price Rules from Shopify.
+    """
+    store = models.ForeignKey(ShopifyStore, on_delete=models.CASCADE, related_name='discounts')
+    shopify_id = models.BigIntegerField(unique=True)
+    code = models.CharField(max_length=100)
+    type = models.CharField(max_length=50) # price_rule or discount_code
+    
+    value = models.DecimalField(max_digits=10, decimal_places=2)
+    value_type = models.CharField(max_length=20) # percentage or fixed_amount
+    
+    starts_at = models.DateTimeField(null=True)
+    ends_at = models.DateTimeField(null=True, blank=True)
+    
+    is_active = models.BooleanField(default=True)
+    shopify_data = models.JSONField(default=dict)
+    
+    objects = models.Manager()
+    
+    class Meta:
+        db_table = 'shopify_discount'
+
+
+class ShopifyGiftCard(BaseModel):
+    """
+    Gift cards issued via Shopify.
+    """
+    store = models.ForeignKey(ShopifyStore, on_delete=models.CASCADE, related_name='gift_cards')
+    shopify_gift_card_id = models.BigIntegerField(unique=True)
+    
+    last_characters = models.CharField(max_length=10)
+    initial_value = models.DecimalField(max_digits=15, decimal_places=2)
+    current_balance = models.DecimalField(max_digits=15, decimal_places=2)
+    
+    currency = models.CharField(max_length=10)
+    expires_on = models.DateField(null=True, blank=True)
+    is_disabled = models.BooleanField(default=False)
+    
+    shopify_data = models.JSONField(default=dict)
+    
+    objects = models.Manager()
+    
+    class Meta:
+        db_table = 'shopify_gift_card'

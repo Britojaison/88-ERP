@@ -9,9 +9,11 @@ from django.db import transaction
 from django.utils import timezone
 from .shopify_models import (
     ShopifyStore, ShopifyProduct, ShopifyInventoryLevel,
-    ShopifyWebhook, ShopifyWebhookLog, ShopifySyncJob
+    ShopifyWebhook, ShopifyWebhookLog, ShopifySyncJob,
+    ShopifyOrder, ShopifyDraftOrder, ShopifyDiscount, ShopifyGiftCard
 )
-from apps.mdm.models import Product, SKU, Location
+from apps.mdm.models import Product, SKU, Location, Customer
+from apps.documents.models import Document, DocumentType, DocumentLine
 import logging
 
 logger = logging.getLogger(__name__)
@@ -162,6 +164,83 @@ class ShopifyAPIClient:
         params = {'status': status_filter, 'limit': limit}
         response = self._make_request('GET', 'orders.json', params=params)
         return response.get('orders', [])
+
+    def get_all_orders(self) -> List[Dict]:
+        """Get ALL orders using pagination."""
+        all_orders = []
+        params = {'limit': 250, 'status': 'any'}
+        while True:
+            response = self._make_request('GET', 'orders.json', params=params)
+            orders = response.get('orders', [])
+            all_orders.extend(orders)
+            if len(orders) < 250: break
+            params['since_id'] = orders[-1]['id']
+            time.sleep(0.5)
+        return all_orders
+
+    def get_draft_orders(self) -> List[Dict]:
+        """Get all draft orders."""
+        all_drafts = []
+        params = {'limit': 250}
+        while True:
+            response = self._make_request('GET', 'draft_orders.json', params=params)
+            drafts = response.get('draft_orders', [])
+            all_drafts.extend(drafts)
+            if len(drafts) < 250: break
+            params['since_id'] = drafts[-1]['id']
+            time.sleep(0.5)
+        return all_drafts
+
+    def get_price_rules(self) -> List[Dict]:
+        """Get all price rules."""
+        all_rules = []
+        params = {'limit': 250}
+        while True:
+            response = self._make_request('GET', 'price_rules.json', params=params)
+            rules = response.get('price_rules', [])
+            all_rules.extend(rules)
+            if len(rules) < 250: break
+            params['since_id'] = rules[-1]['id']
+            time.sleep(0.5)
+        return all_rules
+
+    def get_discount_codes(self, price_rule_id: int) -> List[Dict]:
+        """Get individual discount codes for a price rule."""
+        response = self._make_request('GET', f'price_rules/{price_rule_id}/discount_codes.json')
+        return response.get('discount_codes', [])
+
+    def get_gift_cards(self) -> List[Dict]:
+        """Get all gift cards."""
+        all_cards = []
+        params = {'limit': 250}
+        while True:
+            response = self._make_request('GET', 'gift_cards.json', params=params)
+            cards = response.get('gift_cards', [])
+            all_cards.extend(cards)
+            if len(cards) < 250: break
+            params['since_id'] = cards[-1]['id']
+            time.sleep(0.5)
+        return all_cards
+
+    def get_reports(self) -> List[Dict]:
+        """Get all reports."""
+        response = self._make_request('GET', 'reports.json')
+        return response.get('reports', [])
+
+    def create_fulfillment(self, fulfillment_order_id: int, tracking_info: Dict) -> Dict:
+        """Create a fulfillment for a fulfillment order."""
+        data = {
+            'fulfillment': {
+                'message': 'The items have been fulfilled.',
+                'notify_customer': True,
+                'tracking_info': tracking_info,
+                'line_items_by_fulfillment_order': [{
+                    'fulfillment_order_id': fulfillment_order_id
+                }]
+            }
+        }
+        response = self._make_request('POST', 'fulfillments.json', json=data)
+        return response.get('fulfillment', {})
     
     def create_webhook(self, topic: str, address: str) -> Dict:
         """Create a webhook."""
@@ -744,7 +823,180 @@ class ShopifyService:
                     return
     
     @staticmethod
+    def sync_orders(store: ShopifyStore) -> ShopifySyncJob:
+        """Sync orders from Shopify to ERP."""
+        job = ShopifySyncJob.objects.create(store=store, job_type='orders', job_status='running')
+        try:
+            client = ShopifyAPIClient(store)
+            orders = client.get_all_orders()
+            job.total_items = len(orders)
+            job.save()
+            
+            for order_data in orders:
+                try:
+                    ShopifyService._process_order(store, order_data)
+                    job.processed_items += 1
+                except Exception as e:
+                    logger.error(f"Error processing order {order_data.get('id')}: {e}")
+                    job.failed_items += 1
+                job.save()
+                
+            job.job_status = 'completed'
+            job.completed_at = timezone.now()
+            store.last_order_sync = timezone.now()
+            store.save()
+        except Exception as e:
+            job.job_status = 'failed'
+            job.error_log = str(e)
+        job.save()
+        return job
+
+    @staticmethod
+    def sync_draft_orders(store: ShopifyStore) -> ShopifySyncJob:
+        """Sync draft orders (quotations)."""
+        job = ShopifySyncJob.objects.create(store=store, job_type='draft_orders', job_status='running')
+        try:
+            client = ShopifyAPIClient(store)
+            drafts = client.get_draft_orders()
+            job.total_items = len(drafts)
+            job.save()
+            for draft_data in drafts:
+                ShopifyService._process_draft_order(store, draft_data)
+                job.processed_items += 1
+                job.save()
+            job.job_status = 'completed'
+        except Exception as e:
+            job.job_status = 'failed'
+            job.error_log = str(e)
+        job.save()
+        return job
+
+    @staticmethod
+    def sync_discounts(store: ShopifyStore) -> ShopifySyncJob:
+        """Sync price rules and discount codes."""
+        job = ShopifySyncJob.objects.create(store=store, job_type='discounts', job_status='running')
+        try:
+            client = ShopifyAPIClient(store)
+            rules = client.get_price_rules()
+            job.total_items = len(rules)
+            job.save()
+            for rule in rules:
+                ShopifyDiscount.objects.update_or_create(
+                    store=store,
+                    shopify_id=rule['id'],
+                    defaults={
+                        'code': rule.get('title', ''),
+                        'type': 'price_rule',
+                        'value': abs(float(rule.get('value', 0))),
+                        'value_type': rule.get('value_type', 'fixed_amount'),
+                        'starts_at': rule.get('starts_at'),
+                        'ends_at': rule.get('ends_at'),
+                        'shopify_data': rule
+                    }
+                )
+                job.processed_items += 1
+                job.save()
+            job.job_status = 'completed'
+        except Exception as e:
+            job.job_status = 'failed'
+            job.error_log = str(e)
+        job.save()
+        return job
+
+    @staticmethod
+    @transaction.atomic
+    def _process_order(store: ShopifyStore, order_data: Dict) -> ShopifyOrder:
+        """Process a Shopify order and link it to an ERP Document."""
+        order_id = order_data['id']
+        
+        # Get or create ShopifyOrder
+        s_order, created = ShopifyOrder.objects.update_or_create(
+            shopify_order_id=order_id,
+            defaults={
+                'store': store,
+                'order_number': order_data.get('order_number', ''),
+                'order_status': order_data.get('status', 'open'),
+                'financial_status': order_data.get('financial_status', ''),
+                'fulfillment_status': order_data.get('fulfillment_status', ''),
+                'total_price': order_data.get('total_price', 0),
+                'currency': order_data.get('currency', 'INR'),
+                'customer_name': f"{order_data.get('customer', {}).get('first_name', '')} {order_data.get('customer', {}).get('last_name', '')}".strip(),
+                'customer_email': order_data.get('customer', {}).get('email', ''),
+                'shopify_data': order_data,
+                'processed_at': order_data.get('created_at')
+            }
+        )
+        
+        # Mapping to ERP Document (Sales Order)
+        if not s_order.erp_document:
+            try:
+                # Find or create customer
+                email = order_data.get('customer', {}).get('email')
+                customer = None
+                if email:
+                    customer, _ = Customer.objects.get_or_create(
+                        company_id=store.company_id,
+                        email=email,
+                        defaults={
+                            'name': s_order.customer_name,
+                            'status': 'active'
+                        }
+                    )
+                
+                # Create ERP Document
+                doc_type = DocumentType.objects.get(company_id=store.company_id, code='sales_order')
+                from apps.numbering.models import NumberingSequence
+                doc_number = NumberingSequence.objects.get(id=doc_type.numbering_sequence_id).get_next_number()
+                
+                erp_doc = Document.objects.create(
+                    company_id=store.company_id,
+                    document_type=doc_type,
+                    document_number=doc_number,
+                    document_date=timezone.now().date(),
+                    customer=customer,
+                    external_reference=s_order.order_number,
+                    total_amount=s_order.total_price,
+                    notes=f"Shopify Order #{s_order.order_number}"
+                )
+                
+                # Add Lines
+                for idx, item in enumerate(order_data.get('line_items', [])):
+                    sku = None
+                    if item.get('sku'):
+                        sku = SKU.objects.filter(company_id=store.company_id, code=item['sku']).first()
+                    
+                    DocumentLine.objects.create(
+                        document=erp_doc,
+                        line_number=idx + 1,
+                        sku=sku or SKU.objects.first(), # Fallback if SKU not found
+                        quantity=item.get('quantity', 1),
+                        unit_price=item.get('price', 0),
+                        line_amount=float(item.get('price', 0)) * int(item.get('quantity', 1))
+                    )
+                
+                s_order.erp_document = erp_doc
+                s_order.save()
+            except Exception as e:
+                logger.error(f"Failed to create ERP document for order {order_id}: {e}")
+                
+        return s_order
+
+    @staticmethod
+    def _process_draft_order(store: ShopifyStore, draft_data: Dict) -> ShopifyDraftOrder:
+        """Process a Shopify draft order."""
+        draft, _ = ShopifyDraftOrder.objects.update_or_create(
+            shopify_draft_order_id=draft_data['id'],
+            defaults={
+                'store': store,
+                'status': draft_data.get('status', 'open'),
+                'total_price': draft_data.get('total_price', 0),
+                'shopify_data': draft_data
+            }
+        )
+        return draft
+
+    @staticmethod
     def _handle_order_webhook(store: ShopifyStore, topic: str, payload: Dict) -> None:
-        """Handle order webhooks - log for now, can expand later."""
+        """Handle order webhooks by processing the order."""
         logger.info(f"Order webhook received: {topic}, Order ID: {payload.get('id')}")
-        # Future: Create order in ERP, update inventory, etc.
+        ShopifyService._process_order(store, payload)

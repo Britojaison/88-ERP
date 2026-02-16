@@ -5,6 +5,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.views import APIView
 from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -12,15 +13,30 @@ from django.utils.decorators import method_decorator
 from django.conf import settings
 from .shopify_models import (
     ShopifyStore, ShopifyProduct, ShopifyInventoryLevel,
-    ShopifyWebhook, ShopifyWebhookLog, ShopifySyncJob
+    ShopifyWebhook, ShopifyWebhookLog, ShopifySyncJob,
+    ShopifyOrder, ShopifyDraftOrder, ShopifyDiscount, ShopifyGiftCard,
+    ShopifyFulfillment
 )
 from .shopify_service import ShopifyService, ShopifyAPIClient
 from rest_framework import serializers
 import json
 import logging
 import threading
+from collections import defaultdict
 
 logger = logging.getLogger(__name__)
+
+
+class ShopifyProductPagination(PageNumberPagination):
+    page_size = 50
+    page_size_query_param = 'page_size'
+    max_page_size = 200
+
+
+class ShopifyOrderPagination(PageNumberPagination):
+    page_size = 25
+    page_size_query_param = 'page_size'
+    max_page_size = 100
 
 
 # Serializers
@@ -93,6 +109,116 @@ class ShopifyWebhookLogSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'topic', 'shopify_id', 'processed', 'processed_at',
             'error', 'created_at'
+        ]
+
+
+class ShopifyOrderSerializer(serializers.ModelSerializer):
+    erp_document_number = serializers.SerializerMethodField()
+    line_items = serializers.SerializerMethodField()
+    items_count = serializers.SerializerMethodField()
+    shipping_address = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = ShopifyOrder
+        fields = [
+            'id', 'shopify_order_id', 'order_number', 'store',
+            'erp_document_number', 'order_status', 'financial_status',
+            'fulfillment_status', 'total_price', 'currency',
+            'customer_name', 'customer_email', 'processed_at',
+            'line_items', 'items_count', 'shipping_address',
+        ]
+
+    def get_erp_document_number(self, obj):
+        return obj.erp_document.document_number if obj.erp_document else None
+
+    def get_line_items(self, obj):
+        """Extract line items from stored Shopify order JSON."""
+        raw_items = obj.shopify_data.get('line_items', []) if obj.shopify_data else []
+        items = []
+        for item in raw_items:
+            items.append({
+                'id': item.get('id'),
+                'title': item.get('title', 'Unknown Product'),
+                'variant_title': item.get('variant_title', ''),
+                'sku': item.get('sku', ''),
+                'quantity': item.get('quantity', 0),
+                'price': item.get('price', '0.00'),
+                'total_discount': item.get('total_discount', '0.00'),
+                'fulfillment_status': item.get('fulfillment_status'),
+                'product_id': item.get('product_id'),
+                'variant_id': item.get('variant_id'),
+                'requires_shipping': item.get('requires_shipping', True),
+                'taxable': item.get('taxable', True),
+            })
+        return items
+
+    def get_items_count(self, obj):
+        raw_items = obj.shopify_data.get('line_items', []) if obj.shopify_data else []
+        return sum(item.get('quantity', 0) for item in raw_items)
+
+    def get_shipping_address(self, obj):
+        addr = obj.shopify_data.get('shipping_address', {}) if obj.shopify_data else {}
+        if not addr:
+            return None
+        return {
+            'city': addr.get('city', ''),
+            'province': addr.get('province', ''),
+            'country': addr.get('country', ''),
+            'zip': addr.get('zip', ''),
+        }
+
+
+class ShopifyDraftOrderSerializer(serializers.ModelSerializer):
+    erp_document_number = serializers.SerializerMethodField()
+    line_items = serializers.SerializerMethodField()
+    customer_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = ShopifyDraftOrder
+        fields = [
+            'id', 'shopify_draft_order_id', 'store', 'erp_document_number',
+            'status', 'total_price', 'line_items', 'customer_name',
+        ]
+
+    def get_erp_document_number(self, obj):
+        return obj.erp_document.document_number if obj.erp_document else None
+
+    def get_line_items(self, obj):
+        raw_items = obj.shopify_data.get('line_items', []) if obj.shopify_data else []
+        items = []
+        for item in raw_items:
+            items.append({
+                'title': item.get('title', 'Unknown'),
+                'variant_title': item.get('variant_title', ''),
+                'sku': item.get('sku', ''),
+                'quantity': item.get('quantity', 0),
+                'price': item.get('price', '0.00'),
+            })
+        return items
+
+    def get_customer_name(self, obj):
+        cust = obj.shopify_data.get('customer', {}) if obj.shopify_data else {}
+        if cust:
+            return f"{cust.get('first_name', '')} {cust.get('last_name', '')}".strip()
+        return ''
+
+
+class ShopifyDiscountSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ShopifyDiscount
+        fields = [
+            'id', 'store', 'shopify_id', 'code', 'type',
+            'value', 'value_type', 'starts_at', 'ends_at', 'is_active',
+        ]
+
+
+class ShopifyGiftCardSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ShopifyGiftCard
+        fields = [
+            'id', 'store', 'shopify_gift_card_id', 'last_characters',
+            'initial_value', 'current_balance', 'currency',
+            'expires_on', 'is_disabled',
         ]
 
 
@@ -257,29 +383,33 @@ class ShopifyStoreViewSet(viewsets.ModelViewSet):
     def sync_inventory(self, request, pk=None):
         """Trigger inventory sync in background."""
         store = self.get_object()
-        
-        job = ShopifySyncJob.objects.create(
-            store=store,
-            job_type='inventory',
-            job_status='running'
-        )
-        
-        def _run_sync():
-            try:
-                import django
-                django.db.connections.close_all()
-                ShopifyService._do_inventory_sync(store, job)
-            except Exception as e:
-                logger.error(f"Background inventory sync failed: {e}")
-        
-        thread = threading.Thread(target=_run_sync, daemon=True)
-        thread.start()
-        
-        return Response({
-            'job_id': str(job.id),
-            'status': 'running',
-            'message': f'Inventory sync started in background (job {job.id})'
-        })
+        job = ShopifySyncJob.objects.create(store=store, job_type='inventory', job_status='running')
+        threading.Thread(target=lambda: ShopifyService._do_inventory_sync(store, job), daemon=True).start()
+        return Response({'job_id': str(job.id), 'status': 'running'})
+
+    @action(detail=True, methods=['post'])
+    def sync_orders(self, request, pk=None):
+        """Trigger order sync in background."""
+        store = self.get_object()
+        job = ShopifySyncJob.objects.create(store=store, job_type='orders', job_status='running')
+        threading.Thread(target=lambda: ShopifyService.sync_orders(store), daemon=True).start()
+        return Response({'job_id': str(job.id), 'status': 'running'})
+
+    @action(detail=True, methods=['post'])
+    def sync_draft_orders(self, request, pk=None):
+        """Sync draft orders."""
+        store = self.get_object()
+        job = ShopifySyncJob.objects.create(store=store, job_type='draft_orders', job_status='running')
+        threading.Thread(target=lambda: ShopifyService.sync_draft_orders(store), daemon=True).start()
+        return Response({'job_id': str(job.id), 'status': 'running'})
+
+    @action(detail=True, methods=['post'])
+    def sync_discounts(self, request, pk=None):
+        """Sync price rules and discounts."""
+        store = self.get_object()
+        job = ShopifySyncJob.objects.create(store=store, job_type='discounts', job_status='running')
+        threading.Thread(target=lambda: ShopifyService.sync_discounts(store), daemon=True).start()
+        return Response({'job_id': str(job.id), 'status': 'running'})
     
     @action(detail=True, methods=['post'])
     def setup_webhooks(self, request, pk=None):
@@ -325,6 +455,81 @@ class ShopifyStoreViewSet(viewsets.ModelViewSet):
                 'pending': pending_count,
             },
             'recent_jobs': ShopifySyncJobSerializer(recent_jobs, many=True).data
+        })
+
+    @action(detail=True, methods=['get'])
+    def product_demand(self, request, pk=None):
+        """
+        Aggregated product demand from all orders.
+        Shows what products were ordered and total quantities — for ERP inventory planning.
+        """
+        store = self.get_object()
+        orders = ShopifyOrder.objects.filter(store=store)
+
+        # Aggregate line items across all orders by product title + variant + SKU
+        demand = defaultdict(lambda: {
+            'title': '',
+            'variant_title': '',
+            'sku': '',
+            'total_quantity': 0,
+            'total_revenue': 0.0,
+            'order_count': 0,
+            'shopify_product_id': None,
+        })
+
+        for order in orders:
+            if not order.shopify_data:
+                continue
+            for item in order.shopify_data.get('line_items', []):
+                sku = item.get('sku', '')
+                title = item.get('title', 'Unknown')
+                variant = item.get('variant_title', '')
+                key = f"{title}||{variant}||{sku}"
+
+                demand[key]['title'] = title
+                demand[key]['variant_title'] = variant
+                demand[key]['sku'] = sku
+                demand[key]['total_quantity'] += int(item.get('quantity', 0))
+                demand[key]['total_revenue'] += float(item.get('price', 0)) * int(item.get('quantity', 0))
+                demand[key]['order_count'] += 1
+                demand[key]['shopify_product_id'] = item.get('product_id')
+
+        # Enrich with current inventory from ShopifyProduct table
+        result = []
+        for key, d in demand.items():
+            current_stock = None
+            product_match = None
+            if d['sku']:
+                product_match = ShopifyProduct.objects.filter(
+                    store=store, shopify_sku=d['sku']
+                ).first()
+            elif d['shopify_product_id']:
+                product_match = ShopifyProduct.objects.filter(
+                    store=store, shopify_product_id=d['shopify_product_id']
+                ).first()
+
+            if product_match:
+                current_stock = product_match.shopify_inventory_quantity
+
+            result.append({
+                'title': d['title'],
+                'variant_title': d['variant_title'],
+                'sku': d['sku'],
+                'total_quantity_sold': d['total_quantity'],
+                'total_revenue': round(d['total_revenue'], 2),
+                'order_count': d['order_count'],
+                'current_stock': current_stock,
+            })
+
+        # Sort by total quantity sold descending
+        result.sort(key=lambda x: x['total_quantity_sold'], reverse=True)
+
+        return Response({
+            'total_products': len(result),
+            'total_units_sold': sum(r['total_quantity_sold'] for r in result),
+            'total_revenue': round(sum(r['total_revenue'] for r in result), 2),
+            'total_orders': orders.count(),
+            'items': result,
         })
 
     @action(detail=True, methods=['get'])
@@ -406,7 +611,7 @@ class ShopifyProductViewSet(viewsets.ReadOnlyModelViewSet):
     """
     permission_classes = [IsAuthenticated]
     serializer_class = ShopifyProductSerializer
-    pagination_class = None  # Return all products without pagination
+    pagination_class = ShopifyProductPagination
     
     def get_queryset(self):
         user = self.request.user
@@ -553,3 +758,67 @@ class ShopifyWebhookView(APIView):
             return HttpResponse(status=500)
         
         return HttpResponse(status=200)
+
+
+class ShopifyOrderViewSet(viewsets.ReadOnlyModelViewSet):
+    permission_classes = [IsAuthenticated]
+    serializer_class = ShopifyOrderSerializer
+    pagination_class = ShopifyOrderPagination
+
+    def get_queryset(self):
+        user = self.request.user
+        company_id = getattr(user, 'company_id', None)
+        queryset = ShopifyOrder.objects.select_related('erp_document', 'store').order_by('-processed_at')
+        if company_id:
+            queryset = queryset.filter(store__company_id=company_id)
+        else:
+            queryset = queryset.filter(store__created_by=user)
+        store_id = self.request.query_params.get('store')
+        if store_id:
+            queryset = queryset.filter(store_id=store_id)
+        return queryset
+
+class ShopifyDraftOrderViewSet(viewsets.ReadOnlyModelViewSet):
+    permission_classes = [IsAuthenticated]
+    serializer_class = ShopifyDraftOrderSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        company_id = getattr(user, 'company_id', None)
+        queryset = ShopifyDraftOrder.objects.select_related('store')
+        if company_id:
+            queryset = queryset.filter(store__company_id=company_id)
+        else:
+            queryset = queryset.filter(store__created_by=user)
+        store_id = self.request.query_params.get('store')
+        if store_id:
+            queryset = queryset.filter(store_id=store_id)
+        return queryset
+
+class ShopifyDiscountViewSet(viewsets.ReadOnlyModelViewSet):
+    permission_classes = [IsAuthenticated]
+    serializer_class = ShopifyDiscountSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        company_id = getattr(user, 'company_id', None)
+        queryset = ShopifyDiscount.objects.select_related('store')
+        if company_id:
+            queryset = queryset.filter(store__company_id=company_id)
+        else:
+            queryset = queryset.filter(store__created_by=user)
+        store_id = self.request.query_params.get('store')
+        if store_id:
+            queryset = queryset.filter(store_id=store_id)
+        return queryset
+
+class ShopifyGiftCardViewSet(viewsets.ReadOnlyModelViewSet):
+    permission_classes = [IsAuthenticated]
+    serializer_class = ShopifyGiftCardSerializer
+    def get_queryset(self):
+        user = self.request.user
+        company_id = getattr(user, 'company_id', None)
+        queryset = ShopifyGiftCard.objects.select_related('store')
+        if company_id:
+            return queryset.filter(store__company_id=company_id)
+        return queryset.filter(store__created_by=user)
