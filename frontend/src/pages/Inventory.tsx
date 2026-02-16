@@ -25,31 +25,48 @@ export default function Inventory() {
       />
 
       <Grid container spacing={2.5}>
-        <Grid item xs={12} md={4}>
-          <MetricCard
-            label="Barcode Operations"
-            value="Ready"
-            icon={<LocalOffer />}
-            note="Assign barcode per SKU and preview printable labels."
-          />
+        <Grid item xs={12} md={3}>
+          <Box onClick={() => navigate('/inventory/barcodes')} sx={{ cursor: 'pointer' }}>
+            <MetricCard
+              label="Barcode Operations"
+              value="Assign"
+              icon={<LocalOffer />}
+              note="Assign barcode per SKU and preview printable labels."
+            />
+          </Box>
         </Grid>
-        <Grid item xs={12} md={4}>
-          <MetricCard
-            label="Scan Receiving"
-            value="Ready"
-            icon={<QrCodeScanner />}
-            tone="success"
-            note="Confirm inbound goods via barcode scanning and validation."
-          />
+        <Grid item xs={12} md={3}>
+          <Box onClick={() => navigate('/inventory/receiving')} sx={{ cursor: 'pointer' }}>
+            <MetricCard
+              label="Scan Receiving"
+              value="Receive"
+              icon={<QrCodeScanner />}
+              tone="success"
+              note="Confirm inbound goods via barcode scanning and validation."
+            />
+          </Box>
         </Grid>
-        <Grid item xs={12} md={4}>
-          <MetricCard
-            label="Inventory Ledger"
-            value="Tracked"
-            icon={<Inventory2 />}
-            tone="info"
-            note="All movements and scan confirmations are audit-tracked."
-          />
+        <Grid item xs={12} md={3}>
+          <Box onClick={() => navigate('/inventory/tracking')} sx={{ cursor: 'pointer' }}>
+            <MetricCard
+              label="Inventory Ledger"
+              value="Audit"
+              icon={<Inventory2 />}
+              tone="info"
+              note="All movements and scan confirmations are audit-tracked."
+            />
+          </Box>
+        </Grid>
+        <Grid item xs={12} md={3}>
+          <Box onClick={() => navigate('/inventory/product-journey')} sx={{ cursor: 'pointer' }}>
+            <MetricCard
+              label="Product Journey"
+              value="Trace"
+              icon={<LocalOffer />}
+              tone="warning"
+              note="Track products from receipt to delivery with checkpoints."
+            />
+          </Box>
         </Grid>
 
         <Grid item xs={12}>
@@ -64,7 +81,10 @@ export default function Inventory() {
               2) Receive goods by scan against location and optional source document.
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              3) Review scan audit logs and exception outcomes (mismatch/over-receipt).
+              3) Track product journey from receipt to delivery using the Product Journey tracker.
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              4) Click the "Tracked" card to view complete audit trail and movement history.
             </Typography>
           </Paper>
         </Grid>
