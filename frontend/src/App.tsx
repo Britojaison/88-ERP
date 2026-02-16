@@ -8,6 +8,8 @@ import Documents from './pages/Documents'
 import Inventory from './pages/Inventory'
 import InventoryBarcodes from './pages/InventoryBarcodes'
 import InventoryReceiving from './pages/InventoryReceiving'
+import InventoryTracking from './pages/InventoryTracking'
+import ProductJourney from './pages/ProductJourney'
 import Reports from './pages/Reports'
 import Settings from './pages/Settings'
 import MetadataManagement from './pages/MetadataManagement'
@@ -58,6 +60,8 @@ function App() {
           <Route path="inventory" element={<Inventory />} />
           <Route path="inventory/barcodes" element={<InventoryBarcodes />} />
           <Route path="inventory/receiving" element={<InventoryReceiving />} />
+          <Route path="inventory/tracking" element={<InventoryTracking />} />
+          <Route path="inventory/product-journey" element={<ProductJourney />} />
           <Route path="reports" element={<Reports />} />
           <Route path="settings" element={<Settings />} />
           <Route path="metadata" element={<MetadataManagement />} />
