@@ -56,6 +56,7 @@ class ShopifyStore(TenantAwareModel):
     
     class Meta:
         db_table = 'shopify_store'
+        ordering = ['-created_at']
         indexes = [
             models.Index(fields=['company', 'status']),
         ]
@@ -115,6 +116,10 @@ class ShopifyProduct(BaseModel):
     shopify_barcode = models.CharField(max_length=255, blank=True)
     shopify_price = models.DecimalField(max_digits=10, decimal_places=2, null=True)
     shopify_inventory_quantity = models.IntegerField(default=0)
+    shopify_product_type = models.CharField(max_length=255, blank=True)
+    shopify_vendor = models.CharField(max_length=255, blank=True)
+    shopify_tags = models.TextField(blank=True)
+    shopify_image_url = models.URLField(max_length=500, blank=True)
     shopify_data = models.JSONField(default=dict, help_text='Full Shopify product data')
     
     # Sync status
@@ -278,8 +283,9 @@ class ShopifySyncJob(BaseModel):
         ]
     )
     
-    status = models.CharField(
+    job_status = models.CharField(
         max_length=20,
+        db_column='job_status',
         choices=[
             ('running', 'Running'),
             ('completed', 'Completed'),
@@ -306,8 +312,8 @@ class ShopifySyncJob(BaseModel):
         db_table = 'shopify_sync_job'
         ordering = ['-started_at']
         indexes = [
-            models.Index(fields=['store', 'status', '-started_at']),
+            models.Index(fields=['store', 'job_status', '-started_at']),
         ]
     
     def __str__(self):
-        return f"{self.store.name} - {self.job_type} - {self.status}"
+        return f"{self.store.name} - {self.job_type} - {self.job_status}"

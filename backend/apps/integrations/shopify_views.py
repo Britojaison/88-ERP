@@ -9,14 +9,16 @@ from rest_framework.views import APIView
 from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
+from django.conf import settings
 from .shopify_models import (
     ShopifyStore, ShopifyProduct, ShopifyInventoryLevel,
     ShopifyWebhook, ShopifyWebhookLog, ShopifySyncJob
 )
-from .shopify_service import ShopifyService
+from .shopify_service import ShopifyService, ShopifyAPIClient
 from rest_framework import serializers
 import json
 import logging
+import threading
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +60,8 @@ class ShopifyProductSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'shopify_product_id', 'shopify_variant_id', 'shopify_title',
             'shopify_sku', 'shopify_barcode', 'shopify_price',
-            'shopify_inventory_quantity', 'erp_product', 'erp_product_code',
+            'shopify_inventory_quantity', 'shopify_product_type', 'shopify_vendor',
+            'shopify_tags', 'shopify_image_url', 'erp_product', 'erp_product_code',
             'erp_sku', 'erp_sku_code', 'sync_status', 'last_synced_at',
             'sync_error', 'created_at'
         ]
@@ -67,6 +70,7 @@ class ShopifyProductSerializer(serializers.ModelSerializer):
 class ShopifySyncJobSerializer(serializers.ModelSerializer):
     store_name = serializers.CharField(source='store.name', read_only=True)
     duration_seconds = serializers.SerializerMethodField()
+    status = serializers.CharField(source='job_status', read_only=True)
     
     class Meta:
         model = ShopifySyncJob
@@ -100,8 +104,12 @@ class ShopifyStoreViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        company_id = self.request.user.company_id
-        return ShopifyStore.objects.filter(company_id=company_id, status='active')
+        user = self.request.user
+        company_id = getattr(user, 'company_id', None)
+        if company_id:
+            return ShopifyStore.objects.filter(company_id=company_id, status='active')
+        # If user has no company, return stores they created
+        return ShopifyStore.objects.filter(created_by=user, status='active')
     
     def get_serializer_class(self):
         if self.action == 'create':
@@ -109,8 +117,100 @@ class ShopifyStoreViewSet(viewsets.ModelViewSet):
         return ShopifyStoreSerializer
     
     def perform_create(self, serializer):
-        serializer.save(company_id=self.request.user.company_id)
+        user = self.request.user
+        company_id = getattr(user, 'company_id', None)
+        if company_id:
+            store = serializer.save(company_id=company_id, created_by=user)
+        else:
+            # Fallback: get or create a default company
+            from apps.mdm.models import Company
+            company, _ = Company.objects.get_or_create(
+                code='DEFAULT',
+                defaults={'name': 'Default Company'}
+            )
+            store = serializer.save(company=company, created_by=user)
+        
+        # Auto-test connection after creation
+        try:
+            ShopifyService.test_connection(store)
+        except Exception as e:
+            logger.warning(f"Auto connection test failed for store {store.id}: {e}")
     
+    @action(detail=False, methods=['post'])
+    def quick_connect(self, request):
+        """
+        Quick-connect using credentials from .env settings.
+        Creates a store entry using the environment-configured Shopify credentials.
+        """
+        store_domain = settings.SHOPIFY_STORE_DOMAIN
+        access_token = settings.SHOPIFY_ACCESS_TOKEN
+        api_key = settings.SHOPIFY_API_KEY
+        api_secret = settings.SHOPIFY_API_SECRET
+        api_version = settings.SHOPIFY_API_VERSION
+
+        if not store_domain or not access_token or store_domain == 'your-store.myshopify.com':
+            return Response({
+                'error': 'Shopify credentials not configured in .env. '
+                         'Set SHOPIFY_STORE_DOMAIN and SHOPIFY_ACCESS_TOKEN.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check if already connected
+        existing = ShopifyStore.objects.filter(
+            shop_domain=store_domain,
+            status='active'
+        ).first()
+
+        if existing:
+            # Update credentials
+            existing.access_token = access_token
+            existing.api_key = api_key
+            existing.api_secret = api_secret
+            existing.api_version = api_version
+            existing.save()
+            
+            # Test connection
+            is_connected = ShopifyService.test_connection(existing)
+            return Response({
+                'store': ShopifyStoreSerializer(existing).data,
+                'message': 'Store already exists, credentials updated.',
+                'connected': is_connected,
+            })
+
+        # Create new store
+        user = request.user
+        company_id = getattr(user, 'company_id', None)
+        if not company_id:
+            from apps.mdm.models import Company
+            company, _ = Company.objects.get_or_create(
+                code='DEFAULT',
+                defaults={'name': 'Default Company'}
+            )
+            company_id = company.id
+
+        store_name = store_domain.replace('.myshopify.com', '').replace('-', ' ').title()
+        store = ShopifyStore.objects.create(
+            name=store_name,
+            shop_domain=store_domain,
+            access_token=access_token,
+            api_key=api_key,
+            api_secret=api_secret,
+            api_version=api_version,
+            company_id=company_id,
+            created_by=user,
+            auto_sync_products=True,
+            auto_sync_inventory=True,
+            auto_sync_orders=True,
+        )
+
+        # Test connection
+        is_connected = ShopifyService.test_connection(store)
+
+        return Response({
+            'store': ShopifyStoreSerializer(store).data,
+            'message': 'Store connected successfully!' if is_connected else 'Store created but connection failed.',
+            'connected': is_connected,
+        }, status=status.HTTP_201_CREATED)
+
     @action(detail=True, methods=['post'])
     def test_connection(self, request, pk=None):
         """Test connection to Shopify store."""
@@ -125,26 +225,60 @@ class ShopifyStoreViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def sync_products(self, request, pk=None):
-        """Trigger product sync."""
+        """Trigger product sync in background."""
         store = self.get_object()
-        job = ShopifyService.sync_products(store)
+        
+        # Create job immediately so we can return the ID
+        job = ShopifySyncJob.objects.create(
+            store=store,
+            job_type='products',
+            job_status='running'
+        )
+        
+        # Run sync in background thread
+        def _run_sync():
+            try:
+                import django
+                django.db.connections.close_all()
+                ShopifyService._do_product_sync(store, job)
+            except Exception as e:
+                logger.error(f"Background product sync failed: {e}")
+        
+        thread = threading.Thread(target=_run_sync, daemon=True)
+        thread.start()
         
         return Response({
-            'job_id': job.id,
-            'status': job.status,
-            'message': 'Product sync started'
+            'job_id': str(job.id),
+            'status': 'running',
+            'message': f'Product sync started in background (job {job.id})'
         })
     
     @action(detail=True, methods=['post'])
     def sync_inventory(self, request, pk=None):
-        """Trigger inventory sync."""
+        """Trigger inventory sync in background."""
         store = self.get_object()
-        job = ShopifyService.sync_inventory(store)
+        
+        job = ShopifySyncJob.objects.create(
+            store=store,
+            job_type='inventory',
+            job_status='running'
+        )
+        
+        def _run_sync():
+            try:
+                import django
+                django.db.connections.close_all()
+                ShopifyService._do_inventory_sync(store, job)
+            except Exception as e:
+                logger.error(f"Background inventory sync failed: {e}")
+        
+        thread = threading.Thread(target=_run_sync, daemon=True)
+        thread.start()
         
         return Response({
-            'job_id': job.id,
-            'status': job.status,
-            'message': 'Inventory sync started'
+            'job_id': str(job.id),
+            'status': 'running',
+            'message': f'Inventory sync started in background (job {job.id})'
         })
     
     @action(detail=True, methods=['post'])
@@ -193,6 +327,78 @@ class ShopifyStoreViewSet(viewsets.ModelViewSet):
             'recent_jobs': ShopifySyncJobSerializer(recent_jobs, many=True).data
         })
 
+    @action(detail=True, methods=['get'])
+    def shop_info(self, request, pk=None):
+        """Fetch live shop info from Shopify API."""
+        store = self.get_object()
+        try:
+            client = ShopifyAPIClient(store)
+            shop_data = client._make_request('GET', 'shop.json')
+            return Response(shop_data)
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_502_BAD_GATEWAY
+            )
+
+    @action(detail=True, methods=['get'])
+    def locations(self, request, pk=None):
+        """Fetch Shopify locations."""
+        store = self.get_object()
+        try:
+            client = ShopifyAPIClient(store)
+            locations = client.get_locations()
+            return Response({'locations': locations})
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_502_BAD_GATEWAY
+            )
+
+    @action(detail=True, methods=['post'])
+    def push_product(self, request, pk=None):
+        """Push an ERP product/SKU to Shopify."""
+        store = self.get_object()
+        sku_id = request.data.get('sku_id')
+        if not sku_id:
+            return Response(
+                {'error': 'sku_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            result = ShopifyService.push_sku_to_shopify(store, sku_id)
+            return Response(result)
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    @action(detail=True, methods=['post'])
+    def push_inventory(self, request, pk=None):
+        """Push ERP inventory levels to Shopify."""
+        store = self.get_object()
+        sku_id = request.data.get('sku_id')
+        location_id = request.data.get('location_id')
+        quantity = request.data.get('quantity')
+
+        if not all([sku_id, quantity is not None]):
+            return Response(
+                {'error': 'sku_id and quantity are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            result = ShopifyService.push_inventory_to_shopify(
+                store, sku_id, int(quantity), location_id
+            )
+            return Response(result)
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
 
 class ShopifyProductViewSet(viewsets.ReadOnlyModelViewSet):
     """
@@ -200,12 +406,19 @@ class ShopifyProductViewSet(viewsets.ReadOnlyModelViewSet):
     """
     permission_classes = [IsAuthenticated]
     serializer_class = ShopifyProductSerializer
+    pagination_class = None  # Return all products without pagination
     
     def get_queryset(self):
-        company_id = self.request.user.company_id
-        queryset = ShopifyProduct.objects.filter(
-            store__company_id=company_id
-        ).select_related('store', 'erp_product', 'erp_sku')
+        user = self.request.user
+        company_id = getattr(user, 'company_id', None)
+        if company_id:
+            queryset = ShopifyProduct.objects.filter(
+                store__company_id=company_id
+            ).select_related('store', 'erp_product', 'erp_sku')
+        else:
+            queryset = ShopifyProduct.objects.filter(
+                store__created_by=user
+            ).select_related('store', 'erp_product', 'erp_sku')
         
         # Filter by store
         store_id = self.request.query_params.get('store')
@@ -216,6 +429,26 @@ class ShopifyProductViewSet(viewsets.ReadOnlyModelViewSet):
         sync_status = self.request.query_params.get('sync_status')
         if sync_status:
             queryset = queryset.filter(sync_status=sync_status)
+            
+        # Filter by product type
+        product_type = self.request.query_params.get('product_type')
+        if product_type:
+            queryset = queryset.filter(shopify_product_type=product_type)
+            
+        # Filter by vendor
+        vendor = self.request.query_params.get('vendor')
+        if vendor:
+            queryset = queryset.filter(shopify_vendor=vendor)
+            
+        # Filter by search
+        search = self.request.query_params.get('search')
+        if search:
+            from django.db.models import Q
+            queryset = queryset.filter(
+                Q(shopify_title__icontains=search) |
+                Q(shopify_sku__icontains=search) |
+                Q(shopify_barcode__icontains=search)
+            )
         
         return queryset
     
@@ -233,7 +466,7 @@ class ShopifyProductViewSet(viewsets.ReadOnlyModelViewSet):
         
         try:
             from apps.mdm.models import SKU
-            sku = SKU.objects.get(id=sku_id, company_id=request.user.company_id)
+            sku = SKU.objects.get(id=sku_id)
             
             shopify_product.erp_sku = sku
             shopify_product.erp_product = sku.product
@@ -260,10 +493,16 @@ class ShopifySyncJobViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = ShopifySyncJobSerializer
     
     def get_queryset(self):
-        company_id = self.request.user.company_id
-        queryset = ShopifySyncJob.objects.filter(
-            store__company_id=company_id
-        ).select_related('store')
+        user = self.request.user
+        company_id = getattr(user, 'company_id', None)
+        if company_id:
+            queryset = ShopifySyncJob.objects.filter(
+                store__company_id=company_id
+            ).select_related('store')
+        else:
+            queryset = ShopifySyncJob.objects.filter(
+                store__created_by=user
+            ).select_related('store')
         
         store_id = self.request.query_params.get('store')
         if store_id:
@@ -291,7 +530,7 @@ class ShopifyWebhookView(APIView):
         hmac_header = request.headers.get('X-Shopify-Hmac-Sha256', '')
         
         # Verify webhook signature
-        if not store.verify_webhook(request.body, hmac_header):
+        if store.webhook_secret and not store.verify_webhook(request.body, hmac_header):
             logger.warning(f"Invalid webhook signature for store {store_id}")
             return HttpResponse(status=401)
         
@@ -301,7 +540,7 @@ class ShopifyWebhookView(APIView):
         except json.JSONDecodeError:
             return HttpResponse(status=400)
         
-        # Process webhook asynchronously (you can use Celery here)
+        # Process webhook
         try:
             ShopifyService.process_webhook(
                 store,

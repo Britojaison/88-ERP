@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   Box,
   Typography,
@@ -29,6 +29,11 @@ import {
   LinearProgress,
   Tabs,
   Tab,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  InputAdornment,
 } from '@mui/material'
 import {
   Add,
@@ -41,6 +46,9 @@ import {
   Settings,
   Webhook,
   Inventory,
+  Search,
+  FilterList,
+  Info,
 } from '@mui/icons-material'
 import { shopifyService, ShopifyStore, ShopifyProduct, ShopifySyncJob } from '../services/shopify.service'
 import PageHeader from '../components/ui/PageHeader'
@@ -67,14 +75,18 @@ export default function ShopifyIntegration() {
   const [syncJobs, setSyncJobs] = useState<ShopifySyncJob[]>([])
   const [syncStatus, setSyncStatus] = useState<any>(null)
   const [tabValue, setTabValue] = useState(0)
-  
+  const [searchQuery, setSearchQuery] = useState('')
+  const [filterType, setFilterType] = useState('All')
+  const [filterVendor, setFilterVendor] = useState('All')
+  const [filterStatus, setFilterStatus] = useState('All')
+
   const [openStoreDialog, setOpenStoreDialog] = useState(false)
   const [loading, setLoading] = useState(false)
   const [loadingStores, setLoadingStores] = useState(false)
-  const [snackbar, setSnackbar] = useState({ 
-    open: false, 
-    message: '', 
-    severity: 'success' as 'success' | 'error' | 'info' 
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: '',
+    severity: 'success' as 'success' | 'error' | 'info'
   })
 
   const [newStore, setNewStore] = useState({
@@ -96,8 +108,18 @@ export default function ShopifyIntegration() {
   useEffect(() => {
     if (selectedStore) {
       loadStoreData(selectedStore.id)
+
+      // Set up polling if a sync is running
+      const interval = setInterval(() => {
+        const isRunning = syncJobs.some(j => j.status === 'running')
+        if (isRunning) {
+          loadStoreData(selectedStore.id)
+        }
+      }, 5000)
+
+      return () => clearInterval(interval)
     }
-  }, [selectedStore])
+  }, [selectedStore, syncJobs])
 
   const loadStores = async () => {
     setLoadingStores(true)
@@ -108,10 +130,10 @@ export default function ShopifyIntegration() {
         setSelectedStore(data[0])
       }
     } catch (error: any) {
-      setSnackbar({ 
-        open: true, 
-        message: 'Failed to load stores', 
-        severity: 'error' 
+      setSnackbar({
+        open: true,
+        message: 'Failed to load stores',
+        severity: 'error'
       })
     } finally {
       setLoadingStores(false)
@@ -133,12 +155,36 @@ export default function ShopifyIntegration() {
     }
   }
 
+  const productTypes = useMemo(() => {
+    const types = Array.from(new Set(products.map(p => p.shopify_product_type).filter(Boolean)))
+    return ['All', ...types.sort()]
+  }, [products])
+
+  const vendors = useMemo(() => {
+    const v = Array.from(new Set(products.map(p => p.shopify_vendor).filter(Boolean)))
+    return ['All', ...v.sort()]
+  }, [products])
+
+  const filteredProducts = useMemo(() => {
+    return products.filter(product => {
+      const matchesSearch =
+        product.shopify_title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        product.shopify_sku.toLowerCase().includes(searchQuery.toLowerCase())
+
+      const matchesType = filterType === 'All' || product.shopify_product_type === filterType
+      const matchesVendor = filterVendor === 'All' || product.shopify_vendor === filterVendor
+      const matchesStatus = filterStatus === 'All' || product.sync_status === filterStatus.toLowerCase()
+
+      return matchesSearch && matchesType && matchesVendor && matchesStatus
+    })
+  }, [products, searchQuery, filterType, filterVendor, filterStatus])
+
   const handleCreateStore = async () => {
     if (!newStore.name || !newStore.shop_domain || !newStore.access_token) {
-      setSnackbar({ 
-        open: true, 
-        message: 'Name, Shop Domain, and Access Token are required', 
-        severity: 'error' 
+      setSnackbar({
+        open: true,
+        message: 'Name, Shop Domain, and Access Token are required',
+        severity: 'error'
       })
       return
     }
@@ -146,10 +192,10 @@ export default function ShopifyIntegration() {
     setLoading(true)
     try {
       const created = await shopifyService.createStore(newStore)
-      setSnackbar({ 
-        open: true, 
-        message: 'Store connected successfully!', 
-        severity: 'success' 
+      setSnackbar({
+        open: true,
+        message: 'Store connected successfully!',
+        severity: 'success'
       })
       setOpenStoreDialog(false)
       setNewStore({
@@ -166,10 +212,10 @@ export default function ShopifyIntegration() {
       loadStores()
       setSelectedStore(created)
     } catch (error: any) {
-      setSnackbar({ 
-        open: true, 
-        message: error.response?.data?.message || 'Failed to connect store', 
-        severity: 'error' 
+      setSnackbar({
+        open: true,
+        message: error.response?.data?.message || 'Failed to connect store',
+        severity: 'error'
       })
     } finally {
       setLoading(false)
@@ -179,17 +225,17 @@ export default function ShopifyIntegration() {
   const handleTestConnection = async (store: ShopifyStore) => {
     try {
       const result = await shopifyService.testConnection(store.id)
-      setSnackbar({ 
-        open: true, 
-        message: result.message, 
-        severity: result.connected ? 'success' : 'error' 
+      setSnackbar({
+        open: true,
+        message: result.message,
+        severity: result.connected ? 'success' : 'error'
       })
       loadStores()
     } catch (error: any) {
-      setSnackbar({ 
-        open: true, 
-        message: 'Connection test failed', 
-        severity: 'error' 
+      setSnackbar({
+        open: true,
+        message: 'Connection test failed',
+        severity: 'error'
       })
     }
   }
@@ -197,18 +243,18 @@ export default function ShopifyIntegration() {
   const handleSyncProducts = async (store: ShopifyStore) => {
     try {
       const result = await shopifyService.syncProducts(store.id)
-      setSnackbar({ 
-        open: true, 
-        message: result.message, 
-        severity: 'info' 
+      setSnackbar({
+        open: true,
+        message: result.message,
+        severity: 'info'
       })
       // Reload data after a delay
       setTimeout(() => loadStoreData(store.id), 2000)
     } catch (error: any) {
-      setSnackbar({ 
-        open: true, 
-        message: 'Failed to start product sync', 
-        severity: 'error' 
+      setSnackbar({
+        open: true,
+        message: 'Failed to start product sync',
+        severity: 'error'
       })
     }
   }
@@ -216,17 +262,17 @@ export default function ShopifyIntegration() {
   const handleSyncInventory = async (store: ShopifyStore) => {
     try {
       const result = await shopifyService.syncInventory(store.id)
-      setSnackbar({ 
-        open: true, 
-        message: result.message, 
-        severity: 'info' 
+      setSnackbar({
+        open: true,
+        message: result.message,
+        severity: 'info'
       })
       setTimeout(() => loadStoreData(store.id), 2000)
     } catch (error: any) {
-      setSnackbar({ 
-        open: true, 
-        message: 'Failed to start inventory sync', 
-        severity: 'error' 
+      setSnackbar({
+        open: true,
+        message: 'Failed to start inventory sync',
+        severity: 'error'
       })
     }
   }
@@ -234,16 +280,16 @@ export default function ShopifyIntegration() {
   const handleSetupWebhooks = async (store: ShopifyStore) => {
     try {
       const result = await shopifyService.setupWebhooks(store.id)
-      setSnackbar({ 
-        open: true, 
-        message: result.message, 
-        severity: result.success ? 'success' : 'error' 
+      setSnackbar({
+        open: true,
+        message: result.message,
+        severity: result.success ? 'success' : 'error'
       })
     } catch (error: any) {
-      setSnackbar({ 
-        open: true, 
-        message: 'Failed to setup webhooks', 
-        severity: 'error' 
+      setSnackbar({
+        open: true,
+        message: 'Failed to setup webhooks',
+        severity: 'error'
       })
     }
   }
@@ -253,20 +299,20 @@ export default function ShopifyIntegration() {
 
     try {
       await shopifyService.deleteStore(id)
-      setSnackbar({ 
-        open: true, 
-        message: 'Store disconnected successfully!', 
-        severity: 'success' 
+      setSnackbar({
+        open: true,
+        message: 'Store disconnected successfully!',
+        severity: 'success'
       })
       loadStores()
       if (selectedStore?.id === id) {
         setSelectedStore(null)
       }
     } catch (error: any) {
-      setSnackbar({ 
-        open: true, 
-        message: 'Failed to disconnect store', 
-        severity: 'error' 
+      setSnackbar({
+        open: true,
+        message: 'Failed to disconnect store',
+        severity: 'error'
       })
     }
   }
@@ -298,6 +344,24 @@ export default function ShopifyIntegration() {
     }
   }
 
+  const handleQuickConnect = async () => {
+    setLoading(true)
+    try {
+      const result = await shopifyService.quickConnect()
+      setSnackbar({
+        open: true,
+        message: result.message,
+        severity: result.connected ? 'success' : 'error',
+      })
+      loadStores()
+    } catch (error: any) {
+      const msg = error.response?.data?.error || 'Quick connect failed'
+      setSnackbar({ open: true, message: msg, severity: 'error' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <Box>
       <PageHeader
@@ -307,6 +371,14 @@ export default function ShopifyIntegration() {
           <Box sx={{ display: 'flex', gap: 1.25 }}>
             <Button variant="outlined" startIcon={<Refresh />} onClick={loadStores} disabled={loadingStores}>
               Refresh
+            </Button>
+            <Button
+              variant="outlined"
+              color="secondary"
+              onClick={handleQuickConnect}
+              disabled={loading}
+            >
+              {loading ? <CircularProgress size={20} /> : 'Quick Connect'}
             </Button>
             <Button variant="contained" startIcon={<Add />} onClick={() => setOpenStoreDialog(true)}>
               Connect Store
@@ -401,37 +473,55 @@ export default function ShopifyIntegration() {
               <TabPanel value={tabValue} index={0}>
                 <Grid container spacing={3}>
                   <Grid item xs={12} md={4}>
-                    <Card>
+                    <Card sx={{ height: '100%', borderTop: '4px solid', borderColor: 'primary.main' }}>
                       <CardContent>
-                        <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
-                          {syncStatus.products.total}
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                          <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 'bold' }}>
+                            Total Products
+                          </Typography>
+                          <Inventory color="primary" sx={{ opacity: 0.5 }} />
+                        </Box>
+                        <Typography variant="h3" sx={{ fontWeight: 700, mb: 1 }}>
+                          {syncStatus?.products?.total || 0}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                          Total Products
+                          Variants found in Shopify
                         </Typography>
                       </CardContent>
                     </Card>
                   </Grid>
                   <Grid item xs={12} md={4}>
-                    <Card>
+                    <Card sx={{ height: '100%', borderTop: '4px solid', borderColor: 'success.main' }}>
                       <CardContent>
-                        <Typography variant="h4" sx={{ fontWeight: 700, mb: 1, color: 'success.main' }}>
-                          {syncStatus.products.synced}
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                          <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 'bold' }}>
+                            Synced Products
+                          </Typography>
+                          <CheckCircle color="success" sx={{ opacity: 0.5 }} />
+                        </Box>
+                        <Typography variant="h3" sx={{ fontWeight: 700, mb: 1, color: 'success.main' }}>
+                          {syncStatus?.products?.synced || 0}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                          Synced Products
+                          Successfully mapped to ERP SKUs
                         </Typography>
                       </CardContent>
                     </Card>
                   </Grid>
                   <Grid item xs={12} md={4}>
-                    <Card>
+                    <Card sx={{ height: '100%', borderTop: '4px solid', borderColor: 'warning.main' }}>
                       <CardContent>
-                        <Typography variant="h4" sx={{ fontWeight: 700, mb: 1, color: 'warning.main' }}>
-                          {syncStatus.products.pending}
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                          <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 'bold' }}>
+                            Pending Mapping
+                          </Typography>
+                          <Info color="warning" sx={{ opacity: 0.5 }} />
+                        </Box>
+                        <Typography variant="h3" sx={{ fontWeight: 700, mb: 1, color: 'warning.main' }}>
+                          {syncStatus?.products?.pending || 0}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                          Pending Mapping
+                          Waiting for ERP SKU association
                         </Typography>
                       </CardContent>
                     </Card>
@@ -488,38 +578,181 @@ export default function ShopifyIntegration() {
               </TabPanel>
 
               <TabPanel value={tabValue} index={1}>
-                <TableContainer>
+                <Box sx={{ mb: 3 }}>
+                  <Grid container spacing={2} alignItems="center">
+                    <Grid item xs={12} md={4}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        placeholder="Search by Title or SKU..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <Search sx={{ fontSize: 20 }} />
+                            </InputAdornment>
+                          ),
+                        }}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={4} md={2}>
+                      <FormControl fullWidth size="small">
+                        <InputLabel>Type</InputLabel>
+                        <Select
+                          value={filterType}
+                          label="Type"
+                          onChange={(e) => setFilterType(e.target.value)}
+                        >
+                          {productTypes.map(type => (
+                            <MenuItem key={type} value={type}>{type}</MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                    <Grid item xs={12} sm={4} md={3}>
+                      <FormControl fullWidth size="small">
+                        <InputLabel>Vendor</InputLabel>
+                        <Select
+                          value={filterVendor}
+                          label="Vendor"
+                          onChange={(e) => setFilterVendor(e.target.value)}
+                        >
+                          {vendors.map(v => (
+                            <MenuItem key={v} value={v}>{v}</MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                    <Grid item xs={12} sm={4} md={3}>
+                      <FormControl fullWidth size="small">
+                        <InputLabel>Sync Status</InputLabel>
+                        <Select
+                          value={filterStatus}
+                          label="Sync Status"
+                          onChange={(e) => setFilterStatus(e.target.value)}
+                        >
+                          <MenuItem value="All">All Statuses</MenuItem>
+                          <MenuItem value="Synced">Synced</MenuItem>
+                          <MenuItem value="Pending">Pending</MenuItem>
+                          <MenuItem value="Error">Error</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                  </Grid>
+                </Box>
+
+                <TableContainer component={Paper} variant="outlined">
                   <Table>
                     <TableHead>
-                      <TableRow>
-                        <TableCell>Shopify Title</TableCell>
-                        <TableCell>SKU</TableCell>
-                        <TableCell>Price</TableCell>
-                        <TableCell>Inventory</TableCell>
-                        <TableCell>ERP SKU</TableCell>
-                        <TableCell>Status</TableCell>
+                      <TableRow sx={{ bgcolor: 'action.hover' }}>
+                        <TableCell sx={{ fontWeight: 'bold' }}>Shopify Product</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold' }}>SKU/Barcode</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold' }}>Category/Vendor</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold' }}>Price</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold' }}>Inventory</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold' }}>ERP Status</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {products.map((product) => (
-                        <TableRow key={product.id}>
-                          <TableCell>{product.shopify_title}</TableCell>
-                          <TableCell>{product.shopify_sku}</TableCell>
-                          <TableCell>${product.shopify_price}</TableCell>
-                          <TableCell>{product.shopify_inventory_quantity}</TableCell>
-                          <TableCell>{product.erp_sku_code || '-'}</TableCell>
-                          <TableCell>
-                            <Chip
-                              label={product.sync_status}
-                              size="small"
-                              color={
-                                product.sync_status === 'synced' ? 'success' :
-                                product.sync_status === 'error' ? 'error' : 'warning'
-                              }
-                            />
+                      {filteredProducts.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={6} align="center" sx={{ py: 8 }}>
+                            <Box sx={{ color: 'text.secondary' }}>
+                              <FilterList sx={{ fontSize: 40, mb: 1, opacity: 0.5 }} />
+                              <Typography variant="body1">No products match your filters</Typography>
+                              <Button
+                                size="small"
+                                onClick={() => {
+                                  setSearchQuery('')
+                                  setFilterType('All')
+                                  setFilterVendor('All')
+                                  setFilterStatus('All')
+                                }}
+                                sx={{ mt: 1 }}
+                              >
+                                Clear all filters
+                              </Button>
+                            </Box>
                           </TableCell>
                         </TableRow>
-                      ))}
+                      ) : (
+                        filteredProducts.map((product) => (
+                          <TableRow key={product.id} hover>
+                            <TableCell>
+                              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                {product.shopify_image_url ? (
+                                  <Box
+                                    component="img"
+                                    src={product.shopify_image_url}
+                                    sx={{ width: 40, height: 40, borderRadius: 1, mr: 2, objectFit: 'cover', border: '1px solid', borderColor: 'divider' }}
+                                  />
+                                ) : (
+                                  <Box sx={{ width: 40, height: 40, borderRadius: 1, mr: 2, bgcolor: 'action.hover', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid', borderColor: 'divider' }}>
+                                    <Inventory sx={{ fontSize: 20, color: 'text.secondary', opacity: 0.5 }} />
+                                  </Box>
+                                )}
+                                <Box>
+                                  <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                                    {product.shopify_title}
+                                  </Typography>
+                                  {product.shopify_product_id && (
+                                    <Typography variant="caption" color="text.secondary">
+                                      ID: {product.shopify_product_id}
+                                    </Typography>
+                                  )}
+                                </Box>
+                              </Box>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2">{product.shopify_sku || '-'}</Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {product.shopify_barcode || ''}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                                <Chip label={product.shopify_product_type || 'Uncategorized'} size="small" sx={{ mb: 0.5, maxWidth: 'fit-content' }} />
+                                <Typography variant="caption" color="text.secondary">
+                                  {product.shopify_vendor || 'No Vendor'}
+                                </Typography>
+                              </Box>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                                ₹{product.shopify_price}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Chip
+                                label={product.shopify_inventory_quantity}
+                                size="small"
+                                color={product.shopify_inventory_quantity > 0 ? 'default' : 'error'}
+                                variant={product.shopify_inventory_quantity > 0 ? 'outlined' : 'filled'}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                                <Chip
+                                  label={product.sync_status}
+                                  size="small"
+                                  color={
+                                    product.sync_status === 'synced' ? 'success' :
+                                      product.sync_status === 'error' ? 'error' : 'warning'
+                                  }
+                                  sx={{ textTransform: 'capitalize' }}
+                                />
+                                {product.erp_sku_code && (
+                                  <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center' }}>
+                                    <CheckCircle sx={{ fontSize: 12, mr: 0.5, color: 'success.main' }} />
+                                    {product.erp_sku_code}
+                                  </Typography>
+                                )}
+                              </Box>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
                     </TableBody>
                   </Table>
                 </TableContainer>
@@ -548,7 +781,7 @@ export default function ShopifyIntegration() {
                               size="small"
                               color={
                                 job.status === 'completed' ? 'success' :
-                                job.status === 'failed' ? 'error' : 'info'
+                                  job.status === 'failed' ? 'error' : 'info'
                               }
                             />
                           </TableCell>
@@ -732,8 +965,8 @@ export default function ShopifyIntegration() {
         onClose={() => setSnackbar({ ...snackbar, open: false })}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
       >
-        <Alert 
-          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
           severity={snackbar.severity}
           sx={{ width: '100%' }}
         >

@@ -29,6 +29,10 @@ export interface ShopifyProduct {
   shopify_barcode: string
   shopify_price: number
   shopify_inventory_quantity: number
+  shopify_product_type?: string
+  shopify_vendor?: string
+  shopify_tags?: string
+  shopify_image_url?: string
   erp_product?: string
   erp_product_code?: string
   erp_sku?: string
@@ -104,6 +108,16 @@ export const shopifyService = {
     await api.delete(`/integrations/shopify/stores/${id}/`)
   },
 
+  // Quick-connect using .env credentials
+  quickConnect: async (): Promise<{
+    store: ShopifyStore
+    message: string
+    connected: boolean
+  }> => {
+    const response = await api.post('/integrations/shopify/stores/quick_connect/')
+    return response.data
+  },
+
   testConnection: async (id: string): Promise<{
     connected: boolean
     message: string
@@ -143,6 +157,39 @@ export const shopifyService = {
 
   getSyncStatus: async (id: string): Promise<ShopifySyncStatus> => {
     const response = await api.get(`/integrations/shopify/stores/${id}/sync_status/`)
+    return response.data
+  },
+
+  getShopInfo: async (id: string): Promise<any> => {
+    const response = await api.get(`/integrations/shopify/stores/${id}/shop_info/`)
+    return response.data
+  },
+
+  getLocations: async (id: string): Promise<{ locations: any[] }> => {
+    const response = await api.get(`/integrations/shopify/stores/${id}/locations/`)
+    return response.data
+  },
+
+  pushProduct: async (storeId: string, skuId: string): Promise<{
+    action: string
+    shopify_product_id: number
+    message: string
+  }> => {
+    const response = await api.post(`/integrations/shopify/stores/${storeId}/push_product/`, {
+      sku_id: skuId,
+    })
+    return response.data
+  },
+
+  pushInventory: async (storeId: string, skuId: string, quantity: number, locationId?: number): Promise<{
+    success: boolean
+    message: string
+  }> => {
+    const response = await api.post(`/integrations/shopify/stores/${storeId}/push_inventory/`, {
+      sku_id: skuId,
+      quantity,
+      location_id: locationId,
+    })
     return response.data
   },
 

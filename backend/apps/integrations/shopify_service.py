@@ -3,6 +3,7 @@ Shopify Integration Service.
 Handles API calls, data sync, and webhook processing.
 """
 import requests
+import time
 from typing import Dict, List, Optional, Any
 from django.db import transaction
 from django.utils import timezone
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 class ShopifyAPIClient:
     """
-    Shopify REST Admin API client.
+    Shopify REST Admin API client with rate-limit handling.
     """
     
     def __init__(self, store: ShopifyStore):
@@ -30,52 +31,109 @@ class ShopifyAPIClient:
         }
     
     def _make_request(self, method: str, endpoint: str, **kwargs) -> Dict:
-        """Make API request with error handling."""
+        """Make API request with error handling and rate limiting."""
         url = f"{self.base_url}/{endpoint}"
         
         try:
-            response = requests.request(method, url, headers=self.headers, **kwargs)
+            response = requests.request(method, url, headers=self.headers, timeout=30, **kwargs)
+            
+            # Handle rate limiting (429)
+            if response.status_code == 429:
+                retry_after = float(response.headers.get('Retry-After', '2.0'))
+                logger.warning(f"Shopify rate limit hit, waiting {retry_after}s")
+                time.sleep(retry_after)
+                response = requests.request(method, url, headers=self.headers, timeout=30, **kwargs)
+            
             response.raise_for_status()
+            
+            if response.status_code == 204:
+                return {}
+            
             return response.json()
         except requests.exceptions.RequestException as e:
-            logger.error(f"Shopify API error: {e}")
+            masked_token = f"{self.headers.get('X-Shopify-Access-Token', '')[:10]}..."
+            logger.error(f"Shopify API error for {url}: {e}. Token used: {masked_token}")
             raise
     
-    def get_products(self, limit: int = 250, since_id: Optional[int] = None) -> List[Dict]:
-        """Get products from Shopify."""
+    def get_products(self, limit: int = 250, since_id: Optional[int] = None, page_info: Optional[str] = None) -> Dict:
+        """Get products from Shopify with pagination support."""
         params = {'limit': limit}
         if since_id:
             params['since_id'] = since_id
+        if page_info:
+            params = {'limit': limit, 'page_info': page_info}
         
         response = self._make_request('GET', 'products.json', params=params)
-        return response.get('products', [])
+        return response
+    
+    def get_all_products(self) -> List[Dict]:
+        """Get ALL products from Shopify using pagination."""
+        all_products = []
+        params = {'limit': 250}
+        
+        while True:
+            response = self._make_request('GET', 'products.json', params=params)
+            products = response.get('products', [])
+            all_products.extend(products)
+            
+            if len(products) < 250:
+                break
+            
+            # Use since_id pagination
+            last_id = products[-1]['id']
+            params = {'limit': 250, 'since_id': last_id}
+            time.sleep(0.5)  # Be gentle with rate limits
+        
+        return all_products
     
     def get_product(self, product_id: int) -> Dict:
         """Get single product by ID."""
         response = self._make_request('GET', f'products/{product_id}.json')
         return response.get('product', {})
     
-    def get_inventory_levels(self, location_id: Optional[int] = None) -> List[Dict]:
+    def create_product(self, product_data: Dict) -> Dict:
+        """Create a product on Shopify."""
+        response = self._make_request('POST', 'products.json', json={'product': product_data})
+        return response.get('product', {})
+    
+    def update_product(self, product_id: int, product_data: Dict) -> Dict:
+        """Update an existing Shopify product."""
+        response = self._make_request('PUT', f'products/{product_id}.json', json={'product': product_data})
+        return response.get('product', {})
+
+    def get_product_count(self) -> int:
+        """Get total product count."""
+        response = self._make_request('GET', 'products/count.json')
+        return response.get('count', 0)
+    
+    def get_inventory_levels(self, location_ids: Optional[str] = None, inventory_item_ids: Optional[str] = None) -> List[Dict]:
         """Get inventory levels."""
         params = {}
-        if location_id:
-            params['location_ids'] = location_id
+        if location_ids:
+            params['location_ids'] = location_ids
+        if inventory_item_ids:
+            params['inventory_item_ids'] = inventory_item_ids
         
         response = self._make_request('GET', 'inventory_levels.json', params=params)
         return response.get('inventory_levels', [])
+    
+    def get_inventory_item(self, inventory_item_id: int) -> Dict:
+        """Get a specific inventory item."""
+        response = self._make_request('GET', f'inventory_items/{inventory_item_id}.json')
+        return response.get('inventory_item', {})
     
     def get_locations(self) -> List[Dict]:
         """Get Shopify locations."""
         response = self._make_request('GET', 'locations.json')
         return response.get('locations', [])
     
-    def update_inventory_level(
+    def set_inventory_level(
         self,
         inventory_item_id: int,
         location_id: int,
         available: int
     ) -> Dict:
-        """Update inventory level."""
+        """Set inventory level (POST)."""
         data = {
             'location_id': location_id,
             'inventory_item_id': inventory_item_id,
@@ -83,6 +141,27 @@ class ShopifyAPIClient:
         }
         response = self._make_request('POST', 'inventory_levels/set.json', json=data)
         return response.get('inventory_level', {})
+    
+    def adjust_inventory_level(
+        self,
+        inventory_item_id: int,
+        location_id: int,
+        available_adjustment: int
+    ) -> Dict:
+        """Adjust inventory level."""
+        data = {
+            'location_id': location_id,
+            'inventory_item_id': inventory_item_id,
+            'available_adjustment': available_adjustment, 
+        }
+        response = self._make_request('POST', 'inventory_levels/adjust.json', json=data)
+        return response.get('inventory_level', {})
+
+    def get_orders(self, status_filter: str = 'any', limit: int = 250) -> List[Dict]:
+        """Get orders from Shopify."""
+        params = {'status': status_filter, 'limit': limit}
+        response = self._make_request('GET', 'orders.json', params=params)
+        return response.get('orders', [])
     
     def create_webhook(self, topic: str, address: str) -> Dict:
         """Create a webhook."""
@@ -105,14 +184,14 @@ class ShopifyAPIClient:
         """Delete a webhook."""
         self._make_request('DELETE', f'webhooks/{webhook_id}.json')
     
-    def test_connection(self) -> bool:
-        """Test API connection."""
+    def test_connection(self) -> Dict:
+        """Test API connection and return shop info."""
         try:
-            self._make_request('GET', 'shop.json')
-            return True
+            response = self._make_request('GET', 'shop.json')
+            return response.get('shop', {})
         except Exception as e:
             logger.error(f"Connection test failed: {e}")
-            return False
+            return {}
 
 
 class ShopifyService:
@@ -124,58 +203,68 @@ class ShopifyService:
     def test_connection(store: ShopifyStore) -> bool:
         """Test Shopify API connection."""
         client = ShopifyAPIClient(store)
-        is_connected = client.test_connection()
+        shop_info = client.test_connection()
         
-        store.is_connected = is_connected
+        store.is_connected = bool(shop_info)
         store.last_connection_test = timezone.now()
-        if not is_connected:
+        if not shop_info:
             store.connection_error = "Failed to connect to Shopify API"
         else:
             store.connection_error = ""
-        store.save()
+        store.save(update_fields=[
+            'is_connected', 'last_connection_test', 'connection_error', 'updated_at'
+        ])
         
-        return is_connected
+        return store.is_connected
     
     @staticmethod
-    @transaction.atomic
     def sync_products(store: ShopifyStore) -> ShopifySyncJob:
-        """Sync products from Shopify to ERP."""
+        """Sync products from Shopify to ERP (creates its own job)."""
         job = ShopifySyncJob.objects.create(
             store=store,
             job_type='products',
-            status='running'
+            job_status='running'
         )
-        
+        ShopifyService._do_product_sync(store, job)
+        return job
+    
+    @staticmethod
+    def _do_product_sync(store: ShopifyStore, job: ShopifySyncJob) -> None:
+        """Execute the actual product sync. Can be called from a background thread."""
         try:
             client = ShopifyAPIClient(store)
-            products = client.get_products()
+            products = client.get_all_products()
             
-            job.total_items = len(products)
-            job.save()
+            # Count total variants for accurate progress tracking
+            total_variants = sum(len(p.get('variants', [])) for p in products)
+            job.total_items = total_variants
+            job.save(update_fields=['total_items'])
             
-            for shopify_product in products:
+            for i, shopify_product in enumerate(products):
                 try:
                     ShopifyService._process_product(store, shopify_product, job)
                 except Exception as e:
                     logger.error(f"Error processing product {shopify_product.get('id')}: {e}")
                     job.failed_items += 1
                     job.error_log += f"\nProduct {shopify_product.get('id')}: {str(e)}"
+                
+                # Save progress every 10 products
+                if (i + 1) % 10 == 0:
+                    job.save(update_fields=['processed_items', 'created_items', 'updated_items', 'failed_items', 'error_log'])
             
             store.last_product_sync = timezone.now()
-            store.save()
+            store.save(update_fields=['last_product_sync', 'updated_at'])
             
-            job.status = 'completed'
+            job.job_status = 'completed'
             job.completed_at = timezone.now()
             job.save()
             
         except Exception as e:
             logger.error(f"Product sync failed: {e}")
-            job.status = 'failed'
+            job.job_status = 'failed'
             job.error_log = str(e)
             job.completed_at = timezone.now()
             job.save()
-        
-        return job
     
     @staticmethod
     def _process_product(store: ShopifyStore, shopify_data: Dict, job: ShopifySyncJob) -> None:
@@ -197,6 +286,10 @@ class ShopifyService:
                     'shopify_barcode': variant.get('barcode', ''),
                     'shopify_price': variant.get('price'),
                     'shopify_inventory_quantity': variant.get('inventory_quantity', 0),
+                    'shopify_product_type': shopify_data.get('product_type', ''),
+                    'shopify_vendor': shopify_data.get('vendor', ''),
+                    'shopify_tags': shopify_data.get('tags', ''),
+                    'shopify_image_url': (shopify_data.get('image') or {}).get('src', '') if shopify_data.get('image') else '',
                     'shopify_data': shopify_data,
                 }
             )
@@ -210,6 +303,10 @@ class ShopifyService:
                 shopify_product.shopify_barcode = variant.get('barcode', '')
                 shopify_product.shopify_price = variant.get('price')
                 shopify_product.shopify_inventory_quantity = variant.get('inventory_quantity', 0)
+                shopify_product.shopify_product_type = shopify_data.get('product_type', '')
+                shopify_product.shopify_vendor = shopify_data.get('vendor', '')
+                shopify_product.shopify_tags = shopify_data.get('tags', '')
+                shopify_product.shopify_image_url = (shopify_data.get('image') or {}).get('src', '') if shopify_data.get('image') else ''
                 shopify_product.shopify_data = shopify_data
                 shopify_product.save()
                 job.updated_items += 1
@@ -227,65 +324,94 @@ class ShopifyService:
                     shopify_product.sync_status = 'synced'
                     shopify_product.save()
                 except SKU.DoesNotExist:
-                    # SKU not found in ERP - could auto-create or flag for manual mapping
-                    shopify_product.sync_status = 'pending'
-                    shopify_product.sync_error = 'SKU not found in ERP'
-                    shopify_product.save()
+                    # Try matching by barcode
+                    if variant.get('barcode'):
+                        from apps.mdm.models import SKUBarcode
+                        try:
+                            barcode = SKUBarcode.objects.get(
+                                barcode_value=variant['barcode'],
+                                status='active'
+                            )
+                            shopify_product.erp_sku = barcode.sku
+                            shopify_product.erp_product = barcode.sku.product
+                            shopify_product.sync_status = 'synced'
+                            shopify_product.save()
+                        except SKUBarcode.DoesNotExist:
+                            shopify_product.sync_status = 'pending'
+                            shopify_product.sync_error = 'SKU not found in ERP'
+                            shopify_product.save()
+                    else:
+                        shopify_product.sync_status = 'pending'
+                        shopify_product.sync_error = 'SKU not found in ERP'
+                        shopify_product.save()
             
             shopify_product.last_synced_at = timezone.now()
             shopify_product.save()
             
             job.processed_items += 1
-            job.save()
+            job.save(update_fields=['processed_items', 'created_items', 'updated_items', 'failed_items'])
     
     @staticmethod
-    @transaction.atomic
     def sync_inventory(store: ShopifyStore) -> ShopifySyncJob:
-        """Sync inventory levels from Shopify."""
+        """Sync inventory levels from Shopify (creates its own job)."""
         job = ShopifySyncJob.objects.create(
             store=store,
             job_type='inventory',
-            status='running'
+            job_status='running'
         )
-        
+        ShopifyService._do_inventory_sync(store, job)
+        return job
+    
+    @staticmethod
+    def _do_inventory_sync(store: ShopifyStore, job: ShopifySyncJob) -> None:
+        """Execute the actual inventory sync. Can be called from a background thread."""
         try:
             client = ShopifyAPIClient(store)
+            logger.info(f"Starting inventory sync for store {store.name} at {client.base_url}")
             locations = client.get_locations()
+            logger.info(f"Found {len(locations)} Shopify locations")
             
+            total_processed = 0
             for location in locations:
                 location_id = location['id']
                 location_name = location['name']
                 
                 # Get inventory levels for this location
-                inventory_levels = client.get_inventory_levels(location_id)
+                inventory_levels = client.get_inventory_levels(
+                    location_ids=str(location_id)
+                )
                 
                 job.total_items += len(inventory_levels)
-                job.save()
+                job.save(update_fields=['total_items'])
                 
                 for level in inventory_levels:
                     try:
                         ShopifyService._process_inventory_level(
                             store, location_id, location_name, level, job
                         )
+                        total_processed += 1
+                        
+                        # Save progress every 10 items
+                        if total_processed % 10 == 0:
+                            job.save(update_fields=['processed_items', 'failed_items'])
+                            
                     except Exception as e:
                         logger.error(f"Error processing inventory level: {e}")
                         job.failed_items += 1
             
             store.last_inventory_sync = timezone.now()
-            store.save()
+            store.save(update_fields=['last_inventory_sync', 'updated_at'])
             
-            job.status = 'completed'
+            job.job_status = 'completed'
             job.completed_at = timezone.now()
             job.save()
             
         except Exception as e:
             logger.error(f"Inventory sync failed: {e}")
-            job.status = 'failed'
-            job.error_log = str(e)
+            job.job_status = 'failed'
+            job.error_log = f"Failed at {timezone.now()}: {str(e)}"
             job.completed_at = timezone.now()
             job.save()
-        
-        return job
     
     @staticmethod
     def _process_inventory_level(
@@ -297,16 +423,194 @@ class ShopifyService:
     ) -> None:
         """Process a single inventory level."""
         inventory_item_id = level_data.get('inventory_item_id')
+        available = level_data.get('available', 0) or 0
         
-        # Find the ShopifyProduct by inventory_item_id
-        # Note: You may need to store inventory_item_id in ShopifyProduct model
-        # For now, we'll skip if not found
+        # Find matching ShopifyProduct by looking up the variant's inventory_item_id
+        # Shopify variants have an inventory_item_id field in the full product data
+        shopify_products = ShopifyProduct.objects.filter(store=store)
         
-        # Create or update inventory level
-        # This is a simplified version - you'd need proper mapping
+        for sp in shopify_products:
+            variant_data = sp.shopify_data.get('variants', [])
+            for v in variant_data:
+                if v.get('inventory_item_id') == inventory_item_id:
+                    inv_level, created = ShopifyInventoryLevel.objects.update_or_create(
+                        shopify_product=sp,
+                        shopify_location_id=location_id,
+                        defaults={
+                            'store': store,
+                            'shopify_location_name': location_name,
+                            'available': available,
+                            'on_hand': level_data.get('on_hand', available),
+                            'committed': level_data.get('committed', 0) or 0,
+                        }
+                    )
+                    
+                    # Update the cached quantity on the product mapping
+                    sp.shopify_inventory_quantity = available
+                    sp.save(update_fields=['shopify_inventory_quantity'])
+                    break
         
         job.processed_items += 1
-        job.save()
+        job.save(update_fields=['processed_items', 'failed_items'])
+
+    @staticmethod
+    def push_sku_to_shopify(store: ShopifyStore, sku_id: str) -> Dict:
+        """Push an ERP SKU to Shopify as a product/variant."""
+        sku = SKU.objects.select_related('product').get(id=sku_id)
+        client = ShopifyAPIClient(store)
+        
+        # Check if already mapped
+        existing = ShopifyProduct.objects.filter(
+            store=store,
+            erp_sku=sku
+        ).first()
+        
+        if existing and existing.shopify_product_id:
+            # Update existing Shopify product
+            product_data = {
+                'id': existing.shopify_product_id,
+                'title': sku.product.name,
+                'variants': [{
+                    'id': existing.shopify_variant_id,
+                    'sku': sku.code,
+                    'price': str(sku.base_price),
+                    'inventory_management': 'shopify',
+                }]
+            }
+            
+            result = client.update_product(existing.shopify_product_id, product_data)
+            
+            existing.shopify_title = result.get('title', sku.product.name)
+            existing.shopify_price = sku.base_price
+            existing.shopify_sku = sku.code
+            existing.shopify_data = result
+            existing.sync_status = 'synced'
+            existing.last_synced_at = timezone.now()
+            existing.save()
+            
+            return {
+                'action': 'updated',
+                'shopify_product_id': result.get('id'),
+                'message': f'Updated product {sku.code} on Shopify'
+            }
+        else:
+            # Create new product on Shopify
+            # Get barcode if available
+            barcode_value = ''
+            try:
+                from apps.mdm.models import SKUBarcode
+                barcode = SKUBarcode.objects.filter(
+                    sku=sku, is_primary=True, status='active'
+                ).first()
+                if barcode:
+                    barcode_value = barcode.barcode_value
+            except Exception:
+                pass
+
+            product_data = {
+                'title': sku.product.name,
+                'body_html': sku.product.description or '',
+                'vendor': '',
+                'product_type': '',
+                'variants': [{
+                    'sku': sku.code,
+                    'price': str(sku.base_price),
+                    'barcode': barcode_value,
+                    'inventory_management': 'shopify',
+                    'weight': float(sku.weight) if sku.weight else 0,
+                    'weight_unit': 'kg',
+                }]
+            }
+            
+            # Add size as option if present
+            if sku.size:
+                product_data['options'] = [{'name': 'Size'}]
+                product_data['variants'][0]['option1'] = sku.size
+            
+            result = client.create_product(product_data)
+            
+            # Create mapping
+            variant = result.get('variants', [{}])[0] if result.get('variants') else {}
+            
+            ShopifyProduct.objects.create(
+                store=store,
+                shopify_product_id=result['id'],
+                shopify_variant_id=variant.get('id'),
+                shopify_title=result.get('title', ''),
+                shopify_sku=sku.code,
+                shopify_barcode=barcode_value,
+                shopify_price=sku.base_price,
+                shopify_inventory_quantity=0,
+                shopify_data=result,
+                erp_product=sku.product,
+                erp_sku=sku,
+                sync_status='synced',
+                last_synced_at=timezone.now(),
+            )
+            
+            return {
+                'action': 'created',
+                'shopify_product_id': result.get('id'),
+                'message': f'Created product {sku.code} on Shopify'
+            }
+
+    @staticmethod
+    def push_inventory_to_shopify(
+        store: ShopifyStore,
+        sku_id: str,
+        quantity: int,
+        location_id: Optional[int] = None
+    ) -> Dict:
+        """Push inventory level from ERP to Shopify."""
+        client = ShopifyAPIClient(store)
+        
+        # Find Shopify mapping
+        mapping = ShopifyProduct.objects.filter(
+            store=store,
+            erp_sku_id=sku_id,
+            sync_status='synced'
+        ).first()
+        
+        if not mapping:
+            raise ValueError(f"SKU {sku_id} is not mapped to a Shopify product.")
+        
+        # Get the inventory_item_id from variant data
+        variant_data = mapping.shopify_data.get('variants', [])
+        inventory_item_id = None
+        for v in variant_data:
+            if v.get('id') == mapping.shopify_variant_id:
+                inventory_item_id = v.get('inventory_item_id')
+                break
+        
+        if not inventory_item_id:
+            # Fetch from Shopify
+            product = client.get_product(mapping.shopify_product_id)
+            for v in product.get('variants', []):
+                if v.get('id') == mapping.shopify_variant_id:
+                    inventory_item_id = v.get('inventory_item_id')
+                    break
+        
+        if not inventory_item_id:
+            raise ValueError("Could not find inventory_item_id for this variant.")
+        
+        # If no location specified, use first location
+        if not location_id:
+            locations = client.get_locations()
+            if locations:
+                location_id = locations[0]['id']
+            else:
+                raise ValueError("No Shopify locations found.")
+        
+        # Set inventory level
+        result = client.set_inventory_level(inventory_item_id, location_id, quantity)
+        
+        return {
+            'success': True,
+            'inventory_item_id': inventory_item_id,
+            'location_id': location_id,
+            'available': result.get('available', quantity),
+            'message': f'Inventory set to {quantity} for SKU {mapping.shopify_sku}'
+        }
     
     @staticmethod
     def setup_webhooks(store: ShopifyStore, base_url: str) -> List[ShopifyWebhook]:
@@ -402,21 +706,45 @@ class ShopifyService:
             job = ShopifySyncJob.objects.create(
                 store=store,
                 job_type='products',
-                status='running'
+                job_status='running',
+                total_items=1
             )
             ShopifyService._process_product(store, payload, job)
-            job.status = 'completed'
+            job.job_status = 'completed'
             job.completed_at = timezone.now()
             job.save()
     
     @staticmethod
     def _handle_inventory_webhook(store: ShopifyStore, topic: str, payload: Dict) -> None:
-        """Handle inventory webhooks."""
-        # Update inventory level
-        pass
+        """Handle inventory level update webhooks."""
+        inventory_item_id = payload.get('inventory_item_id')
+        location_id = payload.get('location_id')
+        available = payload.get('available', 0)
+        
+        if not inventory_item_id:
+            return
+        
+        # Find matching product
+        shopify_products = ShopifyProduct.objects.filter(store=store)
+        for sp in shopify_products:
+            for v in sp.shopify_data.get('variants', []):
+                if v.get('inventory_item_id') == inventory_item_id:
+                    # Update inventory level
+                    ShopifyInventoryLevel.objects.update_or_create(
+                        shopify_product=sp,
+                        shopify_location_id=location_id,
+                        defaults={
+                            'store': store,
+                            'shopify_location_name': '',
+                            'available': available or 0,
+                        }
+                    )
+                    sp.shopify_inventory_quantity = available or 0
+                    sp.save(update_fields=['shopify_inventory_quantity'])
+                    return
     
     @staticmethod
     def _handle_order_webhook(store: ShopifyStore, topic: str, payload: Dict) -> None:
-        """Handle order webhooks."""
-        # Process order
-        pass
+        """Handle order webhooks - log for now, can expand later."""
+        logger.info(f"Order webhook received: {topic}, Order ID: {payload.get('id')}")
+        # Future: Create order in ERP, update inventory, etc.
