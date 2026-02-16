@@ -29,6 +29,7 @@ urlpatterns = [
     path('api/workflow/', include('apps.workflow.urls')),
     path('api/documents/', include('apps.documents.urls')),
     path('api/inventory/', include('apps.inventory.urls')),
+    path('api/sales/', include('apps.sales.urls')),
     path('api/config/', include('apps.config.urls')),
     path('api/rules/', include('apps.rules.urls')),
     path('api/numbering/', include('apps.numbering.urls')),
