@@ -18,6 +18,7 @@ export interface SKU {
   company: string
   product: string
   product_code?: string
+  product_name?: string
   style?: string | null
   style_code?: string | null
   base_price: string
@@ -72,6 +73,7 @@ export interface SKUBarcode {
   company: string
   sku: string
   sku_code?: string
+  product_name?: string
   barcode_type: 'code128' | 'gs1_128' | 'ean13'
   barcode_value: string
   is_primary: boolean

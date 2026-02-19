@@ -96,15 +96,32 @@ class StyleSerializer(serializers.ModelSerializer):
 
 
 class SKUSerializer(serializers.ModelSerializer):
+    product_code = serializers.SerializerMethodField()
+    product_name = serializers.SerializerMethodField()
+    
     class Meta:
         model = SKU
         fields = '__all__'
         extra_kwargs = {'company': {'required': False}}
         validators = []
+    
+    def get_product_code(self, obj):
+        """Get the product code."""
+        if obj.product:
+            return obj.product.code
+        return None
+    
+    def get_product_name(self, obj):
+        """Get the product name."""
+        if obj.product:
+            return obj.product.name
+        return None
 
 
 class SKUBarcodeSerializer(serializers.ModelSerializer):
     barcode_value = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    product_name = serializers.SerializerMethodField()
+    sku_code = serializers.SerializerMethodField()
     
     class Meta:
         model = SKUBarcode
@@ -115,6 +132,18 @@ class SKUBarcodeSerializer(serializers.ModelSerializer):
         ]
         extra_kwargs = {'company': {'required': False}}
         validators = []
+    
+    def get_product_name(self, obj):
+        """Get the product name from the related SKU."""
+        if obj.sku and obj.sku.product:
+            return obj.sku.product.name
+        return None
+    
+    def get_sku_code(self, obj):
+        """Get the SKU code."""
+        if obj.sku:
+            return obj.sku.code
+        return None
     
     def validate(self, attrs):
         """Validate barcode assignment fields."""

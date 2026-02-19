@@ -78,10 +78,14 @@ class Command(BaseCommand):
                     if p_created:
                         created_products += 1
 
-                    # Create SKU
-                    sku_code = sp.shopify_sku or f'SKU-{sp.shopify_product_id}'
-                    if sp.shopify_variant_id:
-                        sku_code = f'{sku_code}-{sp.shopify_variant_id}'
+                    # Create SKU - use Shopify SKU directly
+                    if sp.shopify_sku:
+                        sku_code = sp.shopify_sku
+                    else:
+                        # Fallback: use product ID + variant ID if no SKU
+                        sku_code = f'SKU-{sp.shopify_product_id}'
+                        if sp.shopify_variant_id:
+                            sku_code = f'{sku_code}-{sp.shopify_variant_id}'
 
                     sku, s_created = SKU.objects.get_or_create(
                         code=sku_code[:100],

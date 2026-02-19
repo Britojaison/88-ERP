@@ -154,14 +154,14 @@ class Command(BaseCommand):
                         if p_created:
                             created_products += 1
 
-                        # Generate unique SKU code
+                        # Generate unique SKU code - use Shopify SKU directly
                         if sp.shopify_sku:
                             base_sku_code = sp.shopify_sku
                         else:
+                            # Fallback: use product ID + variant ID if no SKU
                             base_sku_code = f'SKU-{sp.shopify_product_id}'
-                        
-                        if sp.shopify_variant_id:
-                            base_sku_code = f'{base_sku_code}-V{sp.shopify_variant_id}'
+                            if sp.shopify_variant_id:
+                                base_sku_code = f'{base_sku_code}-V{sp.shopify_variant_id}'
 
                         sku_code = self.generate_unique_code(base_sku_code, SKU)
 
