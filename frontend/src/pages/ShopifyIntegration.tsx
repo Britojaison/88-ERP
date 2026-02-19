@@ -113,6 +113,8 @@ export default function ShopifyIntegration() {
     sync_interval_minutes: 15,
   })
 
+  console.log('ShopifyIntegration rendering, stores:', stores.length, 'selectedStore:', selectedStore?.id)
+
   useEffect(() => {
     loadStores()
   }, [])
@@ -168,9 +170,11 @@ export default function ShopifyIntegration() {
       // Load lightweight data in parallel — NO bulk order fetching
       void Promise.all([
         shopifyService.listProducts({ store: storeId, page: 1 }).then(res => {
-          setProducts(res.results)
-          setProductCount(res.count)
-          setProductPage(1)
+          if (res && res.results) {
+            setProducts(res.results)
+            setProductCount(res.count || 0)
+            setProductPage(1)
+          }
         }).catch(e => console.error('Failed to load products:', e)),
         shopifyService.listSyncJobs(storeId).then(setSyncJobs).catch(e => console.error('Failed to load sync jobs:', e)),
         shopifyService.getProductDemand(storeId).then(setProductDemand).catch(e => console.error('Failed to load product demand:', e)),
@@ -256,9 +260,16 @@ export default function ShopifyIntegration() {
       loadStores()
       setSelectedStore(created)
     } catch (error: any) {
+      const errorMessage = 
+        error.response?.data?.detail || 
+        error.response?.data?.connection_error ||
+        error.response?.data?.message || 
+        error.message ||
+        'Failed to connect store'
+      
       setSnackbar({
         open: true,
-        message: error.response?.data?.message || 'Failed to connect store',
+        message: errorMessage,
         severity: 'error'
       })
     } finally {
@@ -982,6 +993,7 @@ export default function ShopifyIntegration() {
                               (item.sku || '').toLowerCase().includes(q)
                             )
                           })
+                          .slice(0, 100) // Limit to first 100 items for performance
                           .map((item, idx) => {
                             const isLowStock = item.current_stock !== null && item.current_stock <= 10
                             const isOutOfStock = item.current_stock !== null && item.current_stock <= 0

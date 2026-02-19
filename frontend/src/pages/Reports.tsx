@@ -64,9 +64,9 @@ const onlineReports = [
     icon: <ShoppingCart />,
     reports: [
       { name: 'Online Sales Summary', description: 'Total sales, orders, and revenue from online channels' },
-      { name: 'Sales by Channel', description: 'Website, mobile app, and marketplace performance' },
-      { name: 'Conversion Rate Analysis', description: 'Visitor to customer conversion tracking' },
-      { name: 'Cart Abandonment Report', description: 'Abandoned carts and recovery opportunities' },
+      { name: 'Sales Trend', description: 'Daily sales performance over time' },
+      { name: 'Top Products', description: 'Best selling products by revenue and quantity' },
+      { name: 'Order Status', description: 'Payment and fulfillment status breakdown' },
       { name: 'Average Order Value', description: 'AOV trends and customer spending patterns' },
     ],
   },
@@ -75,8 +75,8 @@ const onlineReports = [
     icon: <TrendingUp />,
     reports: [
       { name: 'Traffic Source Analysis', description: 'Sales by Google, Facebook, Instagram, Email' },
+      { name: 'Geographic Sales', description: 'Sales breakdown by country and city' },
       { name: 'Campaign Performance', description: 'ROI and ROAS for marketing campaigns' },
-      { name: 'Customer Acquisition Cost', description: 'CAC by channel and campaign' },
       { name: 'Customer Lifetime Value', description: 'LTV analysis by acquisition source' },
     ],
   },
@@ -108,8 +108,8 @@ const storeReports = [
     icon: <Store />,
     reports: [
       { name: 'Daily Store Performance', description: 'Sales, transactions, and foot traffic by store' },
+      { name: 'Sales by Store', description: 'Aggregated performance across all stores' },
       { name: 'Sales by Time of Day', description: 'Peak hours and sales patterns' },
-      { name: 'Store Comparison', description: 'Performance comparison across all stores' },
       { name: 'Store Ranking', description: 'Best and worst performing locations' },
     ],
   },

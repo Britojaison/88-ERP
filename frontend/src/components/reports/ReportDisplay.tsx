@@ -28,6 +28,45 @@ import { mdmService } from '../../services/mdm.service'
 import { inventoryService } from '../../services/inventory.service'
 import { documentsService } from '../../services/documents.service'
 import { salesService } from '../../services/sales.service'
+import { shopifyService } from '../../services/shopify.service'
+import {
+  loadShopifySalesByStore,
+  loadShopifySalesTrend,
+  loadShopifyTopProducts,
+  loadShopifyOrderStatus,
+  loadShopifyGeographicSales,
+  loadShopifyProductPerformance,
+  loadShopifyCustomerAnalysis,
+  loadShopifyTrafficSource,
+  loadShopifyAverageOrderValue,
+  loadShopifyInventorySummary,
+  loadShopifyReturnsAnalysis,
+} from './ShopifyReportHelpers'
+
+// Helper function to get currency symbol from orders
+const getCurrencySymbol = async (): Promise<string> => {
+  try {
+    const ordersResponse = await shopifyService.getOrders({ limit: 1 })
+    const orders = Array.isArray(ordersResponse) ? ordersResponse : ordersResponse.results || []
+    if (orders.length > 0 && orders[0].currency) {
+      const currencySymbols: { [key: string]: string } = {
+        'INR': '₹',
+        'USD': '$',
+        'EUR': '€',
+        'GBP': '£',
+        'JPY': '¥',
+        'AUD': 'A$',
+        'CAD': 'C$',
+        'CNY': '¥',
+        'AED': 'د.إ',
+      }
+      return currencySymbols[orders[0].currency] || orders[0].currency + ' '
+    }
+  } catch (e) {
+    console.log('Could not fetch currency, using default INR')
+  }
+  return '₹'
+}
 
 interface ReportDisplayProps {
   reportName: string
@@ -66,7 +105,37 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
           data = await loadSalesSummary()
           break
         case 'Sales by Channel':
-          data = await loadSalesByChannel()
+          // REMOVED: Redundant report - use Sales Trend or Order Status instead
+          data = await loadShopifySalesTrend()
+          if (!data) data = await loadSalesByChannel()
+          break
+        case 'Sales by Store':
+          data = await loadShopifySalesByStore()
+          if (!data) data = await loadDailyStorePerformance()
+          break
+        case 'Sales Trend':
+        case 'Daily Sales':
+          data = await loadShopifySalesTrend()
+          if (!data) data = await loadDailyStorePerformance()
+          break
+        case 'Top Products':
+        case 'Top Sellers':
+          data = await loadShopifyTopProducts()
+          if (!data) data = await loadProductPerformance()
+          break
+        case 'Order Status':
+        case 'Order Fulfillment':
+          data = await loadShopifyOrderStatus()
+          if (!data) data = await loadGenericReport()
+          break
+        case 'Geographic Sales':
+        case 'Sales by Location':
+          data = await loadShopifyGeographicSales()
+          if (!data) data = await loadGenericReport()
+          break
+        case 'Traffic Source Analysis':
+          data = await loadShopifyTrafficSource()
+          if (!data) data = await loadGenericReport()
           break
         case 'Daily Store Performance':
         case 'Store Comparison':
@@ -74,19 +143,30 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
           break
         case 'Average Order Value':
         case 'Average Transaction Value':
-          data = await loadAverageOrderValue()
-          break
-        case 'Return & Refund Analysis':
-        case 'Returns by Staff':
-          data = await loadReturnAnalysis()
-          break
-        case 'Stock Availability':
-        case 'Stock Levels by Store':
-          data = await loadStockAvailability()
+          data = await loadShopifyAverageOrderValue()
+          if (!data) data = await loadAverageOrderValue()
           break
         case 'Best Sellers Report':
         case 'Product Performance':
-          data = await loadProductPerformance()
+          data = await loadShopifyProductPerformance()
+          if (!data) data = await loadProductPerformance()
+          break
+        case 'Customer Segmentation':
+        case 'Customer Journey Map':
+        case 'Customer Lifetime Value':
+          data = await loadShopifyCustomerAnalysis()
+          if (!data) data = await loadGenericReport()
+          break
+        case 'Return & Refund Analysis':
+        case 'Returns by Staff':
+          data = await loadShopifyReturnsAnalysis()
+          if (!data) data = await loadReturnAnalysis()
+          break
+        case 'Stock Availability':
+        case 'Stock Levels by Store':
+        case 'Multi-channel Sync Status':
+          data = await loadShopifyInventorySummary()
+          if (!data) data = await loadStockAvailability()
           break
         case 'Inventory Value':
         case 'Gross Margin Analysis':
@@ -116,98 +196,124 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
   }
 
   const loadSalesSummary = async () => {
-    try {
-      const [summary, byChannel, byStore, dailySales, transactions] = await Promise.all([
-        salesService.getSalesSummary(),
-        salesService.getSalesByChannel(),
-        salesService.getSalesByStore(),
-        salesService.getDailySales(),
-        salesService.getTransactions({ limit: 10 }),
-      ])
+        try {
+          // Try to load Shopify data first
+          const shopifyData = await shopifyService.getSalesSummary()
 
-      // Calculate additional metrics
-      const totalRevenue = summary.total_sales || 0
-      const totalTransactions = summary.total_transactions || 0
-      const avgValue = summary.avg_transaction_value || 0
-      const totalItems = summary.total_items || 0
+          if (shopifyData && shopifyData.summary.total_transactions > 0) {
+            // Use real Shopify data
+            const summary = shopifyData.summary
+            const byChannel = shopifyData.by_channel
+            const byStore = shopifyData.by_store
+            const dailySales = shopifyData.daily_sales
 
-      return {
-        type: 'summary',
-        metrics: [
-          { label: 'Total Sales', value: `$${totalRevenue.toFixed(2)}`, icon: <AttachMoney />, trend: 'up', change: '+12.5%' },
-          { label: 'Total Transactions', value: totalTransactions, icon: <ShoppingCart />, trend: 'up', change: '+8.3%' },
-          { label: 'Avg Transaction Value', value: `$${avgValue.toFixed(2)}`, icon: <TrendingUp />, trend: 'up', change: '+4.2%' },
-          { label: 'Total Items Sold', value: totalItems, icon: <InventoryIcon />, trend: 'neutral' },
-        ],
-        tables: [
-          {
-            title: 'Sales by Channel',
-            columns: ['Channel', 'Revenue', 'Transactions', 'Avg Value', '% of Total'],
-            rows: byChannel.map(item => {
-              const percentage = totalRevenue > 0 ? ((item.total_sales / totalRevenue) * 100).toFixed(1) : '0.0'
-              return [
-                item.sales_channel.charAt(0).toUpperCase() + item.sales_channel.slice(1),
-                `$${item.total_sales?.toFixed(2) || '0.00'}`,
-                item.transaction_count || 0,
-                `$${item.avg_value?.toFixed(2) || '0.00'}`,
-                `${percentage}%`,
-              ]
-            }),
-          },
-          {
-            title: 'Sales by Store',
-            columns: ['Store', 'Revenue', 'Transactions', 'Avg Value'],
-            rows: byStore.map(item => [
-              item.store__name || item.store__code || 'Online',
-              `$${item.total_sales?.toFixed(2) || '0.00'}`,
-              item.transaction_count || 0,
-              `$${item.avg_value?.toFixed(2) || '0.00'}`,
-            ]),
-          },
-          {
-            title: 'Daily Sales Trend (Last 7 Days)',
-            columns: ['Date', 'Revenue', 'Transactions', 'Avg Value'],
-            rows: dailySales.slice(0, 7).map((item: any) => [
-              new Date(item.date).toLocaleDateString(),
-              `$${item.total_sales?.toFixed(2) || '0.00'}`,
-              item.transaction_count || 0,
-              `$${(item.total_sales / item.transaction_count).toFixed(2) || '0.00'}`,
-            ]),
-          },
-          {
-            title: 'Recent Transactions',
-            columns: ['Transaction #', 'Date', 'Channel', 'Amount', 'Items', 'Payment'],
-            rows: transactions.slice(0, 10).map((txn: any) => [
-              txn.transaction_number,
-              new Date(txn.transaction_date).toLocaleDateString(),
-              txn.sales_channel,
-              `$${parseFloat(txn.total_amount).toFixed(2)}`,
-              txn.item_count,
-              txn.payment_method,
-            ]),
-          },
-        ],
+            // Get recent orders for the transactions table
+            const ordersResponse = await shopifyService.getOrders({ limit: 10 })
+            const orders = Array.isArray(ordersResponse) ? ordersResponse : ordersResponse.results || []
+
+            // Get currency symbol
+            const currency = orders.length > 0 && orders[0].currency 
+              ? (orders[0].currency === 'INR' ? '₹' : orders[0].currency === 'USD' ? '$' : orders[0].currency + ' ')
+              : '₹'
+
+            return {
+              type: 'summary',
+              metrics: [
+                { 
+                  label: 'Total Sales', 
+                  value: `${currency}${summary.total_sales.toFixed(2)}`, 
+                  icon: <AttachMoney />, 
+                  trend: 'up', 
+                  change: '+12.5%' 
+                },
+                { 
+                  label: 'Total Transactions', 
+                  value: summary.total_transactions, 
+                  icon: <ShoppingCart />, 
+                  trend: 'up', 
+                  change: '+8.3%' 
+                },
+                { 
+                  label: 'Avg Transaction Value', 
+                  value: `${currency}${summary.avg_transaction_value.toFixed(2)}`, 
+                  icon: <TrendingUp />, 
+                  trend: 'up', 
+                  change: '+4.2%' 
+                },
+                { 
+                  label: 'Total Items Sold', 
+                  value: summary.total_items, 
+                  icon: <InventoryIcon />, 
+                  trend: 'neutral' 
+                },
+              ],
+              tables: [
+                {
+                  title: 'Sales by Channel',
+                  columns: ['Channel', 'Revenue', 'Transactions', 'Avg Value', '% of Total'],
+                  rows: byChannel.map(item => {
+                    const percentage = summary.total_sales > 0 
+                      ? ((item.total_sales / summary.total_sales) * 100).toFixed(1) 
+                      : '0.0'
+                    return [
+                      item.sales_channel.charAt(0).toUpperCase() + item.sales_channel.slice(1),
+                      `${currency}${item.total_sales.toFixed(2)}`,
+                      item.transaction_count,
+                      `${currency}${item.avg_value.toFixed(2)}`,
+                      `${percentage}%`,
+                    ]
+                  }),
+                },
+                {
+                  title: 'Sales by Store',
+                  columns: ['Store', 'Revenue', 'Transactions', 'Avg Value'],
+                  rows: byStore.map(item => [
+                    item.store__name || item.store__code || 'Online',
+                    `${currency}${item.total_sales.toFixed(2)}`,
+                    item.transaction_count,
+                    `${currency}${item.avg_value.toFixed(2)}`,
+                  ]),
+                },
+                {
+                  title: 'Daily Sales Trend (Last 30 Days)',
+                  columns: ['Date', 'Revenue', 'Transactions', 'Avg Value'],
+                  rows: dailySales.slice(0, 30).map((item: any) => [
+                    new Date(item.date).toLocaleDateString(),
+                    `${currency}${item.total_sales.toFixed(2)}`,
+                    item.transaction_count,
+                    `${currency}${(item.total_sales / item.transaction_count).toFixed(2)}`,
+                  ]),
+                },
+                {
+                  title: 'Recent Orders',
+                  columns: ['Order #', 'Date', 'Customer', 'Amount', 'Status'],
+                  rows: orders.slice(0, 10).map((order: any) => [
+                    order.order_number || order.shopify_order_id,
+                    new Date(order.processed_at).toLocaleDateString(),
+                    order.customer_name || order.customer_email || 'Guest',
+                    `${currency}${parseFloat(order.total_price).toFixed(2)}`,
+                    order.financial_status || 'pending',
+                  ]),
+                },
+              ],
+            }
+          }
+
+          // No Shopify data available
+          return {
+            type: 'summary',
+            metrics: [],
+            message: 'No sales data available. Please sync your Shopify store or add orders to see reports.',
+          }
+        } catch (error) {
+          console.error('Error loading sales summary:', error)
+          return {
+            type: 'summary',
+            metrics: [],
+            message: 'Unable to load sales data. Please check your Shopify connection and sync status.',
+          }
+        }
       }
-    } catch (error) {
-      console.error('Error loading sales summary:', error)
-      // Fallback to generic data
-      const [products, skus, documents] = await Promise.all([
-        mdmService.getProducts(),
-        mdmService.getSKUs(),
-        documentsService.getDocuments(),
-      ])
-
-      return {
-        type: 'summary',
-        metrics: [
-          { label: 'Total Products', value: products.length, icon: <ShoppingCart /> },
-          { label: 'Total SKUs', value: skus.length, icon: <InventoryIcon /> },
-          { label: 'Documents Created', value: documents.length, icon: <AttachMoney /> },
-        ],
-        message: 'Sales data not available. Showing product catalog summary. Run migrations and generate sample sales data.',
-      }
-    }
-  }
 
   const loadSalesByChannel = async () => {
     try {

@@ -85,10 +85,7 @@ export default function InventoryBarcodes() {
       setSnackbar({ open: true, message: 'Label Title is required.', severity: 'error' })
       return
     }
-    if (!form.size_label || form.size_label.trim() === '') {
-      setSnackbar({ open: true, message: 'Size Label is required.', severity: 'error' })
-      return
-    }
+    // Size label is optional - no validation needed
     if (!form.selling_price || form.selling_price.trim() === '') {
       setSnackbar({ open: true, message: 'Selling Price is required.', severity: 'error' })
       return
@@ -349,11 +346,10 @@ export default function InventoryBarcodes() {
               <Grid item xs={12} md={4}>
                 <TextField
                   fullWidth
-                  label="Size Label *"
+                  label="Size Label"
                   value={form.size_label}
                   onChange={(e) => setForm((prev) => ({ ...prev, size_label: e.target.value }))}
-                  required
-                  helperText="Size shown on label"
+                  helperText="Size shown on label (optional)"
                 />
               </Grid>
               <Grid item xs={12} md={6}>

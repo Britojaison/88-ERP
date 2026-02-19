@@ -1,29 +1,4 @@
-import api, { extractListData } from './api'
-
-export interface PaginatedResponse<T> {
-  count: number
-  next: string | null
-  previous: string | null
-  results: T[]
-}
-
-export interface ProductDemandItem {
-  title: string
-  variant_title: string
-  sku: string
-  total_quantity_sold: number
-  total_revenue: number
-  order_count: number
-  current_stock: number | null
-}
-
-export interface ProductDemandResponse {
-  total_products: number
-  total_units_sold: number
-  total_revenue: number
-  total_orders: number
-  items: ProductDemandItem[]
-}
+import api from './api'
 
 export interface ShopifyStore {
   id: string
@@ -34,12 +9,12 @@ export interface ShopifyStore {
   auto_sync_inventory: boolean
   auto_sync_orders: boolean
   sync_interval_minutes: number
-  last_product_sync?: string
-  last_inventory_sync?: string
-  last_order_sync?: string
+  last_product_sync: string | null
+  last_inventory_sync: string | null
+  last_order_sync: string | null
   is_connected: boolean
-  last_connection_test?: string
-  connection_error?: string
+  last_connection_test: string | null
+  connection_error: string | null
   status: string
   created_at: string
   updated_at: string
@@ -47,344 +22,282 @@ export interface ShopifyStore {
 
 export interface ShopifyProduct {
   id: string
-  shopify_product_id: number
-  shopify_variant_id?: number
+  shopify_product_id: string
+  shopify_variant_id: string
   shopify_title: string
   shopify_sku: string
   shopify_barcode: string
-  shopify_price: number
+  shopify_price: string
   shopify_inventory_quantity: number
-  shopify_product_type?: string
-  shopify_vendor?: string
-  shopify_tags?: string
-  shopify_image_url?: string
-  erp_product?: string
-  erp_product_code?: string
-  erp_sku?: string
-  erp_sku_code?: string
-  sync_status: 'pending' | 'synced' | 'error'
-  last_synced_at?: string
-  sync_error?: string
+  shopify_product_type: string
+  shopify_vendor: string
+  shopify_tags: string
+  shopify_image_url: string
+  erp_product: string | null
+  erp_product_code: string | null
+  erp_sku: string | null
+  erp_sku_code: string | null
+  sync_status: string
+  last_synced_at: string | null
+  sync_error: string
   created_at: string
-}
-
-export interface OrderLineItem {
-  id?: number
-  title: string
-  variant_title: string
-  sku: string
-  quantity: number
-  price: string
-  total_discount: string
-  fulfillment_status?: string
-  product_id?: number
-  variant_id?: number
-  requires_shipping: boolean
-  taxable: boolean
-}
-
-export interface ShopifyOrder {
-  id: string
-  shopify_order_id: number
-  order_number: string
-  erp_document_number?: string
-  order_status: string
-  financial_status: string
-  fulfillment_status?: string
-  total_price: number
-  currency: string
-  customer_name: string
-  customer_email: string
-  processed_at?: string
-  line_items: OrderLineItem[]
-  items_count: number
-  shipping_address?: {
-    city: string
-    province: string
-    country: string
-    zip: string
-  }
-}
-
-export interface ShopifyDraftOrder {
-  id: string
-  shopify_draft_order_id: number
-  erp_document_number?: string
-  status: string
-  total_price: number
-  customer_name?: string
-  line_items: {
-    title: string
-    variant_title: string
-    sku: string
-    quantity: number
-    price: string
-  }[]
-}
-
-export interface ShopifyDiscount {
-  id: string
-  shopify_id: number
-  code: string
-  type: string
-  value: number
-  value_type: string
-  starts_at?: string
-  ends_at?: string
-  is_active: boolean
 }
 
 export interface ShopifySyncJob {
   id: string
   store: string
   store_name: string
-  job_type: 'products' | 'inventory' | 'orders' | 'draft_orders' | 'discounts' | 'gift_cards' | 'full_sync'
-  status: 'running' | 'completed' | 'failed'
+  job_type: string
+  status: string
   started_at: string
-  completed_at?: string
-  duration_seconds?: number
+  completed_at: string | null
+  duration_seconds: number | null
   total_items: number
   processed_items: number
   created_items: number
   updated_items: number
   failed_items: number
-  error_log?: string
+  error_log: string
 }
 
-export interface ShopifySyncStatus {
-  store: ShopifyStore
-  products: {
-    total: number
-    synced: number
-    pending: number
+export interface ShopifyDraftOrder {
+  id: string
+  shopify_draft_order_id: string
+  store: string
+  erp_document_number: string | null
+  status: string
+  total_price: string
+  line_items: any[]
+  customer_name: string
+}
+
+export interface ShopifyDiscount {
+  id: string
+  store: string
+  shopify_id: string
+  code: string
+  type: string
+  value: string
+  value_type: string
+  starts_at: string | null
+  ends_at: string | null
+  is_active: boolean
+}
+
+export interface ProductDemandResponse {
+  total_products: number
+  total_units_sold: number
+  total_revenue: number
+  total_orders: number
+  items: Array<{
+    title: string
+    variant_title: string
+    sku: string
+    total_quantity_sold: number
+    total_revenue: number
+    order_count: number
+    current_stock: number | null
+  }>
+}
+
+export interface ShopifySalesSummary {
+  summary: {
+    total_sales: number
+    total_transactions: number
+    avg_transaction_value: number
+    total_items: number
   }
-  recent_jobs: ShopifySyncJob[]
+  by_channel: Array<{
+    sales_channel: string
+    total_sales: number
+    transaction_count: number
+    avg_value: number
+  }>
+  by_store: Array<{
+    store__name: string
+    store__code: string
+    total_sales: number
+    transaction_count: number
+    avg_value: number
+  }>
+  daily_sales: Array<{
+    date: string
+    total_sales: number
+    transaction_count: number
+  }>
 }
 
 export const shopifyService = {
-  // Stores
-  listStores: async (): Promise<ShopifyStore[]> => {
+  getSalesSummary: async (): Promise<ShopifySalesSummary> => {
+    const response = await api.get('/integrations/shopify/orders/sales_summary/')
+    return response.data
+  },
+
+  getOrders: async (params?: any) => {
+    const response = await api.get('/integrations/shopify/orders/', { params })
+    return response.data
+  },
+
+  getStores: async () => {
     const response = await api.get('/integrations/shopify/stores/')
-    return extractListData<ShopifyStore>(response.data)
-  },
-
-  getStore: async (id: string): Promise<ShopifyStore> => {
-    const response = await api.get(`/integrations/shopify/stores/${id}/`)
     return response.data
   },
 
-  createStore: async (data: {
-    name: string
-    shop_domain: string
-    access_token: string
-    api_key?: string
-    api_secret?: string
-    api_version?: string
-    webhook_secret?: string
-    auto_sync_products?: boolean
-    auto_sync_inventory?: boolean
-    auto_sync_orders?: boolean
-    sync_interval_minutes?: number
-  }): Promise<ShopifyStore> => {
-    const response = await api.post('/integrations/shopify/stores/', data)
+  listStores: async () => {
+    const response = await api.get('/integrations/shopify/stores/')
+    // Handle both paginated and non-paginated responses
+    if (Array.isArray(response.data)) {
+      return response.data
+    }
+    if (response.data.results) {
+      return response.data.results
+    }
+    return []
+  },
+
+  createStore: async (storeData: any) => {
+    const response = await api.post('/integrations/shopify/stores/', storeData)
     return response.data
   },
 
-  updateStore: async (id: string, data: Partial<ShopifyStore>): Promise<ShopifyStore> => {
-    const response = await api.patch(`/integrations/shopify/stores/${id}/`, data)
+  deleteStore: async (storeId: string) => {
+    const response = await api.delete(`/integrations/shopify/stores/${storeId}/`)
     return response.data
   },
 
-  deleteStore: async (id: string): Promise<void> => {
-    await api.delete(`/integrations/shopify/stores/${id}/`)
+  testConnection: async (storeId: string) => {
+    const response = await api.post(`/integrations/shopify/stores/${storeId}/test_connection/`)
+    return response.data
   },
 
-  // Quick-connect using .env credentials
-  quickConnect: async (): Promise<{
-    store: ShopifyStore
-    message: string
-    connected: boolean
-  }> => {
+  quickConnect: async () => {
     const response = await api.post('/integrations/shopify/stores/quick_connect/')
     return response.data
   },
 
-  testConnection: async (id: string): Promise<{
-    connected: boolean
-    message: string
-    error?: string
-  }> => {
-    const response = await api.post(`/integrations/shopify/stores/${id}/test_connection/`)
+  syncProducts: async (storeId: string) => {
+    const response = await api.post(`/integrations/shopify/stores/${storeId}/sync_products/`)
     return response.data
   },
 
-  syncProducts: async (id: string): Promise<{
-    job_id: string
-    status: string
-    message: string
-  }> => {
-    const response = await api.post(`/integrations/shopify/stores/${id}/sync_products/`)
+  syncInventory: async (storeId: string) => {
+    const response = await api.post(`/integrations/shopify/stores/${storeId}/sync_inventory/`)
     return response.data
   },
 
-  syncInventory: async (id: string): Promise<{
-    job_id: string
-    status: string
-    message: string
-  }> => {
-    const response = await api.post(`/integrations/shopify/stores/${id}/sync_inventory/`)
+  syncOrders: async (storeId: string) => {
+    const response = await api.post(`/integrations/shopify/stores/${storeId}/sync_orders/`)
     return response.data
   },
 
-  syncOrders: async (id: string): Promise<{
-    job_id: string
-    status: string
-    message: string
-  }> => {
-    const response = await api.post(`/integrations/shopify/stores/${id}/sync_orders/`)
+  syncDraftOrders: async (storeId: string) => {
+    const response = await api.post(`/integrations/shopify/stores/${storeId}/sync_draft_orders/`)
     return response.data
   },
 
-  syncDraftOrders: async (id: string): Promise<{
-    job_id: string
-    status: string
-    message: string
-  }> => {
-    const response = await api.post(`/integrations/shopify/stores/${id}/sync_draft_orders/`)
+  syncDiscounts: async (storeId: string) => {
+    const response = await api.post(`/integrations/shopify/stores/${storeId}/sync_discounts/`)
     return response.data
   },
 
-  syncDiscounts: async (id: string): Promise<{
-    job_id: string
-    status: string
-    message: string
-  }> => {
-    const response = await api.post(`/integrations/shopify/stores/${id}/sync_discounts/`)
-    return response.data
-  },
-
-  setupWebhooks: async (id: string): Promise<{
-    success: boolean
-    webhooks_created: number
-    message: string
-    error?: string
-  }> => {
-    const response = await api.post(`/integrations/shopify/stores/${id}/setup_webhooks/`)
-    return response.data
-  },
-
-  getSyncStatus: async (id: string): Promise<ShopifySyncStatus> => {
-    const response = await api.get(`/integrations/shopify/stores/${id}/sync_status/`)
-    return response.data
-  },
-
-  getShopInfo: async (id: string): Promise<any> => {
-    const response = await api.get(`/integrations/shopify/stores/${id}/shop_info/`)
-    return response.data
-  },
-
-  getLocations: async (id: string): Promise<{ locations: any[] }> => {
-    const response = await api.get(`/integrations/shopify/stores/${id}/locations/`)
-    return response.data
-  },
-
-  pushProduct: async (storeId: string, skuId: string): Promise<{
-    action: string
-    shopify_product_id: number
-    message: string
-  }> => {
-    const response = await api.post(`/integrations/shopify/stores/${storeId}/push_product/`, {
-      sku_id: skuId,
-    })
-    return response.data
-  },
-
-  pushInventory: async (storeId: string, skuId: string, quantity: number, locationId?: number): Promise<{
-    success: boolean
-    message: string
-  }> => {
-    const response = await api.post(`/integrations/shopify/stores/${storeId}/push_inventory/`, {
-      sku_id: skuId,
-      quantity,
-      location_id: locationId,
-    })
-    return response.data
-  },
-
-  // Products
-  listProducts: async (params?: {
-    store?: string
-    sync_status?: string
-    page?: number
-    page_size?: number
-    search?: string
-  }): Promise<PaginatedResponse<ShopifyProduct>> => {
+  getProducts: async (params?: any) => {
     const response = await api.get('/integrations/shopify/products/', { params })
+    return response.data
+  },
+
+  listSyncJobs: async (storeId: string) => {
+    const response = await api.get('/integrations/shopify/sync-jobs/', { params: { store: storeId } })
     // Handle both paginated and non-paginated responses
-    if (response.data && response.data.results) {
+    if (Array.isArray(response.data)) {
       return response.data
     }
-    // Fallback for non-paginated
-    const list = extractListData<ShopifyProduct>(response.data)
-    return { count: list.length, next: null, previous: null, results: list }
-  },
-
-  getProduct: async (id: string): Promise<ShopifyProduct> => {
-    const response = await api.get(`/integrations/shopify/products/${id}/`)
-    return response.data
-  },
-
-  mapProductToSKU: async (productId: string, skuId: string): Promise<{
-    success: boolean
-    message: string
-  }> => {
-    const response = await api.post(`/integrations/shopify/products/${productId}/map_to_sku/`, {
-      sku_id: skuId
-    })
-    return response.data
-  },
-
-  listOrders: async (storeId?: string, page?: number): Promise<PaginatedResponse<ShopifyOrder>> => {
-    const params: any = {}
-    if (storeId) params.store = storeId
-    if (page) params.page = page
-    const response = await api.get('/integrations/shopify/orders/', { params })
-    if (response.data && response.data.results) {
-      return response.data
+    if (response.data.results) {
+      return response.data.results
     }
-    const list = extractListData<ShopifyOrder>(response.data)
-    return { count: list.length, next: null, previous: null, results: list }
+    return []
   },
 
-  // Product Demand (aggregated from orders)
-  getProductDemand: async (storeId: string): Promise<ProductDemandResponse> => {
+  getProductDemand: async (storeId: string) => {
     const response = await api.get(`/integrations/shopify/stores/${storeId}/product_demand/`)
     return response.data
   },
 
-  // Draft Orders
-  listDraftOrders: async (storeId?: string): Promise<ShopifyDraftOrder[]> => {
-    const params = storeId ? { store: storeId } : {}
-    const response = await api.get('/integrations/shopify/draft-orders/', { params })
-    return extractListData<ShopifyDraftOrder>(response.data)
+  listDraftOrders: async (storeId: string) => {
+    const response = await api.get('/integrations/shopify/draft-orders/', { params: { store: storeId } })
+    // Handle both paginated and non-paginated responses
+    if (Array.isArray(response.data)) {
+      return response.data
+    }
+    if (response.data.results) {
+      return response.data.results
+    }
+    return []
   },
 
-  // Discounts
-  listDiscounts: async (storeId?: string): Promise<ShopifyDiscount[]> => {
-    const params = storeId ? { store: storeId } : {}
-    const response = await api.get('/integrations/shopify/discounts/', { params })
-    return extractListData<ShopifyDiscount>(response.data)
+  listDiscounts: async (storeId: string) => {
+    const response = await api.get('/integrations/shopify/discounts/', { params: { store: storeId } })
+    // Handle both paginated and non-paginated responses
+    if (Array.isArray(response.data)) {
+      return response.data
+    }
+    if (response.data.results) {
+      return response.data.results
+    }
+    return []
   },
 
-  // Sync Jobs
-  listSyncJobs: async (storeId?: string): Promise<ShopifySyncJob[]> => {
-    const params = storeId ? { store: storeId } : {}
-    const response = await api.get('/integrations/shopify/sync-jobs/', { params })
-    return extractListData<ShopifySyncJob>(response.data)
+  getSyncStatus: async (storeId: string) => {
+    const response = await api.get(`/integrations/shopify/stores/${storeId}/sync_status/`)
+    return response.data
   },
 
-  getSyncJob: async (id: string): Promise<ShopifySyncJob> => {
-    const response = await api.get(`/integrations/shopify/sync-jobs/${id}/`)
+  listProducts: async (params?: any) => {
+    const response = await api.get('/integrations/shopify/products/', { params })
+    return response.data
+  },
+
+  setupWebhooks: async (storeId: string) => {
+    const response = await api.post(`/integrations/shopify/stores/${storeId}/setup_webhooks/`)
+    return response.data
+  },
+
+  updateStore: async (storeId: string, data: any) => {
+    const response = await api.patch(`/integrations/shopify/stores/${storeId}/`, data)
+    return response.data
+  },
+
+  getProductPerformance: async () => {
+    const response = await api.get('/integrations/shopify/analytics/product-performance/')
+    return response.data
+  },
+
+  getCustomerAnalysis: async () => {
+    const response = await api.get('/integrations/shopify/analytics/customer-analysis/')
+    return response.data
+  },
+
+  getTrafficSource: async () => {
+    const response = await api.get('/integrations/shopify/analytics/traffic-source/')
+    return response.data
+  },
+
+  getInventorySummary: async () => {
+    const response = await api.get('/integrations/shopify/analytics/inventory-summary/')
+    return response.data
+  },
+
+  getReturnsAnalysis: async () => {
+    const response = await api.get('/integrations/shopify/analytics/returns-analysis/')
+    return response.data
+  },
+
+  getTopProducts: async (limit: number = 10) => {
+    const response = await api.get('/integrations/shopify/orders/top_products/', { params: { limit } })
+    return response.data
+  },
+
+  getGeographicSales: async () => {
+    const response = await api.get('/integrations/shopify/orders/geographic_sales/')
     return response.data
   },
 }

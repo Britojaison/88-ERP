@@ -54,6 +54,12 @@ class Command(BaseCommand):
             self.stdout.write(self.style.ERROR('No active company found. Please create a company first.'))
             return
 
+        # Get users (cashiers) - moved before stores
+        users = list(User.objects.filter(company=company, is_active=True))
+        if not users:
+            self.stdout.write(self.style.ERROR('No users found. Please create users first.'))
+            return
+        
         # Get stores
         stores = list(Location.objects.filter(
             company=company,
@@ -62,13 +68,7 @@ class Command(BaseCommand):
         ))
         if not stores:
             self.stdout.write(self.style.WARNING('No stores found. Creating sample stores...'))
-            stores = self.create_sample_stores(company)
-
-        # Get users (cashiers)
-        users = list(User.objects.filter(company=company, is_active=True))
-        if not users:
-            self.stdout.write(self.style.ERROR('No users found. Please create users first.'))
-            return
+            stores = self.create_sample_stores(company, users)
 
         # Get SKUs
         skus = list(SKU.objects.filter(company=company, status='active'))
@@ -147,9 +147,15 @@ class Command(BaseCommand):
             f'Successfully generated {total_transactions} transactions and {total_returns} returns'
         ))
 
-    def create_sample_stores(self, company):
+    def create_sample_stores(self, company, users):
         """Create sample store locations"""
         from apps.mdm.models import BusinessUnit
+        
+        # Get first user for created_by/updated_by
+        user = users[0] if users else None
+        if not user:
+            self.stdout.write(self.style.ERROR('Cannot create stores without users. Please create a user first.'))
+            return []
         
         # Create business unit if needed
         bu = BusinessUnit.objects.filter(company=company).first()
@@ -159,8 +165,8 @@ class Command(BaseCommand):
                 code='RETAIL',
                 name='Retail Operations',
                 status='active',
-                created_by_id=1,
-                updated_by_id=1,
+                created_by=user,
+                updated_by=user,
             )
         
         stores = []
@@ -171,6 +177,12 @@ class Command(BaseCommand):
         ]
         
         for code, name in store_data:
+            # Check if store already exists
+            existing = Location.objects.filter(company=company, code=code).first()
+            if existing:
+                stores.append(existing)
+                continue
+                
             store = Location.objects.create(
                 company=company,
                 code=code,
@@ -179,8 +191,8 @@ class Command(BaseCommand):
                 business_unit=bu,
                 is_inventory_location=True,
                 status='active',
-                created_by_id=1,
-                updated_by_id=1,
+                created_by=user,
+                updated_by=user,
             )
             stores.append(store)
         
