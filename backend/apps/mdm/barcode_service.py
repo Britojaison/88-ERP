@@ -98,7 +98,7 @@ class BarcodeService:
         return f"""<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="600" viewBox="0 0 1000 600">
   <rect width="1000" height="600" fill="#ffffff"/>
   <text x="500" y="65" text-anchor="middle" font-size="52" font-family="Arial, sans-serif" font-weight="700">{display_code}</text>
-  <text x="500" y="115" text-anchor="middle" font-size="32" font-family="Arial, sans-serif">{title} – {size_label}</text>
+  <text x="500" y="115" text-anchor="middle" font-size="32" font-family="Arial, sans-serif">{title}{f' – {size_label}' if size_label else ''}</text>
 {bar_rects}  <text x="500" y="415" text-anchor="middle" font-size="28" font-family="Arial, sans-serif">{barcode_value}</text>
   <text x="500" y="470" text-anchor="middle" font-size="42" font-family="Arial, sans-serif" font-weight="700" letter-spacing="6">{barcode_value}</text>
   <text x="300" y="555" text-anchor="middle" font-size="58" font-family="Arial, sans-serif" font-weight="700">₹{selling_price}</text>
@@ -139,7 +139,7 @@ class BarcodeService:
             draw.text(((width - w) / 2, y), text, fill="black", font=font)
 
         draw_text_centered(display_code, 40, font_bold)
-        draw_text_centered(f"{title} – {size_label}", 100, font_reg)
+        draw_text_centered(f"{title}{f' – {size_label}' if size_label else ''}", 100, font_reg)
 
         # Barcode - Ultra High Density
         bc_cls = get_barcode_class(barcode_type.lower() if barcode_type.lower() != "gs1_128" else "code128")
@@ -195,7 +195,7 @@ class BarcodeService:
         c.drawCentredString(50*mm, 52*mm, display_code)
         
         c.setFont("Helvetica", 10)
-        c.drawCentredString(50*mm, 46*mm, f"{title} – {size_label}")
+        c.drawCentredString(50*mm, 46*mm, f"{title}{f' – {size_label}' if size_label else ''}")
         
         # Barcode - High Density
         if barcode_type.lower() == "ean13":

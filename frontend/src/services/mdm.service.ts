@@ -86,11 +86,18 @@ export interface SKUBarcode {
   updated_at: string
 }
 
+export interface PaginatedResponse<T> {
+  count: number
+  next: string | null
+  previous: string | null
+  results: T[]
+}
+
 export const mdmService = {
   // Products
   getProducts: async (params?: any) => {
     const response = await api.get('/mdm/products/', { params })
-    return extractListData<Product>(response.data)
+    return response.data as PaginatedResponse<Product> | Product[]
   },
 
   getProduct: async (id: string) => {
@@ -125,7 +132,7 @@ export const mdmService = {
   // SKUs
   getSKUs: async (params?: any) => {
     const response = await api.get('/mdm/skus/', { params })
-    return extractListData<SKU>(response.data)
+    return response.data as PaginatedResponse<SKU> | SKU[]
   },
 
   getSKU: async (id: string) => {
@@ -139,9 +146,9 @@ export const mdmService = {
   },
 
   // SKU barcodes
-  getSKUBarcodes: async (params?: { sku?: string }) => {
+  getSKUBarcodes: async (params?: { sku?: string; page?: number }) => {
     const response = await api.get('/mdm/sku-barcodes/', { params })
-    return extractListData<SKUBarcode>(response.data)
+    return response.data as PaginatedResponse<SKUBarcode> | SKUBarcode[]
   },
 
   createSKUBarcode: async (data: Partial<SKUBarcode> & { sku: string }) => {
