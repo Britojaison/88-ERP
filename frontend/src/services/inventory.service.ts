@@ -1,4 +1,5 @@
 import api, { extractListData } from './api'
+import { PaginatedResponse } from './mdm.service'
 
 export interface InventoryBalance {
   id: string
@@ -55,7 +56,7 @@ export interface GoodsReceiptScanLog {
 export const inventoryService = {
   getBalances: async (params?: any) => {
     const response = await api.get('/inventory/balances/', { params })
-    return extractListData<InventoryBalance>(response.data)
+    return response.data as PaginatedResponse<InventoryBalance> | InventoryBalance[]
   },
 
   getBalance: async (id: string) => {
@@ -65,7 +66,7 @@ export const inventoryService = {
 
   getMovements: async (params?: any) => {
     const response = await api.get('/inventory/movements/', { params })
-    return extractListData<InventoryMovement>(response.data)
+    return response.data as PaginatedResponse<InventoryMovement> | InventoryMovement[]
   },
 
   createMovement: async (data: Partial<InventoryMovement>) => {
@@ -78,9 +79,9 @@ export const inventoryService = {
     return extractListData(response.data)
   },
 
-  getGoodsReceiptScans: async () => {
-    const response = await api.get('/inventory/goods-receipt-scans/')
-    return extractListData<GoodsReceiptScanLog>(response.data)
+  getGoodsReceiptScans: async (params?: any) => {
+    const response = await api.get('/inventory/goods-receipt-scans/', { params })
+    return response.data as PaginatedResponse<GoodsReceiptScanLog> | GoodsReceiptScanLog[]
   },
 
   scanGoodsReceipt: async (data: {

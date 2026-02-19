@@ -17,7 +17,14 @@ from .serializers import (
     SKUSerializer,
     SKUBarcodeSerializer,
 )
+from rest_framework.pagination import PageNumberPagination
 from .barcode_service import BarcodeService
+
+
+class MDMPagination(PageNumberPagination):
+    page_size = 50
+    page_size_query_param = 'page_size'
+    max_page_size = 200
 
 
 class CompanyViewSet(viewsets.ModelViewSet):
@@ -31,7 +38,7 @@ class CompanyViewSet(viewsets.ModelViewSet):
 
 class TenantScopedViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
-    pagination_class = None
+    pagination_class = MDMPagination
 
     def perform_create(self, serializer):
         serializer.save(company_id=self.request.user.company_id)

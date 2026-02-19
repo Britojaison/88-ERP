@@ -34,9 +34,13 @@ export default function InventoryBarcodes() {
   const [selectedLabel, setSelectedLabel] = useState('')
   const [labelName, setLabelName] = useState('')
   const [activeBarcodeId, setActiveBarcodeId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [barcodePage, setBarcodePage] = useState(1)
+  const [barcodeCount, setBarcodeCount] = useState(0)
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>(
     { open: false, message: '', severity: 'info' },
   )
+  const [skuSearch, setSkuSearch] = useState('')
 
   const [form, setForm] = useState({
     sku: '',
@@ -50,26 +54,32 @@ export default function InventoryBarcodes() {
     is_primary: true,
   })
 
-  const loadData = async () => {
+  const loadData = async (page = 1) => {
     try {
-      const [skus, barcodes] = await Promise.all([mdmService.getSKUs(), mdmService.getSKUBarcodes()])
+      const [skuRes, barcodeRes] = await Promise.all([
+        mdmService.getSKUs({ search: skuSearch }),
+        mdmService.getSKUBarcodes({ page })
+      ])
 
-      // Get SKU IDs that already have barcodes
-      const skusWithBarcodes = new Set(barcodes.map(barcode => barcode.sku))
+      const skus = Array.isArray(skuRes) ? skuRes : skuRes.results
+      const barcodes = Array.isArray(barcodeRes) ? barcodeRes : barcodeRes.results
+      const totalBarcodes = Array.isArray(barcodeRes) ? barcodes.length : barcodeRes.count
 
-      // Filter out SKUs that already have barcodes
-      const availableSkus = skus.filter(sku => !skusWithBarcodes.has(sku.id))
-
-      setSkuList(availableSkus)
+      setSkuList(skus)
       setBarcodeList(barcodes)
+      setBarcodeCount(totalBarcodes)
+      setBarcodePage(page)
     } catch (error) {
       setSnackbar({ open: true, message: 'Failed to load barcode workspace data.', severity: 'error' })
     }
   }
 
   useEffect(() => {
-    void loadData()
-  }, [])
+    const timer = setTimeout(() => {
+      void loadData(1)
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [skuSearch])
 
   const handleAssign = async () => {
     // Validate required fields
@@ -112,6 +122,7 @@ export default function InventoryBarcodes() {
       return
     }
 
+    setLoading(true)
     try {
       const created = await mdmService.createSKUBarcode({
         sku: form.sku,
@@ -140,8 +151,14 @@ export default function InventoryBarcodes() {
       })
       // Reload data to update available SKUs list
       await loadData()
-    } catch (error) {
-      setSnackbar({ open: true, message: 'Failed to assign barcode.', severity: 'error' })
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.barcode_value ? 'This barcode value is already assigned.' :
+        error.response?.data?.non_field_errors?.[0] ||
+        error.response?.data?.sku?.[0] ||
+        'Failed to assign barcode. Please check your inputs.'
+      setSnackbar({ open: true, message: errorMsg, severity: 'error' })
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -260,7 +277,8 @@ export default function InventoryBarcodes() {
                   options={skuList}
                   getOptionLabel={(option) => `${option.code} - ${option.name}${option.size ? ` (${option.size})` : ''}`}
                   value={skuList.find(s => s.id === form.sku) || null}
-                  onChange={(event, newValue) => {
+                  onInputChange={(_, value) => setSkuSearch(value)}
+                  onChange={(_event, newValue) => {
                     if (newValue) {
                       setForm((prev) => ({
                         ...prev,
@@ -388,8 +406,8 @@ export default function InventoryBarcodes() {
                 />
               </Grid>
               <Grid item xs={12}>
-                <Button variant="contained" onClick={() => void handleAssign()}>
-                  Save Barcode Assignment
+                <Button variant="contained" onClick={() => void handleAssign()} disabled={loading}>
+                  {loading ? 'Saving...' : 'Save Barcode Assignment'}
                 </Button>
               </Grid>
             </Grid>
@@ -473,6 +491,34 @@ export default function InventoryBarcodes() {
                 </TableBody>
               </Table>
             </TableContainer>
+            {barcodeCount > 50 && (
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 3 }}>
+                <Typography variant="body2" color="text.secondary">
+                  Showing {(barcodePage - 1) * 50 + 1}-{Math.min(barcodePage * 50, barcodeCount)} of {barcodeCount} barcodes
+                </Typography>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    disabled={barcodePage === 1}
+                    onClick={() => void loadData(barcodePage - 1)}
+                  >
+                    Previous
+                  </Button>
+                  <Typography variant="body2" sx={{ px: 1, fontWeight: 500 }}>
+                    Page {barcodePage}
+                  </Typography>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    disabled={barcodePage * 50 >= barcodeCount}
+                    onClick={() => void loadData(barcodePage + 1)}
+                  >
+                    Next
+                  </Button>
+                </Stack>
+              </Box>
+            )}
           </Paper>
         </Grid>
       </Grid>

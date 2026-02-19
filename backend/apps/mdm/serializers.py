@@ -108,29 +108,31 @@ class SKUBarcodeSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = SKUBarcode
-        fields = '__all__'
+        fields = [
+            'id', 'company', 'sku', 'sku_code', 'barcode_type', 'barcode_value',
+            'is_primary', 'display_code', 'label_title', 'size_label',
+            'selling_price', 'mrp', 'status', 'created_at', 'updated_at'
+        ]
         extra_kwargs = {'company': {'required': False}}
         validators = []
     
     def validate(self, attrs):
         """Validate barcode assignment fields."""
         # Validate display_code is required
-        if not attrs.get('display_code') or not attrs.get('display_code').strip():
+        display_code = attrs.get('display_code')
+        if not display_code or not display_code.strip():
             raise serializers.ValidationError({
                 'display_code': 'Display Code is required.'
             })
         
         # Validate label_title is required
-        if not attrs.get('label_title') or not attrs.get('label_title').strip():
+        label_title = attrs.get('label_title')
+        if not label_title or not label_title.strip():
             raise serializers.ValidationError({
                 'label_title': 'Label Title is required.'
             })
         
-        # Validate size_label is required
-        if not attrs.get('size_label') or not attrs.get('size_label').strip():
-            raise serializers.ValidationError({
-                'size_label': 'Size Label is required.'
-            })
+        # size_label is optional
         
         # Validate selling_price is required and positive
         selling_price = attrs.get('selling_price')
@@ -138,9 +140,13 @@ class SKUBarcodeSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 'selling_price': 'Selling Price is required.'
             })
-        if selling_price <= 0:
+        try:
+            selling_price = float(selling_price)
+            if selling_price <= 0:
+                raise ValueError()
+        except (ValueError, TypeError):
             raise serializers.ValidationError({
-                'selling_price': 'Selling Price must be greater than zero.'
+                'selling_price': 'Selling Price must be a positive number.'
             })
         
         # Validate mrp is required and positive
@@ -149,9 +155,13 @@ class SKUBarcodeSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 'mrp': 'MRP is required.'
             })
-        if mrp <= 0:
+        try:
+            mrp = float(mrp)
+            if mrp <= 0:
+                raise ValueError()
+        except (ValueError, TypeError):
             raise serializers.ValidationError({
-                'mrp': 'MRP must be greater than zero.'
+                'mrp': 'MRP must be a positive number.'
             })
         
         # Validate selling_price <= mrp

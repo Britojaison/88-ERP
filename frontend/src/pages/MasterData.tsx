@@ -51,6 +51,10 @@ export default function MasterData() {
   const [companies, setCompanies] = useState<Company[]>([])
   const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>([])
   const [locations, setLocations] = useState<Location[]>([])
+  const [productPage, setProductPage] = useState(1)
+  const [productCount, setProductCount] = useState(0)
+  const [skuPage, setSkuPage] = useState(1)
+  const [skuCount, setSkuCount] = useState(0)
   const [openProductDialog, setOpenProductDialog] = useState(false)
   const [openSkuDialog, setOpenSkuDialog] = useState(false)
   const [openCompanyDialog, setOpenCompanyDialog] = useState(false)
@@ -74,6 +78,7 @@ export default function MasterData() {
     base_price: '',
     cost_price: '',
     weight: '',
+    size: '',
     is_serialized: false,
     is_batch_tracked: false,
   })
@@ -95,20 +100,35 @@ export default function MasterData() {
     { open: false, message: '', severity: 'info' },
   )
 
-  const loadData = async () => {
+  const loadData = async (prodPage = 1, sPage = 1) => {
     try {
       const [productData, skuData, companyData, businessUnitData, locationData] = await Promise.all([
-        mdmService.getProducts(),
-        mdmService.getSKUs(),
+        mdmService.getProducts({ page: prodPage }),
+        mdmService.getSKUs({ page: sPage }),
         mdmService.getCompanies(),
         mdmService.getBusinessUnits(),
         mdmService.getLocations(),
       ])
-      setProducts(productData)
-      setSkus(skuData)
-      setCompanies(companyData)
-      setBusinessUnits(businessUnitData)
-      setLocations(locationData)
+
+      if (productData && 'results' in productData) {
+        setProducts(productData.results)
+        setProductCount(productData.count)
+        setProductPage(prodPage)
+      } else {
+        setProducts(productData as Product[])
+      }
+
+      if (skuData && 'results' in skuData) {
+        setSkus(skuData.results)
+        setSkuCount(skuData.count)
+        setSkuPage(sPage)
+      } else {
+        setSkus(skuData as SKU[])
+      }
+
+      setCompanies(companyData as Company[])
+      setBusinessUnits(businessUnitData as BusinessUnit[])
+      setLocations(locationData as Location[])
     } catch (error) {
       setSnackbar({ open: true, message: 'Failed to load master data.', severity: 'error' })
     }
@@ -168,47 +188,47 @@ export default function MasterData() {
 
   const handleCreateVariants = async () => {
     if (!selectedProduct) return
-    
+
     if (variantForm.sizes.length === 0) {
       setSnackbar({ open: true, message: 'Please select at least one size.', severity: 'error' })
       return
     }
-    
+
     if (!variantForm.selling_price || !variantForm.mrp) {
       setSnackbar({ open: true, message: 'Selling price and MRP are required.', severity: 'error' })
       return
     }
-    
+
     const sellingPrice = parseFloat(variantForm.selling_price)
     const mrp = parseFloat(variantForm.mrp)
-    
+
     if (isNaN(sellingPrice) || sellingPrice <= 0) {
       setSnackbar({ open: true, message: 'Selling price must be a positive number.', severity: 'error' })
       return
     }
-    
+
     if (isNaN(mrp) || mrp <= 0) {
       setSnackbar({ open: true, message: 'MRP must be a positive number.', severity: 'error' })
       return
     }
-    
+
     if (sellingPrice > mrp) {
       setSnackbar({ open: true, message: 'Selling price cannot be greater than MRP.', severity: 'error' })
       return
     }
-    
+
     try {
       const result = await mdmService.createProductVariants(selectedProduct.id, variantForm)
       setOpenVariantsDialog(false)
       setVariantForm({ sizes: [], selling_price: '', mrp: '' })
       setSelectedProduct(null)
       await loadData()
-      
+
       let message = `${result.created} SKU(s) created successfully.`
       if (result.skipped > 0) {
         message += ` ${result.skipped} size(s) skipped (already exist).`
       }
-      
+
       setSnackbar({ open: true, message, severity: 'success' })
     } catch (error) {
       setSnackbar({ open: true, message: 'Failed to create variants.', severity: 'error' })
@@ -386,6 +406,32 @@ export default function MasterData() {
               </TableBody>
             </Table>
           </TableContainer>
+          {productCount > 50 && (
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2, px: 2, pb: 2 }}>
+              <Typography variant="body2" color="text.secondary">
+                Showing {(productPage - 1) * 50 + 1}-{Math.min(productPage * 50, productCount)} of {productCount} products
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  disabled={productPage === 1}
+                  onClick={() => void loadData(productPage - 1, skuPage)}
+                >
+                  Previous
+                </Button>
+                <Chip label={`Page ${productPage}`} variant="outlined" size="small" />
+                <Button
+                  size="small"
+                  variant="outlined"
+                  disabled={productPage * 50 >= productCount}
+                  onClick={() => void loadData(productPage + 1, skuPage)}
+                >
+                  Next
+                </Button>
+              </Box>
+            </Box>
+          )}
         </TabPanel>
 
         <TabPanel value={tabValue} index={1}>
@@ -423,6 +469,32 @@ export default function MasterData() {
               </TableBody>
             </Table>
           </TableContainer>
+          {skuCount > 50 && (
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2, px: 2, pb: 2 }}>
+              <Typography variant="body2" color="text.secondary">
+                Showing {(skuPage - 1) * 50 + 1}-{Math.min(skuPage * 50, skuCount)} of {skuCount} SKUs
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  disabled={skuPage === 1}
+                  onClick={() => void loadData(productPage, skuPage - 1)}
+                >
+                  Previous
+                </Button>
+                <Chip label={`Page ${skuPage}`} variant="outlined" size="small" />
+                <Button
+                  size="small"
+                  variant="outlined"
+                  disabled={skuPage * 50 >= skuCount}
+                  onClick={() => void loadData(productPage, skuPage + 1)}
+                >
+                  Next
+                </Button>
+              </Box>
+            </Box>
+          )}
         </TabPanel>
 
         <TabPanel value={tabValue} index={2}>
@@ -514,11 +586,11 @@ export default function MasterData() {
                   .split(/\s+/)
                   .slice(0, 2)
                   .join('-');
-                
+
                 // Add a random 3-digit number for uniqueness
                 const randomSuffix = Math.floor(100 + Math.random() * 900);
                 const suggestedCode = baseCode ? `${baseCode}-${randomSuffix}` : '';
-                
+
                 return {
                   ...prev,
                   name,
@@ -565,7 +637,7 @@ export default function MasterData() {
               if (newValue) {
                 const randomSuffix = Math.floor(1000 + Math.random() * 9000);
                 const suggestedCode = `${newValue.code}-${randomSuffix}`;
-                
+
                 setSkuForm((prev) => ({
                   ...prev,
                   product: newValue.id,
@@ -708,7 +780,7 @@ export default function MasterData() {
           </Button>
         </DialogActions>
       </Dialog>
-      
+
       {/* Create Variants Dialog */}
       <Dialog open={openVariantsDialog} onClose={() => setOpenVariantsDialog(false)} maxWidth="md" fullWidth>
         <DialogTitle>Create Variants for "{selectedProduct?.name}"</DialogTitle>
@@ -716,7 +788,7 @@ export default function MasterData() {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2, mt: 1 }}>
             Select sizes to create SKU variants. Each variant will have the same pricing.
           </Typography>
-          
+
           <Typography variant="subtitle2" sx={{ mt: 3, mb: 1 }}>
             Select Sizes:
           </Typography>
@@ -741,7 +813,7 @@ export default function MasterData() {
               </Grid>
             ))}
           </Grid>
-          
+
           {variantForm.sizes.length > 0 && (
             <Box sx={{ mt: 2 }}>
               <Typography variant="body2" color="text.secondary">
@@ -749,7 +821,7 @@ export default function MasterData() {
               </Typography>
             </Box>
           )}
-          
+
           <Typography variant="subtitle2" sx={{ mt: 3, mb: 1 }}>
             Pricing (applies to all variants):
           </Typography>
@@ -775,7 +847,7 @@ export default function MasterData() {
               />
             </Grid>
           </Grid>
-          
+
           {variantForm.sizes.length > 0 && selectedProduct && (
             <Box sx={{ mt: 3, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
               <Typography variant="subtitle2" gutterBottom>
@@ -805,8 +877,8 @@ export default function MasterData() {
           }}>
             Cancel
           </Button>
-          <Button 
-            variant="contained" 
+          <Button
+            variant="contained"
             onClick={() => void handleCreateVariants()}
             disabled={variantForm.sizes.length === 0}
           >
@@ -814,7 +886,7 @@ export default function MasterData() {
           </Button>
         </DialogActions>
       </Dialog>
-      
+
       <Dialog open={openCompanyDialog} onClose={() => setOpenCompanyDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Create Company</DialogTitle>
         <DialogContent>

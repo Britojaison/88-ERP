@@ -18,14 +18,21 @@ from .serializers import (
     GoodsReceiptScanSerializer,
     GoodsReceiptScanRequestSerializer,
 )
+from rest_framework.pagination import PageNumberPagination
 from apps.mdm.models import SKU, Location, SKUBarcode
 from apps.documents.models import Document, DocumentLine
+
+
+class InventoryPagination(PageNumberPagination):
+    page_size = 50
+    page_size_query_param = "page_size"
+    max_page_size = 200
 
 
 class InventoryBalanceViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = InventoryBalanceSerializer
-    pagination_class = None
+    pagination_class = InventoryPagination
 
     def get_queryset(self):
         queryset = InventoryBalance.objects.filter(
@@ -45,7 +52,7 @@ class InventoryBalanceViewSet(viewsets.ReadOnlyModelViewSet):
 
 class InventoryMovementViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
-    pagination_class = None
+    pagination_class = InventoryPagination
 
     def get_queryset(self):
         queryset = InventoryMovement.objects.filter(
@@ -59,6 +66,14 @@ class InventoryMovementViewSet(viewsets.ModelViewSet):
         sku_id = self.request.query_params.get("sku")
         if sku_id:
             queryset = queryset.filter(sku_id=sku_id)
+
+        search = self.request.query_params.get("search")
+        if search:
+            queryset = queryset.filter(
+                sku__code__icontains=search
+            ) | queryset.filter(
+                reference_number__icontains=search
+            )
 
         return queryset.order_by("-movement_date")
 
@@ -195,16 +210,32 @@ class InventoryMovementViewSet(viewsets.ModelViewSet):
 class GoodsReceiptScanViewSet(viewsets.GenericViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = GoodsReceiptScanSerializer
-    pagination_class = None
+    pagination_class = InventoryPagination
 
     def get_queryset(self):
-        return GoodsReceiptScan.objects.filter(
+        queryset = GoodsReceiptScan.objects.filter(
             company_id=self.request.user.company_id, status="active"
         ).select_related("sku", "barcode", "location", "document")
+        
+        search = self.request.query_params.get("search")
+        if search:
+            queryset = queryset.filter(
+                sku__code__icontains=search
+            ) | queryset.filter(
+                barcode_value__icontains=search
+            )
+            
+        return queryset
 
     def list(self, request):
-        queryset = self.get_queryset()[:100]
-        return Response(GoodsReceiptScanSerializer(queryset, many=True).data)
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
     @transaction.atomic
     @action(detail=False, methods=["post"], url_path="scan")

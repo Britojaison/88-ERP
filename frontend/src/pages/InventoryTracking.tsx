@@ -64,25 +64,51 @@ export default function InventoryTracking() {
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>(
     { open: false, message: '', severity: 'info' },
   )
+  const [movementPage, setMovementPage] = useState(1)
+  const [movementCount, setMovementCount] = useState(0)
+  const [scanPage, setScanPage] = useState(1)
+  const [scanCount, setScanCount] = useState(0)
 
-  const loadData = async () => {
+  const loadData = async (mPage = 1, sPage = 1) => {
     try {
       const [movementData, scanData, locationData] = await Promise.all([
-        inventoryService.getMovements(),
-        inventoryService.getGoodsReceiptScans(),
+        inventoryService.getMovements({ page: mPage, search: searchTerm }),
+        inventoryService.getGoodsReceiptScans({ page: sPage, search: searchTerm }),
         mdmService.getLocations(),
       ])
-      setMovements(Array.isArray(movementData) ? movementData : [])
-      setScanLogs(Array.isArray(scanData) ? scanData : [])
-      setLocations(Array.isArray(locationData) ? locationData : [])
+
+      if (movementData && 'results' in movementData) {
+        setMovements(movementData.results)
+        setMovementCount(movementData.count)
+        setMovementPage(mPage)
+      } else {
+        setMovements(movementData as InventoryMovement[])
+      }
+
+      if (scanData && 'results' in scanData) {
+        setScanLogs(scanData.results)
+        setScanCount(scanData.count)
+        setScanPage(sPage)
+      } else {
+        setScanLogs(scanData as GoodsReceiptScanLog[])
+      }
+
+      setLocations(Array.isArray(locationData) ? locationData : (locationData as any).results || [])
     } catch (error) {
       setSnackbar({ open: true, message: 'Failed to load tracking data.', severity: 'error' })
     }
   }
 
   useEffect(() => {
-    void loadData()
-  }, [])
+    const timer = setTimeout(() => {
+      void loadData(1, 1)
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [searchTerm])
+
+  useEffect(() => {
+    void loadData(movementPage, scanPage)
+  }, [locationFilter, dateRange])
 
   // Filter movements
   const filteredMovements = movements.filter((movement) => {
@@ -90,7 +116,7 @@ export default function InventoryTracking() {
     const movementDate = new Date(movement.movement_date)
     const cutoffDate = new Date()
     cutoffDate.setDate(cutoffDate.getDate() - daysAgo)
-    
+
     if (movementDate < cutoffDate) return false
     if (locationFilter !== 'all') {
       const matchesFrom = movement.from_location === locationFilter
@@ -107,7 +133,7 @@ export default function InventoryTracking() {
     const scanDate = new Date(scan.scanned_at)
     const cutoffDate = new Date()
     cutoffDate.setDate(cutoffDate.getDate() - daysAgo)
-    
+
     if (scanDate < cutoffDate) return false
     if (locationFilter !== 'all' && scan.location !== locationFilter) return false
     if (searchTerm && !scan.barcode_value?.toLowerCase().includes(searchTerm.toLowerCase())) return false
@@ -281,8 +307,8 @@ export default function InventoryTracking() {
         <Grid item xs={12}>
           <Paper sx={{ p: 2.5 }}>
             <Tabs value={tabValue} onChange={(_, newValue) => setTabValue(newValue)}>
-              <Tab label={`Movements (${filteredMovements.length})`} />
-              <Tab label={`Scan Logs (${filteredScans.length})`} />
+              <Tab label={`Movements (${movementCount})`} />
+              <Tab label={`Scan Logs (${scanCount})`} />
             </Tabs>
 
             <TabPanel value={tabValue} index={0}>
@@ -305,7 +331,7 @@ export default function InventoryTracking() {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {filteredMovements.map((movement) => (
+                      {movements.map((movement) => (
                         <TableRow key={movement.id}>
                           <TableCell>{new Date(movement.movement_date).toLocaleString()}</TableCell>
                           <TableCell>
@@ -328,10 +354,38 @@ export default function InventoryTracking() {
                   </Table>
                 </TableContainer>
               )}
+              {movementCount > 50 && (
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 3 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    Showing {(movementPage - 1) * 50 + 1}-{Math.min(movementPage * 50, movementCount)} of {movementCount} movements
+                  </Typography>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      disabled={movementPage === 1}
+                      onClick={() => void loadData(movementPage - 1, scanPage)}
+                    >
+                      Previous
+                    </Button>
+                    <Typography variant="body2" sx={{ px: 1, fontWeight: 500 }}>
+                      Page {movementPage}
+                    </Typography>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      disabled={movementPage * 50 >= movementCount}
+                      onClick={() => void loadData(movementPage + 1, scanPage)}
+                    >
+                      Next
+                    </Button>
+                  </Stack>
+                </Box>
+              )}
             </TabPanel>
 
             <TabPanel value={tabValue} index={1}>
-              {filteredScans.length === 0 ? (
+              {scanLogs.length === 0 ? (
                 <Alert severity="info">No scan logs found for the selected filters.</Alert>
               ) : (
                 <TableContainer>
@@ -349,7 +403,7 @@ export default function InventoryTracking() {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {filteredScans.map((scan) => (
+                      {scanLogs.map((scan) => (
                         <TableRow key={scan.id}>
                           <TableCell>{new Date(scan.scanned_at).toLocaleString()}</TableCell>
                           <TableCell>{scan.barcode_value}</TableCell>
@@ -373,8 +427,8 @@ export default function InventoryTracking() {
                                 scan.result === 'matched'
                                   ? 'success'
                                   : scan.result === 'over_receipt'
-                                  ? 'warning'
-                                  : 'error'
+                                    ? 'warning'
+                                    : 'error'
                               }
                             />
                           </TableCell>
@@ -389,6 +443,34 @@ export default function InventoryTracking() {
                     </TableBody>
                   </Table>
                 </TableContainer>
+              )}
+              {scanCount > 50 && (
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 3 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    Showing {(scanPage - 1) * 50 + 1}-{Math.min(scanPage * 50, scanCount)} of {scanCount} scans
+                  </Typography>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      disabled={scanPage === 1}
+                      onClick={() => void loadData(movementPage, scanPage - 1)}
+                    >
+                      Previous
+                    </Button>
+                    <Typography variant="body2" sx={{ px: 1, fontWeight: 500 }}>
+                      Page {scanPage}
+                    </Typography>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      disabled={scanPage * 50 >= scanCount}
+                      onClick={() => void loadData(movementPage, scanPage + 1)}
+                    >
+                      Next
+                    </Button>
+                  </Stack>
+                </Box>
               )}
             </TabPanel>
           </Paper>
@@ -405,6 +487,6 @@ export default function InventoryTracking() {
           {snackbar.message}
         </Alert>
       </Snackbar>
-    </Box>
+    </Box >
   )
 }
