@@ -94,10 +94,10 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
   const loadReportData = async () => {
     setLoading(true)
     setError(null)
-    
+
     try {
       let data: any = {}
-      
+
       // Load data based on report type
       switch (reportName) {
         case 'Online Sales Summary':
@@ -186,7 +186,7 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
         default:
           data = await loadGenericReport()
       }
-      
+
       setReportData(data)
     } catch (err: any) {
       setError(err.message || 'Failed to load report data')
@@ -196,124 +196,124 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
   }
 
   const loadSalesSummary = async () => {
-        try {
-          // Try to load Shopify data first
-          const shopifyData = await shopifyService.getSalesSummary()
+    try {
+      // Try to load Shopify data first
+      const shopifyData = await shopifyService.getSalesSummary()
 
-          if (shopifyData && shopifyData.summary.total_transactions > 0) {
-            // Use real Shopify data
-            const summary = shopifyData.summary
-            const byChannel = shopifyData.by_channel
-            const byStore = shopifyData.by_store
-            const dailySales = shopifyData.daily_sales
+      if (shopifyData && shopifyData.summary.total_transactions > 0) {
+        // Use real Shopify data
+        const summary = shopifyData.summary
+        const byChannel = shopifyData.by_channel
+        const byStore = shopifyData.by_store
+        const dailySales = shopifyData.daily_sales
 
-            // Get recent orders for the transactions table
-            const ordersResponse = await shopifyService.getOrders({ limit: 10 })
-            const orders = Array.isArray(ordersResponse) ? ordersResponse : ordersResponse.results || []
+        // Get recent orders for the transactions table
+        const ordersResponse = await shopifyService.getOrders({ limit: 10 })
+        const orders = Array.isArray(ordersResponse) ? ordersResponse : ordersResponse.results || []
 
-            // Get currency symbol
-            const currency = orders.length > 0 && orders[0].currency 
-              ? (orders[0].currency === 'INR' ? '₹' : orders[0].currency === 'USD' ? '$' : orders[0].currency + ' ')
-              : '₹'
+        // Get currency symbol
+        const currency = orders.length > 0 && orders[0].currency
+          ? (orders[0].currency === 'INR' ? '₹' : orders[0].currency === 'USD' ? '$' : orders[0].currency + ' ')
+          : '₹'
 
-            return {
-              type: 'summary',
-              metrics: [
-                { 
-                  label: 'Total Sales', 
-                  value: `${currency}${summary.total_sales.toFixed(2)}`, 
-                  icon: <AttachMoney />, 
-                  trend: 'up', 
-                  change: '+12.5%' 
-                },
-                { 
-                  label: 'Total Transactions', 
-                  value: summary.total_transactions, 
-                  icon: <ShoppingCart />, 
-                  trend: 'up', 
-                  change: '+8.3%' 
-                },
-                { 
-                  label: 'Avg Transaction Value', 
-                  value: `${currency}${summary.avg_transaction_value.toFixed(2)}`, 
-                  icon: <TrendingUp />, 
-                  trend: 'up', 
-                  change: '+4.2%' 
-                },
-                { 
-                  label: 'Total Items Sold', 
-                  value: summary.total_items, 
-                  icon: <InventoryIcon />, 
-                  trend: 'neutral' 
-                },
-              ],
-              tables: [
-                {
-                  title: 'Sales by Channel',
-                  columns: ['Channel', 'Revenue', 'Transactions', 'Avg Value', '% of Total'],
-                  rows: byChannel.map(item => {
-                    const percentage = summary.total_sales > 0 
-                      ? ((item.total_sales / summary.total_sales) * 100).toFixed(1) 
-                      : '0.0'
-                    return [
-                      item.sales_channel.charAt(0).toUpperCase() + item.sales_channel.slice(1),
-                      `${currency}${item.total_sales.toFixed(2)}`,
-                      item.transaction_count,
-                      `${currency}${item.avg_value.toFixed(2)}`,
-                      `${percentage}%`,
-                    ]
-                  }),
-                },
-                {
-                  title: 'Sales by Store',
-                  columns: ['Store', 'Revenue', 'Transactions', 'Avg Value'],
-                  rows: byStore.map(item => [
-                    item.store__name || item.store__code || 'Online',
-                    `${currency}${item.total_sales.toFixed(2)}`,
-                    item.transaction_count,
-                    `${currency}${item.avg_value.toFixed(2)}`,
-                  ]),
-                },
-                {
-                  title: 'Daily Sales Trend (Last 30 Days)',
-                  columns: ['Date', 'Revenue', 'Transactions', 'Avg Value'],
-                  rows: dailySales.slice(0, 30).map((item: any) => [
-                    new Date(item.date).toLocaleDateString(),
-                    `${currency}${item.total_sales.toFixed(2)}`,
-                    item.transaction_count,
-                    `${currency}${(item.total_sales / item.transaction_count).toFixed(2)}`,
-                  ]),
-                },
-                {
-                  title: 'Recent Orders',
-                  columns: ['Order #', 'Date', 'Customer', 'Amount', 'Status'],
-                  rows: orders.slice(0, 10).map((order: any) => [
-                    order.order_number || order.shopify_order_id,
-                    new Date(order.processed_at).toLocaleDateString(),
-                    order.customer_name || order.customer_email || 'Guest',
-                    `${currency}${parseFloat(order.total_price).toFixed(2)}`,
-                    order.financial_status || 'pending',
-                  ]),
-                },
-              ],
-            }
-          }
-
-          // No Shopify data available
-          return {
-            type: 'summary',
-            metrics: [],
-            message: 'No sales data available. Please sync your Shopify store or add orders to see reports.',
-          }
-        } catch (error) {
-          console.error('Error loading sales summary:', error)
-          return {
-            type: 'summary',
-            metrics: [],
-            message: 'Unable to load sales data. Please check your Shopify connection and sync status.',
-          }
+        return {
+          type: 'summary',
+          metrics: [
+            {
+              label: 'Total Sales',
+              value: `${currency}${summary.total_sales.toFixed(2)}`,
+              icon: <AttachMoney />,
+              trend: 'up',
+              change: '+12.5%'
+            },
+            {
+              label: 'Total Transactions',
+              value: summary.total_transactions,
+              icon: <ShoppingCart />,
+              trend: 'up',
+              change: '+8.3%'
+            },
+            {
+              label: 'Avg Transaction Value',
+              value: `${currency}${summary.avg_transaction_value.toFixed(2)}`,
+              icon: <TrendingUp />,
+              trend: 'up',
+              change: '+4.2%'
+            },
+            {
+              label: 'Total Items Sold',
+              value: summary.total_items,
+              icon: <InventoryIcon />,
+              trend: 'neutral'
+            },
+          ],
+          tables: [
+            {
+              title: 'Sales by Channel',
+              columns: ['Channel', 'Revenue', 'Transactions', 'Avg Value', '% of Total'],
+              rows: byChannel.map(item => {
+                const percentage = summary.total_sales > 0
+                  ? ((item.total_sales / summary.total_sales) * 100).toFixed(1)
+                  : '0.0'
+                return [
+                  item.sales_channel.charAt(0).toUpperCase() + item.sales_channel.slice(1),
+                  `${currency}${item.total_sales.toFixed(2)}`,
+                  item.transaction_count,
+                  `${currency}${item.avg_value.toFixed(2)}`,
+                  `${percentage}%`,
+                ]
+              }),
+            },
+            {
+              title: 'Sales by Store',
+              columns: ['Store', 'Revenue', 'Transactions', 'Avg Value'],
+              rows: byStore.map(item => [
+                item.store__name || item.store__code || 'Online',
+                `${currency}${item.total_sales.toFixed(2)}`,
+                item.transaction_count,
+                `${currency}${item.avg_value.toFixed(2)}`,
+              ]),
+            },
+            {
+              title: 'Daily Sales Trend (Last 30 Days)',
+              columns: ['Date', 'Revenue', 'Transactions', 'Avg Value'],
+              rows: dailySales.slice(0, 30).map((item: any) => [
+                new Date(item.date).toLocaleDateString(),
+                `${currency}${item.total_sales.toFixed(2)}`,
+                item.transaction_count,
+                `${currency}${(item.total_sales / item.transaction_count).toFixed(2)}`,
+              ]),
+            },
+            {
+              title: 'Recent Orders',
+              columns: ['Order #', 'Date', 'Customer', 'Amount', 'Status'],
+              rows: orders.slice(0, 10).map((order: any) => [
+                order.order_number || order.shopify_order_id,
+                new Date(order.processed_at).toLocaleDateString(),
+                order.customer_name || order.customer_email || 'Guest',
+                `${currency}${parseFloat(order.total_price).toFixed(2)}`,
+                order.financial_status || 'pending',
+              ]),
+            },
+          ],
         }
       }
+
+      // No Shopify data available
+      return {
+        type: 'summary',
+        metrics: [],
+        message: 'No sales data available. Please sync your Shopify store or add orders to see reports.',
+      }
+    } catch (error) {
+      console.error('Error loading sales summary:', error)
+      return {
+        type: 'summary',
+        metrics: [],
+        message: 'Unable to load sales data. Please check your Shopify connection and sync status.',
+      }
+    }
+  }
 
   const loadSalesByChannel = async () => {
     try {
@@ -322,7 +322,7 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
         salesService.getTransactions(),
         salesService.getSalesSummary(),
       ])
-      
+
       if (!channelData || channelData.length === 0) {
         return {
           type: 'summary',
@@ -333,7 +333,7 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
 
       const totalSales = channelData.reduce((sum, item) => sum + (item.total_sales || 0), 0)
       const totalTransactions = channelData.reduce((sum, item) => sum + (item.transaction_count || 0), 0)
-      
+
       // Group transactions by channel for detailed view
       const transactionsByChannel: any = {}
       transactions.forEach((txn: any) => {
@@ -344,7 +344,7 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
           transactionsByChannel[txn.sales_channel].push(txn)
         }
       })
-      
+
       return {
         type: 'summary',
         metrics: [
@@ -395,7 +395,7 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
   const loadDailyStorePerformance = async () => {
     try {
       const storeData = await salesService.getSalesByStore()
-      
+
       if (!storeData || storeData.length === 0) {
         return {
           type: 'summary',
@@ -434,7 +434,7 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
     try {
       const summary = await salesService.getSalesSummary()
       const byChannel = await salesService.getSalesByChannel()
-      
+
       return {
         type: 'summary',
         metrics: [
@@ -458,7 +458,7 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
   const loadReturnAnalysis = async () => {
     try {
       const returns = await salesService.getReturns()
-      
+
       if (!returns || returns.length === 0) {
         return {
           type: 'summary',
@@ -468,7 +468,7 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
       }
 
       const totalRefunds = returns.reduce((sum, ret) => sum + parseFloat(ret.refund_amount || '0'), 0)
-      
+
       // Group by reason
       const reasonCounts = returns.reduce((acc: any, ret) => {
         const reason = ret.return_reason || 'Unknown'
@@ -504,13 +504,15 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
   }
 
   const loadStockAvailability = async () => {
-    const [balances, locations] = await Promise.all([
+    const [balanceData, locations] = await Promise.all([
       inventoryService.getBalances(),
       mdmService.getLocations(),
     ])
 
+    const balances = Array.isArray(balanceData) ? balanceData : balanceData.results
+
     const locationMap = new Map(locations.map(loc => [loc.id, loc]))
-    
+
     const stockByLocation = balances.reduce((acc: any, balance) => {
       const locCode = locationMap.get(balance.location)?.code || balance.location_code || 'Unknown'
       if (!acc[locCode]) {
@@ -545,13 +547,16 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
   }
 
   const loadProductPerformance = async () => {
-    const [skus, balances] = await Promise.all([
+    const [skuData, balanceData] = await Promise.all([
       mdmService.getSKUs(),
       inventoryService.getBalances(),
     ])
 
+    const skus = Array.isArray(skuData) ? skuData : skuData.results
+    const balances = Array.isArray(balanceData) ? balanceData : balanceData.results
+
     const skuMap = new Map(skus.map(sku => [sku.id, sku]))
-    
+
     const skuPerformance = balances.map(balance => {
       const sku = skuMap.get(balance.sku)
       return {
@@ -577,13 +582,16 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
   }
 
   const loadInventoryValue = async () => {
-    const [balances, skus] = await Promise.all([
+    const [balanceData, skuData] = await Promise.all([
       inventoryService.getBalances(),
       mdmService.getSKUs(),
     ])
 
+    const balances = Array.isArray(balanceData) ? balanceData : balanceData.results
+    const skus = Array.isArray(skuData) ? skuData : skuData.results
+
     const skuMap = new Map(skus.map(sku => [sku.id, sku]))
-    
+
     let totalCostValue = 0
     let totalRetailValue = 0
     let totalQuantity = 0
@@ -593,7 +601,7 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
       const cost = parseFloat(balance.average_cost || '0')
       const sku = skuMap.get(balance.sku)
       const retail = parseFloat(sku?.base_price || '0')
-      
+
       totalQuantity += qty
       totalCostValue += qty * cost
       totalRetailValue += qty * retail
@@ -616,7 +624,7 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
           const qty = parseFloat(balance.quantity_available || '0')
           const cost = parseFloat(balance.average_cost || '0')
           const retail = parseFloat(sku?.base_price || '0')
-          
+
           return {
             sku: sku?.code || balance.sku_code || 'Unknown',
             quantity: qty,
@@ -629,10 +637,13 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
   }
 
   const loadSlowMovingInventory = async () => {
-    const [balances, movements] = await Promise.all([
+    const [balanceData, movementData] = await Promise.all([
       inventoryService.getBalances(),
       inventoryService.getMovements(),
     ])
+
+    const balances = Array.isArray(balanceData) ? balanceData : balanceData.results
+    const movements = Array.isArray(movementData) ? movementData : movementData.results
 
     // Get SKUs with no recent movements
     const recentMovementSKUs = new Set(
@@ -661,8 +672,9 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
   }
 
   const loadInventoryMovements = async () => {
-    const movements = await inventoryService.getMovements()
-    
+    const movementData = await inventoryService.getMovements()
+    const movements = Array.isArray(movementData) ? movementData : movementData.results
+
     const recentMovements = movements.slice(0, 20)
 
     return {
@@ -681,27 +693,31 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
   }
 
   const loadCategoryPerformance = async () => {
-    const [products, skus, balances] = await Promise.all([
+    const [productData, skuData, balanceData] = await Promise.all([
       mdmService.getProducts(),
       mdmService.getSKUs(),
       inventoryService.getBalances(),
     ])
 
+    const products = Array.isArray(productData) ? productData : productData.results
+    const skus = Array.isArray(skuData) ? skuData : skuData.results
+    const balances = Array.isArray(balanceData) ? balanceData : balanceData.results
+
     // Group by product (as category proxy)
     const productMap = new Map(products.map(p => [p.id, p]))
     const skuMap = new Map(skus.map(s => [s.id, s]))
-    
+
     const categoryData = new Map<string, { name: string, skus: number, quantity: number, value: number }>()
 
     balances.forEach(balance => {
       const sku = skuMap.get(balance.sku)
       const product = sku ? productMap.get(sku.product) : null
       const categoryName = product?.name || 'Uncategorized'
-      
+
       if (!categoryData.has(categoryName)) {
         categoryData.set(categoryName, { name: categoryName, skus: 0, quantity: 0, value: 0 })
       }
-      
+
       const cat = categoryData.get(categoryName)!
       cat.skus++
       cat.quantity += parseFloat(balance.quantity_available || '0')
@@ -723,11 +739,14 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
   }
 
   const loadGenericReport = async () => {
-    const [products, skus, locations] = await Promise.all([
+    const [productData, skuData, locations] = await Promise.all([
       mdmService.getProducts(),
       mdmService.getSKUs(),
       mdmService.getLocations(),
     ])
+
+    const products = Array.isArray(productData) ? productData : productData.results
+    const skus = Array.isArray(skuData) ? skuData : skuData.results
 
     return {
       type: 'summary',
@@ -904,7 +923,7 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
               <Divider sx={{ my: 2 }} />
             </Box>
           )}
-          
+
           <TableContainer>
             <Table>
               <TableHead>
