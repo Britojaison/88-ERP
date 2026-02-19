@@ -197,7 +197,7 @@ class SKUBarcodeViewSet(TenantScopedViewSet):
     def get_queryset(self):
         queryset = SKUBarcode.objects.filter(
             company_id=self.request.user.company_id, status="active"
-        ).select_related("sku")
+        ).select_related("sku", "sku__product")
         sku_id = self.request.query_params.get("sku")
         if sku_id:
             queryset = queryset.filter(sku_id=sku_id)

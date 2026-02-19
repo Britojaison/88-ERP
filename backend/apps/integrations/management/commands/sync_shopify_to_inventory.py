@@ -153,10 +153,14 @@ class Command(BaseCommand):
                     if shopify_product.erp_sku:
                         sku = shopify_product.erp_sku
                     else:
-                        # Create SKU
-                        sku_code = shopify_product.shopify_sku or f'SKU-{shopify_product.shopify_product_id}'
-                        if shopify_product.shopify_variant_id:
-                            sku_code = f'{sku_code}-{shopify_product.shopify_variant_id}'
+                        # Create SKU - use Shopify SKU directly
+                        if shopify_product.shopify_sku:
+                            sku_code = shopify_product.shopify_sku
+                        else:
+                            # Fallback: use product ID + variant ID if no SKU
+                            sku_code = f'SKU-{shopify_product.shopify_product_id}'
+                            if shopify_product.shopify_variant_id:
+                                sku_code = f'{sku_code}-{shopify_product.shopify_variant_id}'
 
                         sku, created = SKU.objects.get_or_create(
                             code=sku_code[:100],

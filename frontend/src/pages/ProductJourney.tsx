@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Alert,
   Autocomplete,
@@ -47,6 +47,7 @@ import {
   CurrencyRupee,
 } from '@mui/icons-material'
 import PageHeader from '../components/ui/PageHeader'
+import { mdmService, type SKU } from '../services/mdm.service'
 
 interface ProductOption {
   sku: string
@@ -75,61 +76,44 @@ export default function ProductJourney() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [locationFilter, setLocationFilter] = useState<string>('all')
   const [stageFilter, setStageFilter] = useState<string>('all')
+  const [productOptions, setProductOptions] = useState<ProductOption[]>([])
+  const [loadingProducts, setLoadingProducts] = useState(true)
 
-  // Product options for autocomplete
-  const productOptions: ProductOption[] = [
-    {
-      sku: 'SHIRT-001-M',
-      productName: 'Cotton T-Shirt - Medium',
-      price: '₹499.00',
-      barcode: '1234567890123',
-      orderNumber: 'ORD-2024-001',
-    },
-    {
-      sku: 'JEANS-002-L',
-      productName: 'Denim Jeans - Large',
-      price: '₹1000.00',
-      barcode: '9876543210987',
-      orderNumber: 'ORD-2024-002',
-    },
-    {
-      sku: 'SHOES-001',
-      productName: 'Shoes - Standard',
-      price: '₹999.00',
-      barcode: '1111222233334',
-      orderNumber: 'ORD-2024-003',
-    },
-    {
-      sku: 'jeans-384-8861',
-      productName: 'Jeans',
-      price: '₹1000.00',
-      barcode: '5555666677778',
-      orderNumber: 'ORD-2024-004',
-    },
-    {
-      sku: 'saree-326-3118',
-      productName: 'saree',
-      price: '₹5000.00',
-      barcode: '9999888877776',
-      orderNumber: 'ORD-2024-005',
-    },
-    {
-      sku: 'shirt-l',
-      productName: 'shirt in Size L',
-      price: '₹1000.00',
-      barcode: '3333444455556',
-      orderNumber: 'ORD-2024-006',
-    },
-  ]
+  // Load all products from API
+  useEffect(() => {
+    const loadProducts = async () => {
+      try {
+        setLoadingProducts(true)
+        const skus = await mdmService.getSKUs()
+        
+        // Convert SKUs to ProductOption format
+        const options: ProductOption[] = skus.map((sku: SKU) => ({
+          sku: sku.code,
+          productName: sku.product_name || sku.name,
+          price: `₹${sku.base_price}`,
+          barcode: '', // Barcodes would need to be fetched separately if needed
+          orderNumber: '', // This would come from actual orders
+        }))
+        
+        setProductOptions(options)
+      } catch (error) {
+        console.error('Failed to load products:', error)
+      } finally {
+        setLoadingProducts(false)
+      }
+    }
+    
+    void loadProducts()
+  }, [])
 
   // Mock data - replace with actual API call
   const mockJourneyData: Record<string, any> = {
-    'SHIRT-001-M': {
-      sku: 'SHIRT-001-M',
-      productName: 'Cotton T-Shirt - Medium',
-      barcode: '1234567890123',
+    'MMW-2804-S-CL': {
+      sku: 'MMW-2804-S-CL',
+      productName: 'Shawl Style_V2 Casual Loungewear - Full Length',
+      barcode: '74178073563812',
       currentStatus: 'in_transit',
-      currentLocation: 'En Route to STORE-SF',
+      currentLocation: 'En Route to SHOPIFY-WH',
       orderNumber: 'ORD-2024-001',
     checkpoints: [
       {
@@ -211,12 +195,12 @@ export default function ProductJourney() {
       },
     ],
     },
-    'JEANS-002-L': {
-      sku: 'JEANS-002-L',
-      productName: 'Denim Jeans - Large',
-      barcode: '9876543210987',
+    'MMW-1347-S-MAXI': {
+      sku: 'MMW-1347-S-MAXI',
+      productName: 'Nyra Maternity Maxi',
+      barcode: '50460223539172',
       currentStatus: 'completed',
-      currentLocation: 'STORE-SF',
+      currentLocation: 'SHOPIFY-WH',
       orderNumber: 'ORD-2024-002',
       checkpoints: [
         {
@@ -325,7 +309,7 @@ export default function ProductJourney() {
         }
       }
       
-      setSearchResults(result || mockJourneyData['SHIRT-001-M'])
+      setSearchResults(result || mockJourneyData['MMW-2804-S-CL'])
       setLoading(false)
     }, 500)
   }
@@ -333,7 +317,7 @@ export default function ProductJourney() {
   const handleQuickSearch = (searchValue: string) => {
     setSearchTerm(searchValue)
     setTimeout(() => {
-      const result = mockJourneyData[searchValue] || mockJourneyData['SHIRT-001-M']
+      const result = mockJourneyData[searchValue] || mockJourneyData['MMW-2804-S-CL']
       setSearchResults(result)
     }, 100)
   }
@@ -389,6 +373,7 @@ export default function ProductJourney() {
                 <Autocomplete
                   fullWidth
                   options={productOptions}
+                  loading={loadingProducts}
                   value={selectedProduct}
                   onChange={(_, newValue) => {
                     setSelectedProduct(newValue)
@@ -405,7 +390,7 @@ export default function ProductJourney() {
                     <TextField
                       {...params}
                       label="Track Product Journey"
-                      placeholder="Enter barcode, SKU, or product name to track..."
+                      placeholder={loadingProducts ? "Loading products..." : "Enter barcode, SKU, or product name to track..."}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && searchTerm) {
                           handleSearch()
@@ -442,6 +427,7 @@ export default function ProductJourney() {
                         option.orderNumber.toLowerCase().includes(searchLower)
                     )
                   }}
+                  noOptionsText={loadingProducts ? "Loading products..." : "No products found"}
                 />
                 <Button
                   variant="contained"
@@ -461,26 +447,26 @@ export default function ProductJourney() {
                 </Typography>
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                   <Chip
-                    label="Cotton T-Shirt • ₹499"
-                    onClick={() => handleQuickSearch('SHIRT-001-M')}
+                    label="Shawl Style Casual Lounge • ₹699"
+                    onClick={() => handleQuickSearch('MMW-2804-S-CL')}
                     size="small"
                     variant="outlined"
                   />
                   <Chip
-                    label="Denim Jeans • ₹1000"
-                    onClick={() => handleQuickSearch('JEANS-002-L')}
+                    label="Floral Designer Silk Kurti • ₹799"
+                    onClick={() => handleQuickSearch('MMW-4448-L-CLEAR')}
                     size="small"
                     variant="outlined"
                   />
                   <Chip
-                    label="Shoes • ₹999"
-                    onClick={() => handleQuickSearch('SHOES-001')}
+                    label="Nyra Maxi • ₹1599"
+                    onClick={() => handleQuickSearch('MMW-1347-S-MAXI')}
                     size="small"
                     variant="outlined"
                   />
                   <Chip
-                    label="Saree • ₹5000"
-                    onClick={() => handleQuickSearch('saree-326-3118')}
+                    label="Tharani Kurti Set • ₹1999"
+                    onClick={() => handleQuickSearch('MMW-169-3XL-KURTI')}
                     size="small"
                     variant="outlined"
                   />

@@ -450,6 +450,7 @@ export default function InventoryBarcodes() {
                 <TableHead>
                   <TableRow>
                     <TableCell>SKU</TableCell>
+                    <TableCell>Product Name</TableCell>
                     <TableCell>Type</TableCell>
                     <TableCell>Barcode Value</TableCell>
                     <TableCell>Label Title</TableCell>
@@ -460,6 +461,7 @@ export default function InventoryBarcodes() {
                   {barcodeList.map((row) => (
                     <TableRow key={row.id}>
                       <TableCell>{row.sku_code || row.sku}</TableCell>
+                      <TableCell>{row.product_name || '-'}</TableCell>
                       <TableCell>{row.barcode_type}</TableCell>
                       <TableCell>{row.barcode_value}</TableCell>
                       <TableCell>{row.label_title || '-'}</TableCell>

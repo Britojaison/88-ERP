@@ -120,6 +120,7 @@ export default function MasterData() {
 
   const handleAddNew = () => {
     if (tabValue === 0) {
+      setProductForm({ code: '', name: '', description: '' })
       setOpenProductDialog(true)
       return
     }
@@ -132,14 +133,38 @@ export default function MasterData() {
         })
         return
       }
+      setSkuForm({
+        code: '',
+        name: '',
+        product: '',
+        base_price: '',
+        cost_price: '',
+        weight: '',
+        is_serialized: false,
+        is_batch_tracked: false,
+      })
       setOpenSkuDialog(true)
       return
     }
     if (tabValue === 2) {
+      setCompanyForm({
+        code: '',
+        name: '',
+        legal_name: '',
+        tax_id: '',
+        currency: 'USD',
+      })
       setOpenCompanyDialog(true)
       return
     }
     if (tabValue === 3) {
+      setLocationForm({
+        code: '',
+        name: '',
+        location_type: 'warehouse' as Location['location_type'],
+        business_unit: '',
+        is_inventory_location: true,
+      })
       setOpenLocationDialog(true)
       return
     }
@@ -413,7 +438,7 @@ export default function MasterData() {
                   skus.map((sku) => (
                     <TableRow key={sku.id}>
                       <TableCell>{sku.code}</TableCell>
-                      <TableCell>{sku.product_code || sku.product}</TableCell>
+                      <TableCell>{sku.product_name || sku.product_code || sku.product}</TableCell>
                       <TableCell>{sku.style_code || '-'}</TableCell>
                       <TableCell>{sku.status}</TableCell>
                       <TableCell>{sku.base_price}</TableCell>
