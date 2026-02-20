@@ -171,3 +171,11 @@ class DamagedItemSerializer(serializers.ModelSerializer):
         if obj.recorded_by:
             return obj.recorded_by.get_full_name() or obj.recorded_by.username
         return None
+
+from .models import ProductJourneyCheckpoint
+
+class ProductJourneyCheckpointSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProductJourneyCheckpoint
+        fields = '__all__'
+

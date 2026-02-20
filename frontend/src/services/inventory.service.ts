@@ -95,3 +95,43 @@ export const inventoryService = {
     return response.data as GoodsReceiptScanLog
   },
 }
+
+export interface DesignApprovalItem {
+  id: string
+  code: string
+  name: string
+  product_name: string
+  lifecycle_status: string
+  created_at?: string
+}
+
+export interface DesignApprovalResponse {
+  results: DesignApprovalItem[]
+  count: number
+  page: number
+  limit: number
+}
+
+export const designApprovalService = {
+  getPendingApprovals: async (page = 1, limit = 50) => {
+    const response = await api.get('/inventory/design-approvals/pending_approvals/', {
+      params: { page, limit }
+    })
+    return response.data as DesignApprovalResponse
+  },
+
+  approveDesign: async (id: string, notes: string, expectedDays: number) => {
+    const response = await api.post(`/inventory/design-approvals/${id}/approve/`, {
+      notes,
+      expected_days: expectedDays,
+    })
+    return response.data
+  },
+
+  rejectDesign: async (id: string, notes: string) => {
+    const response = await api.post(`/inventory/design-approvals/${id}/reject/`, {
+      notes,
+    })
+    return response.data
+  },
+}

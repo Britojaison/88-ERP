@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { Box, Button, Grid, Paper, Stack, Typography } from '@mui/material'
-import { Inventory2, LocalOffer, QrCodeScanner } from '@mui/icons-material'
+import { Inventory2, LocalOffer, QrCodeScanner, Brush } from '@mui/icons-material'
 import PageHeader from '../components/ui/PageHeader'
 import MetricCard from '../components/ui/MetricCard'
 
@@ -65,6 +65,18 @@ export default function Inventory() {
               icon={<LocalOffer />}
               tone="warning"
               note="Track products from receipt to delivery with checkpoints."
+            />
+          </Box>
+        </Grid>
+
+        <Grid item xs={12} md={3}>
+          <Box onClick={() => navigate('/inventory/design-approvals')} sx={{ cursor: 'pointer' }}>
+            <MetricCard
+              label="Designer Workbench"
+              value="Approve"
+              icon={<Brush />}
+              tone="error"
+              note="Approve designs and start the Product Journey to factory."
             />
           </Box>
         </Grid>

@@ -511,3 +511,138 @@ class DamagedItemViewSet(viewsets.ModelViewSet):
             company_id=self.request.user.company_id,
             recorded_by=self.request.user
         )
+
+class DesignerWorkbenchViewSet(viewsets.ViewSet):
+    """
+    Handles Designer pre-production lifecycle.
+    """
+    permission_classes = [IsAuthenticated]
+    
+    @action(detail=False, methods=['get'])
+    def pending_approvals(self, request):
+        """List SKUs waiting for designer approval with pagination (Max 50)."""
+        try:
+            page = int(request.query_params.get('page', 1))
+            limit = int(request.query_params.get('limit', 50))
+            if limit > 50:
+                limit = 50
+        except ValueError:
+            page = 1
+            limit = 50
+
+        offset = (page - 1) * limit
+        
+        queryset = SKU.objects.filter(
+            company_id=request.user.company_id,
+            lifecycle_status=SKU.LIFECYCLE_PROTO,
+            status='active'
+        ).select_related('product').order_by('-created_at')
+        
+        total_count = queryset.count()
+        skus = queryset[offset:offset+limit]
+        
+        data = [
+            {
+                "id": str(sku.id),
+                "code": sku.code,
+                "name": sku.name,
+                "product_name": sku.product.name if sku.product else "",
+                "lifecycle_status": sku.lifecycle_status,
+                "created_at": sku.created_at.isoformat(),
+            }
+            for sku in skus
+        ]
+        return Response({
+            "results": data,
+            "count": total_count,
+            "page": page,
+            "limit": limit
+        })
+
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        """Transition SKU to 'In Production' and log journeys."""
+        from django.utils import timezone
+        import datetime
+        from apps.mdm.models import SKU
+        from .models import ProductJourneyCheckpoint
+
+        try:
+            sku = SKU.objects.get(id=pk, company_id=request.user.company_id)
+        except SKU.DoesNotExist:
+            return Response({"error": "SKU not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if sku.lifecycle_status != SKU.LIFECYCLE_PROTO:
+            return Response({"error": "SKU is not in Proto/Design phase."}, status=status.HTTP_400_BAD_REQUEST)
+
+        notes = request.data.get('notes', 'Design approved and moved to production.')
+        expected_days = int(request.data.get('expected_days', 14))
+
+        with transaction.atomic():
+            # 1. Update SKU lifecycle status
+            sku.lifecycle_status = SKU.LIFECYCLE_IN_PRODUCTION
+            sku.save(update_fields=['lifecycle_status', 'updated_at'])
+
+            # 2. Complete the "Design Approved" checkpoint
+            ProductJourneyCheckpoint.objects.create(
+                company_id=request.user.company_id,
+                sku=sku,
+                stage=ProductJourneyCheckpoint.STAGE_DESIGN_APPROVED,
+                status=ProductJourneyCheckpoint.STATUS_COMPLETED,
+                notes=notes,
+                user_name=request.user.get_full_name() or request.user.username,
+                timestamp=timezone.now(),
+                expected_time=timezone.now()
+            )
+
+            # 3. Create the future "In Production" checkpoint
+            ProductJourneyCheckpoint.objects.create(
+                company_id=request.user.company_id,
+                sku=sku,
+                stage=ProductJourneyCheckpoint.STAGE_IN_PRODUCTION,
+                status=ProductJourneyCheckpoint.STATUS_IN_PROGRESS,
+                notes='Manufacturing started.',
+                user_name=request.user.get_full_name() or request.user.username,
+                timestamp=timezone.now(),
+                expected_time=timezone.now() + datetime.timedelta(days=expected_days)
+            )
+
+        return Response({"message": "Successfully sent to production."}, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'])
+    def reject(self, request, pk=None):
+        """Reject a SKU design and maintain record."""
+        from django.utils import timezone
+        from apps.mdm.models import SKU
+        from .models import ProductJourneyCheckpoint
+
+        try:
+            sku = SKU.objects.get(id=pk, company_id=request.user.company_id)
+        except SKU.DoesNotExist:
+            return Response({"error": "SKU not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if sku.lifecycle_status != SKU.LIFECYCLE_PROTO:
+            return Response({"error": "SKU is not in Proto/Design phase."}, status=status.HTTP_400_BAD_REQUEST)
+
+        notes = request.data.get('notes', 'Design rejected.')
+
+        with transaction.atomic():
+            # Update SKU lifecycle to reflect rejection (could introduce a REJECTED state or make it inactive)
+            # We'll set it inactive so it's maintained but out of the working queue
+            sku.status = 'inactive'
+            sku.save(update_fields=['status', 'updated_at'])
+
+            # Log rejection checkpoint
+            ProductJourneyCheckpoint.objects.create(
+                company_id=request.user.company_id,
+                sku=sku,
+                stage=ProductJourneyCheckpoint.STAGE_DESIGN_APPROVED,
+                status=ProductJourneyCheckpoint.STATUS_DELAYED, # Mark delayed or custom 'rejected' state
+                notes=f"REJECTED: {notes}",
+                user_name=request.user.get_full_name() or request.user.username,
+                timestamp=timezone.now(),
+                expected_time=timezone.now()
+            )
+
+        return Response({"message": "Design successfully rejected."}, status=status.HTTP_200_OK)
+
