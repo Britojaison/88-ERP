@@ -10,13 +10,14 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from apps.core.exceptions import ValidationError
-from .models import InventoryBalance, InventoryMovement, GoodsReceiptScan
+from .models import InventoryBalance, InventoryMovement, GoodsReceiptScan, DamagedItem
 from .serializers import (
     InventoryBalanceSerializer,
     InventoryMovementSerializer,
     InventoryMovementCreateSerializer,
     GoodsReceiptScanSerializer,
     GoodsReceiptScanRequestSerializer,
+    DamagedItemSerializer,
 )
 from rest_framework.pagination import PageNumberPagination
 from apps.mdm.models import SKU, Location, SKUBarcode
@@ -474,3 +475,39 @@ class GoodsReceiptScanViewSet(viewsets.GenericViewSet):
                 updated_by=request.user,
             )
             return Response(GoodsReceiptScanSerializer(log).data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+class DamagedItemViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated]
+    serializer_class = DamagedItemSerializer
+    pagination_class = InventoryPagination
+
+    def get_queryset(self):
+        from .serializers import DamagedItemSerializer
+        queryset = DamagedItem.objects.filter(
+            company_id=self.request.user.company_id, status="active"
+        ).select_related("sku", "location", "scan_log", "recorded_by")
+        
+        # Filter by damage type
+        damage_type = self.request.query_params.get("damage_type")
+        if damage_type:
+            queryset = queryset.filter(damage_type=damage_type)
+        
+        # Filter by severity
+        severity = self.request.query_params.get("severity")
+        if severity:
+            queryset = queryset.filter(severity=severity)
+        
+        # Filter by SKU
+        sku_id = self.request.query_params.get("sku")
+        if sku_id:
+            queryset = queryset.filter(sku_id=sku_id)
+        
+        return queryset.order_by("-recorded_at")
+    
+    def perform_create(self, serializer):
+        serializer.save(
+            company_id=self.request.user.company_id,
+            recorded_by=self.request.user
+        )

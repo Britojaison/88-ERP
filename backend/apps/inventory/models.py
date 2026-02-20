@@ -234,3 +234,109 @@ class GoodsReceiptScan(TenantAwareModel):
 
     def __str__(self):
         return f"{self.barcode_value} - {self.result}"
+
+
+class DamagedItem(TenantAwareModel):
+    """
+    Record of damaged items discovered during receiving or inspection.
+    """
+    DAMAGE_TYPE_PHYSICAL = "physical"
+    DAMAGE_TYPE_PACKAGING = "packaging"
+    DAMAGE_TYPE_QUALITY = "quality"
+    DAMAGE_TYPE_MISSING_PARTS = "missing_parts"
+    DAMAGE_TYPE_WRONG_ITEM = "wrong_item"
+    DAMAGE_TYPE_EXPIRED = "expired"
+    DAMAGE_TYPE_OTHER = "other"
+
+    DAMAGE_TYPE_CHOICES = [
+        (DAMAGE_TYPE_PHYSICAL, "Physical Damage"),
+        (DAMAGE_TYPE_PACKAGING, "Packaging Damage"),
+        (DAMAGE_TYPE_QUALITY, "Quality Issue"),
+        (DAMAGE_TYPE_MISSING_PARTS, "Missing Parts"),
+        (DAMAGE_TYPE_WRONG_ITEM, "Wrong Item"),
+        (DAMAGE_TYPE_EXPIRED, "Expired/Near Expiry"),
+        (DAMAGE_TYPE_OTHER, "Other"),
+    ]
+
+    SEVERITY_MINOR = "minor"
+    SEVERITY_MAJOR = "major"
+    SEVERITY_CRITICAL = "critical"
+
+    SEVERITY_CHOICES = [
+        (SEVERITY_MINOR, "Minor - Cosmetic only"),
+        (SEVERITY_MAJOR, "Major - Affects functionality"),
+        (SEVERITY_CRITICAL, "Critical - Unusable"),
+    ]
+
+    ACTION_RETURN = "return_to_vendor"
+    ACTION_DISPOSE = "dispose"
+    ACTION_REPAIR = "repair"
+    ACTION_DISCOUNT = "discount_sale"
+    ACTION_USE_AS_IS = "use_as_is"
+
+    ACTION_CHOICES = [
+        (ACTION_RETURN, "Return to Vendor"),
+        (ACTION_DISPOSE, "Dispose"),
+        (ACTION_REPAIR, "Repair"),
+        (ACTION_DISCOUNT, "Discount Sale"),
+        (ACTION_USE_AS_IS, "Use As-Is"),
+    ]
+
+    # Link to scan log
+    scan_log = models.ForeignKey(
+        GoodsReceiptScan,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='damage_records'
+    )
+
+    # Item details
+    sku = models.ForeignKey(
+        'mdm.SKU',
+        on_delete=models.PROTECT,
+        related_name='damage_records',
+        null=True,
+        blank=True,
+    )
+    barcode_value = models.CharField(max_length=255, db_index=True)
+    quantity = models.DecimalField(max_digits=15, decimal_places=3, default=1)
+    location = models.ForeignKey(
+        'mdm.Location',
+        on_delete=models.PROTECT,
+        related_name='damaged_items'
+    )
+
+    # Damage details
+    damage_type = models.CharField(max_length=50, choices=DAMAGE_TYPE_CHOICES, db_index=True)
+    severity = models.CharField(max_length=20, choices=SEVERITY_CHOICES, db_index=True)
+    description = models.TextField(blank=True)
+    suggested_action = models.CharField(max_length=50, choices=ACTION_CHOICES, blank=True)
+
+    # Photo evidence
+    photo = models.ImageField(upload_to='damage_photos/', null=True, blank=True)
+
+    # Timestamps
+    recorded_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    recorded_by = models.ForeignKey(
+        'mdm.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='recorded_damages'
+    )
+
+    objects = models.Manager()
+    active = ActiveManager()
+
+    class Meta:
+        db_table = 'inv_damaged_item'
+        ordering = ['-recorded_at']
+        indexes = [
+            models.Index(fields=['company', 'damage_type', '-recorded_at']),
+            models.Index(fields=['severity', '-recorded_at']),
+            models.Index(fields=['sku', '-recorded_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.barcode_value} - {self.damage_type} ({self.severity})"
