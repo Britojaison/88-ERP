@@ -306,6 +306,22 @@ class SKU(TenantAwareModel):
     code = models.CharField(max_length=100, unique=True, db_index=True)
     name = models.CharField(max_length=255)
     
+    LIFECYCLE_PROTO = 'proto'
+    LIFECYCLE_IN_PRODUCTION = 'in_production'
+    LIFECYCLE_ACTIVE = 'active'
+    
+    LIFECYCLE_CHOICES = [
+        (LIFECYCLE_PROTO, 'Proto / Design'),
+        (LIFECYCLE_IN_PRODUCTION, 'In Production'),
+        (LIFECYCLE_ACTIVE, 'Active / Sellable'),
+    ]
+    
+    lifecycle_status = models.CharField(
+        max_length=20,
+        choices=LIFECYCLE_CHOICES,
+        default=LIFECYCLE_PROTO
+    )
+    
     product = models.ForeignKey(
         Product,
         on_delete=models.PROTECT,

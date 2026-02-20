@@ -340,3 +340,79 @@ class DamagedItem(TenantAwareModel):
 
     def __str__(self):
         return f"{self.barcode_value} - {self.damage_type} ({self.severity})"
+
+class ProductJourneyCheckpoint(TenantAwareModel):
+    """Track product journey checkpoints"""
+    
+    STAGE_FABRIC_SOURCED = 'fabric_sourced'
+    STAGE_DESIGN_APPROVED = 'design_approved'
+    STAGE_IN_PRODUCTION = 'in_production'
+    STAGE_RECEIVED = 'received'
+    STAGE_QUALITY_CHECK = 'quality_check'
+    STAGE_STORAGE = 'storage'
+    STAGE_PICKED = 'picked'
+    STAGE_PACKED = 'packed'
+    STAGE_DISPATCHED = 'dispatched'
+    STAGE_IN_TRANSIT = 'in_transit'
+    STAGE_DELIVERED = 'delivered'
+    
+    STAGE_CHOICES = [
+        (STAGE_FABRIC_SOURCED, 'Fabric Sourced'),
+        (STAGE_DESIGN_APPROVED, 'Design Approved'),
+        (STAGE_IN_PRODUCTION, 'In Production'),
+        (STAGE_RECEIVED, 'Received'),
+        (STAGE_QUALITY_CHECK, 'Quality Check'),
+        (STAGE_STORAGE, 'Storage'),
+        (STAGE_PICKED, 'Picked'),
+        (STAGE_PACKED, 'Packed'),
+        (STAGE_DISPATCHED, 'Dispatched'),
+        (STAGE_IN_TRANSIT, 'In Transit'),
+        (STAGE_DELIVERED, 'Delivered'),
+    ]
+    
+    STATUS_COMPLETED = 'completed'
+    STATUS_IN_PROGRESS = 'in_progress'
+    STATUS_PENDING = 'pending'
+    STATUS_DELAYED = 'delayed'
+    
+    STATUS_CHOICES = [
+        (STATUS_COMPLETED, 'Completed'),
+        (STATUS_IN_PROGRESS, 'In Progress'),
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_DELAYED, 'Delayed'),
+    ]
+    
+    sku = models.ForeignKey(
+        'mdm.SKU', 
+        on_delete=models.PROTECT, 
+        related_name='journey_checkpoints'
+    )
+    document = models.ForeignKey(
+        'documents.Document', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True
+    )
+    stage = models.CharField(max_length=50, choices=STAGE_CHOICES)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES)
+    location = models.ForeignKey(
+        'mdm.Location', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True
+    )
+    timestamp = models.DateTimeField(null=True, blank=True)
+    expected_time = models.DateTimeField(null=True, blank=True)
+    notes = models.TextField(blank=True)
+    user_name = models.CharField(max_length=255, blank=True)
+    
+    objects = models.Manager()
+    active = ActiveManager()
+    
+    class Meta:
+        db_table = 'inv_product_journey_checkpoint'
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f"{self.sku.code} - {self.stage} ({self.status})"
+
