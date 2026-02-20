@@ -313,7 +313,11 @@ export default function InventoryTracking() {
 
             <TabPanel value={tabValue} index={0}>
               {filteredMovements.length === 0 ? (
-                <Alert severity="info">No inventory movements found for the selected filters.</Alert>
+                <Alert severity="info">
+                  {searchTerm || locationFilter !== 'all' || dateRange !== '7'
+                    ? "No inventory movements match your current filters. Try relaxing the search criteria."
+                    : "No inventory has been moved or received yet. Whenever items are transferred, sold, or brought into a location, they'll be tracked here."}
+                </Alert>
               ) : (
                 <TableContainer>
                   <Table>
@@ -386,7 +390,11 @@ export default function InventoryTracking() {
 
             <TabPanel value={tabValue} index={1}>
               {scanLogs.length === 0 ? (
-                <Alert severity="info">No scan logs found for the selected filters.</Alert>
+                <Alert severity="info">
+                  {searchTerm || locationFilter !== 'all' || dateRange !== '7'
+                    ? "No scan logs match your current filters. Try relaxing the search criteria."
+                    : "No barcodes have been scanned yet. Go to 'Receiving' and scan product barcodes to track them."}
+                </Alert>
               ) : (
                 <TableContainer>
                   <Table>

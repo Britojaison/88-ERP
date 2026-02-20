@@ -31,6 +31,11 @@ import {
   ToggleButtonGroup,
   ListItem,
   ListItemText,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  IconButton,
 } from '@mui/material'
 import {
   Search,
@@ -45,6 +50,9 @@ import {
   Timeline as TimelineIcon,
   FilterList,
   CurrencyRupee,
+  Edit,
+  Brush,
+  Factory,
 } from '@mui/icons-material'
 import PageHeader from '../components/ui/PageHeader'
 import { mdmService, type SKU } from '../services/mdm.service'
@@ -79,6 +87,15 @@ export default function ProductJourney() {
   const [productOptions, setProductOptions] = useState<ProductOption[]>([])
   const [loadingProducts, setLoadingProducts] = useState(true)
 
+  // Manual Update State
+  const [updateDialogOpen, setUpdateDialogOpen] = useState(false)
+  const [selectedCheckpoint, setSelectedCheckpoint] = useState<JourneyCheckpoint | null>(null)
+  const [updateForm, setUpdateForm] = useState({
+    status: '',
+    expectedTime: '',
+    notes: '',
+  })
+
   // Load all products from API
   useEffect(() => {
     const loadProducts = async () => {
@@ -108,7 +125,61 @@ export default function ProductJourney() {
   }, [])
 
   // Mock data - replace with actual API call
-  const mockJourneyData: Record<string, any> = {
+  const [mockJourneyData, setMockJourneyData] = useState<Record<string, any>>({
+    'MMW-NEW-DESIGN': {
+      sku: 'MMW-NEW-DESIGN',
+      productName: 'Summer Collection Proto (Pre-Production)',
+      barcode: 'UNASSIGNED',
+      currentStatus: 'in_progress',
+      currentLocation: 'Factory Unit B',
+      orderNumber: 'PRE-PROD-001',
+      checkpoints: [
+        {
+          id: '1',
+          stage: 'Fabric Sourced',
+          status: 'completed',
+          location: 'Supplier Central',
+          timestamp: '2024-02-15T09:00:00',
+          user: 'Procurement Team',
+          notes: 'Cotton blend received and verified',
+          expectedTime: '2024-02-15T09:00:00',
+        },
+        {
+          id: '2',
+          stage: 'Design Approved',
+          status: 'completed',
+          location: 'Design Studio',
+          timestamp: '2024-02-18T10:00:00',
+          user: 'Lead Designer',
+          notes: 'Material approved. Pattern sent to factory.',
+          expectedTime: '2024-02-18T10:00:00',
+        },
+        {
+          id: '3',
+          stage: 'In Production',
+          status: 'in_progress',
+          location: 'Factory Unit B',
+          timestamp: '2024-02-19T08:00:00',
+          user: 'Production Manager',
+          notes: 'Manufacturing started. Expected delivery to warehouse is tracked here.',
+          expectedTime: '2024-02-25T18:00:00',
+        },
+        {
+          id: '4',
+          stage: 'Dispatched to Warehouse',
+          status: 'pending',
+          location: 'Factory Unit B',
+          expectedTime: '2024-02-26T08:00:00',
+        },
+        {
+          id: '5',
+          stage: 'Received at Warehouse',
+          status: 'pending',
+          location: 'WH-NYC',
+          expectedTime: '2024-02-26T10:00:00',
+        },
+      ]
+    },
     'MMW-2804-S-CL': {
       sku: 'MMW-2804-S-CL',
       productName: 'Shawl Style_V2 Casual Loungewear - Full Length',
@@ -286,7 +357,7 @@ export default function ProductJourney() {
         },
       ],
     },
-  }
+  })
 
   const handleSearch = () => {
     if (!searchTerm.trim()) return
@@ -310,7 +381,7 @@ export default function ProductJourney() {
         }
       }
 
-      setSearchResults(result || mockJourneyData['MMW-2804-S-CL'])
+      setSearchResults(result || mockJourneyData['MMW-NEW-DESIGN'])
       setLoading(false)
     }, 500)
   }
@@ -318,9 +389,44 @@ export default function ProductJourney() {
   const handleQuickSearch = (searchValue: string) => {
     setSearchTerm(searchValue)
     setTimeout(() => {
-      const result = mockJourneyData[searchValue] || mockJourneyData['MMW-2804-S-CL']
+      const result = mockJourneyData[searchValue] || mockJourneyData['MMW-NEW-DESIGN']
       setSearchResults(result)
     }, 100)
+  }
+
+  const handleOpenUpdate = (checkpoint: JourneyCheckpoint) => {
+    setSelectedCheckpoint(checkpoint)
+    setUpdateForm({
+      status: checkpoint.status,
+      expectedTime: checkpoint.expectedTime ? new Date(checkpoint.expectedTime).toISOString().slice(0, 16) : '',
+      notes: checkpoint.notes || '',
+    })
+    setUpdateDialogOpen(true)
+  }
+
+  const handleSaveUpdate = () => {
+    if (!selectedCheckpoint || !searchResults) return
+    const updatedCheckpoints = searchResults.checkpoints.map((cp: JourneyCheckpoint) =>
+      cp.id === selectedCheckpoint.id
+        ? {
+          ...cp,
+          status: updateForm.status as any,
+          expectedTime: updateForm.expectedTime ? new Date(updateForm.expectedTime).toISOString() : undefined,
+          notes: updateForm.notes,
+          user: 'Current User' // Mocking the updated user
+        }
+        : cp
+    )
+
+    const updatedProduct = { ...searchResults, checkpoints: updatedCheckpoints }
+
+    // Auto-update parent mock state tracking
+    setMockJourneyData((prev) => ({
+      ...prev,
+      [searchResults.sku]: updatedProduct
+    }))
+    setSearchResults(updatedProduct)
+    setUpdateDialogOpen(false)
   }
 
   const filteredCheckpoints = searchResults?.checkpoints.filter((cp: JourneyCheckpoint) => {
@@ -447,6 +553,13 @@ export default function ProductJourney() {
                   Quick Search:
                 </Typography>
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <Chip
+                    label="Pre-Production Proto • ₹0"
+                    onClick={() => handleQuickSearch('MMW-NEW-DESIGN')}
+                    size="small"
+                    variant="outlined"
+                    color="secondary"
+                  />
                   <Chip
                     label="Shawl Style Casual Lounge • ₹699"
                     onClick={() => handleQuickSearch('MMW-2804-S-CL')}
@@ -617,6 +730,9 @@ export default function ProductJourney() {
                         onChange={(e) => setStageFilter(e.target.value)}
                       >
                         <MenuItem value="all">All Stages</MenuItem>
+                        <MenuItem value="Fabric Sourced">Fabric Sourced</MenuItem>
+                        <MenuItem value="Design Approved">Design Approved</MenuItem>
+                        <MenuItem value="In Production">In Production</MenuItem>
                         <MenuItem value="Received">Received</MenuItem>
                         <MenuItem value="Quality Check">Quality Check</MenuItem>
                         <MenuItem value="Storage">Storage</MenuItem>
@@ -672,6 +788,7 @@ export default function ProductJourney() {
                         <TableCell>User</TableCell>
                         <TableCell>Notes</TableCell>
                         <TableCell>Expected Time</TableCell>
+                        <TableCell align="right">Actions</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -689,6 +806,9 @@ export default function ProductJourney() {
                         >
                           <TableCell>
                             <Stack direction="row" spacing={1} alignItems="center">
+                              {checkpoint.stage === 'Fabric Sourced' && <Inventory fontSize="small" />}
+                              {checkpoint.stage === 'Design Approved' && <Brush fontSize="small" />}
+                              {checkpoint.stage === 'In Production' && <Factory fontSize="small" />}
                               {checkpoint.stage === 'Received' && <Inventory fontSize="small" />}
                               {checkpoint.stage === 'Quality Check' && <Assignment fontSize="small" />}
                               {checkpoint.stage === 'Dispatched' && <LocalShipping fontSize="small" />}
@@ -736,6 +856,16 @@ export default function ProductJourney() {
                               '-'
                             )}
                           </TableCell>
+                          <TableCell align="right">
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={<Edit />}
+                              onClick={() => handleOpenUpdate(checkpoint)}
+                            >
+                              Update
+                            </Button>
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -752,6 +882,62 @@ export default function ProductJourney() {
           </Grid>
         )}
       </Grid>
+
+      {/* Update Journey Checkpoint Dialog */}
+      <Dialog open={updateDialogOpen} onClose={() => setUpdateDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Update Manual Checkpoint</DialogTitle>
+        <DialogContent dividers>
+          <Alert severity="info" sx={{ mb: 3 }}>
+            Use this to manually progress upstream phases like Design and Production, or update Expected Warehouse Delivery dates if delayed.
+          </Alert>
+          <Grid container spacing={2}>
+            <Grid item xs={12}>
+              <Typography variant="subtitle2" color="text.secondary">Stage:</Typography>
+              <Typography variant="body1" fontWeight={500}>{selectedCheckpoint?.stage}</Typography>
+            </Grid>
+            <Grid item xs={12}>
+              <FormControl fullWidth>
+                <InputLabel>Status</InputLabel>
+                <Select
+                  value={updateForm.status}
+                  label="Status"
+                  onChange={(e) => setUpdateForm({ ...updateForm, status: e.target.value })}
+                >
+                  <MenuItem value="pending">Pending</MenuItem>
+                  <MenuItem value="in_progress">In Progress</MenuItem>
+                  <MenuItem value="delayed">Delayed</MenuItem>
+                  <MenuItem value="completed">Completed</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Expected Return/Completion Time"
+                type="datetime-local"
+                InputLabelProps={{ shrink: true }}
+                value={updateForm.expectedTime}
+                onChange={(e) => setUpdateForm({ ...updateForm, expectedTime: e.target.value })}
+                helperText="Manually update this if there are delays in production or design."
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Notes (Approvals, Delays, etc)"
+                multiline
+                rows={3}
+                value={updateForm.notes}
+                onChange={(e) => setUpdateForm({ ...updateForm, notes: e.target.value })}
+              />
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setUpdateDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleSaveUpdate} variant="contained">Save Updates</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }
