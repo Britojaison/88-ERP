@@ -101,7 +101,11 @@ class SKUSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = SKU
-        fields = '__all__'
+        fields = [
+            'id', 'company', 'product', 'product_code', 'product_name', 'style',
+            'code', 'name', 'base_price', 'cost_price', 'weight', 'size',
+            'is_serialized', 'is_batch_tracked', 'status', 'created_at', 'updated_at'
+        ]
         extra_kwargs = {'company': {'required': False}}
         validators = []
     
@@ -126,7 +130,7 @@ class SKUBarcodeSerializer(serializers.ModelSerializer):
     class Meta:
         model = SKUBarcode
         fields = [
-            'id', 'company', 'sku', 'sku_code', 'barcode_type', 'barcode_value',
+            'id', 'company', 'sku', 'sku_code', 'product_name', 'barcode_type', 'barcode_value',
             'is_primary', 'display_code', 'label_title', 'size_label',
             'selling_price', 'mrp', 'status', 'created_at', 'updated_at'
         ]

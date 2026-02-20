@@ -84,8 +84,9 @@ export default function ProductJourney() {
     const loadProducts = async () => {
       try {
         setLoadingProducts(true)
-        const skus = await mdmService.getSKUs()
-        
+        const skuData = await mdmService.getSKUs()
+        const skus = Array.isArray(skuData) ? skuData : skuData.results
+
         // Convert SKUs to ProductOption format
         const options: ProductOption[] = skus.map((sku: SKU) => ({
           sku: sku.code,
@@ -94,7 +95,7 @@ export default function ProductJourney() {
           barcode: '', // Barcodes would need to be fetched separately if needed
           orderNumber: '', // This would come from actual orders
         }))
-        
+
         setProductOptions(options)
       } catch (error) {
         console.error('Failed to load products:', error)
@@ -102,7 +103,7 @@ export default function ProductJourney() {
         setLoadingProducts(false)
       }
     }
-    
+
     void loadProducts()
   }, [])
 
@@ -115,85 +116,85 @@ export default function ProductJourney() {
       currentStatus: 'in_transit',
       currentLocation: 'En Route to SHOPIFY-WH',
       orderNumber: 'ORD-2024-001',
-    checkpoints: [
-      {
-        id: '1',
-        stage: 'Received',
-        status: 'completed' as const,
-        location: 'WH-NYC',
-        timestamp: '2024-02-10T10:00:00',
-        user: 'John Smith',
-        notes: 'Received from vendor, quantity verified',
-        expectedTime: '2024-02-10T10:00:00',
-      },
-      {
-        id: '2',
-        stage: 'Quality Check',
-        status: 'completed' as const,
-        location: 'WH-NYC',
-        timestamp: '2024-02-10T11:30:00',
-        user: 'Sarah Johnson',
-        notes: 'Quality inspection passed',
-        expectedTime: '2024-02-10T11:00:00',
-      },
-      {
-        id: '3',
-        stage: 'Storage',
-        status: 'completed' as const,
-        location: 'WH-NYC - Bin A-15',
-        timestamp: '2024-02-10T14:00:00',
-        user: 'Mike Wilson',
-        notes: 'Stored in designated bin',
-        expectedTime: '2024-02-10T14:00:00',
-      },
-      {
-        id: '4',
-        stage: 'Picked',
-        status: 'completed' as const,
-        location: 'WH-NYC',
-        timestamp: '2024-02-11T09:00:00',
-        user: 'Emily Davis',
-        notes: 'Picked for order ORD-2024-001',
-        expectedTime: '2024-02-11T09:00:00',
-      },
-      {
-        id: '5',
-        stage: 'Packed',
-        status: 'completed' as const,
-        location: 'WH-NYC - Packing Station 3',
-        timestamp: '2024-02-11T10:30:00',
-        user: 'Robert Brown',
-        notes: 'Packed in box #BOX-456, weight: 0.5kg',
-        expectedTime: '2024-02-11T10:00:00',
-      },
-      {
-        id: '6',
-        stage: 'Dispatched',
-        status: 'completed' as const,
-        location: 'WH-NYC',
-        timestamp: '2024-02-11T14:00:00',
-        user: 'David Lee',
-        notes: 'Loaded on Truck #TRK-789, Carrier: FedEx',
-        expectedTime: '2024-02-11T14:00:00',
-      },
-      {
-        id: '7',
-        stage: 'In Transit',
-        status: 'in_progress' as const,
-        location: 'En Route',
-        timestamp: '2024-02-11T14:30:00',
-        user: 'System',
-        notes: 'Last checkpoint: Chicago Hub',
-        expectedTime: '2024-02-12T17:00:00',
-      },
-      {
-        id: '8',
-        stage: 'Delivered',
-        status: 'pending' as const,
-        location: 'STORE-SF',
-        expectedTime: '2024-02-12T17:00:00',
-      },
-    ],
+      checkpoints: [
+        {
+          id: '1',
+          stage: 'Received',
+          status: 'completed' as const,
+          location: 'WH-NYC',
+          timestamp: '2024-02-10T10:00:00',
+          user: 'John Smith',
+          notes: 'Received from vendor, quantity verified',
+          expectedTime: '2024-02-10T10:00:00',
+        },
+        {
+          id: '2',
+          stage: 'Quality Check',
+          status: 'completed' as const,
+          location: 'WH-NYC',
+          timestamp: '2024-02-10T11:30:00',
+          user: 'Sarah Johnson',
+          notes: 'Quality inspection passed',
+          expectedTime: '2024-02-10T11:00:00',
+        },
+        {
+          id: '3',
+          stage: 'Storage',
+          status: 'completed' as const,
+          location: 'WH-NYC - Bin A-15',
+          timestamp: '2024-02-10T14:00:00',
+          user: 'Mike Wilson',
+          notes: 'Stored in designated bin',
+          expectedTime: '2024-02-10T14:00:00',
+        },
+        {
+          id: '4',
+          stage: 'Picked',
+          status: 'completed' as const,
+          location: 'WH-NYC',
+          timestamp: '2024-02-11T09:00:00',
+          user: 'Emily Davis',
+          notes: 'Picked for order ORD-2024-001',
+          expectedTime: '2024-02-11T09:00:00',
+        },
+        {
+          id: '5',
+          stage: 'Packed',
+          status: 'completed' as const,
+          location: 'WH-NYC - Packing Station 3',
+          timestamp: '2024-02-11T10:30:00',
+          user: 'Robert Brown',
+          notes: 'Packed in box #BOX-456, weight: 0.5kg',
+          expectedTime: '2024-02-11T10:00:00',
+        },
+        {
+          id: '6',
+          stage: 'Dispatched',
+          status: 'completed' as const,
+          location: 'WH-NYC',
+          timestamp: '2024-02-11T14:00:00',
+          user: 'David Lee',
+          notes: 'Loaded on Truck #TRK-789, Carrier: FedEx',
+          expectedTime: '2024-02-11T14:00:00',
+        },
+        {
+          id: '7',
+          stage: 'In Transit',
+          status: 'in_progress' as const,
+          location: 'En Route',
+          timestamp: '2024-02-11T14:30:00',
+          user: 'System',
+          notes: 'Last checkpoint: Chicago Hub',
+          expectedTime: '2024-02-12T17:00:00',
+        },
+        {
+          id: '8',
+          stage: 'Delivered',
+          status: 'pending' as const,
+          location: 'STORE-SF',
+          expectedTime: '2024-02-12T17:00:00',
+        },
+      ],
     },
     'MMW-1347-S-MAXI': {
       sku: 'MMW-1347-S-MAXI',
@@ -294,7 +295,7 @@ export default function ProductJourney() {
     setTimeout(() => {
       const term = searchTerm.toLowerCase()
       let result = null
-      
+
       // Search through all mock data
       for (const key in mockJourneyData) {
         const data = mockJourneyData[key]
@@ -308,7 +309,7 @@ export default function ProductJourney() {
           break
         }
       }
-      
+
       setSearchResults(result || mockJourneyData['MMW-2804-S-CL'])
       setLoading(false)
     }, 500)
@@ -439,7 +440,7 @@ export default function ProductJourney() {
                   {loading ? 'Searching...' : 'Search'}
                 </Button>
               </Stack>
-              
+
               {/* Quick Search Buttons */}
               <Box>
                 <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
@@ -558,10 +559,10 @@ export default function ProductJourney() {
                                 checkpoint.status === 'completed'
                                   ? 'success.main'
                                   : checkpoint.status === 'in_progress'
-                                  ? 'warning.main'
-                                  : checkpoint.status === 'delayed'
-                                  ? 'error.main'
-                                  : 'grey.300',
+                                    ? 'warning.main'
+                                    : checkpoint.status === 'delayed'
+                                      ? 'error.main'
+                                      : 'grey.300',
                               width: 40,
                               height: 40,
                             }}
@@ -682,8 +683,8 @@ export default function ProductJourney() {
                               checkpoint.status === 'in_progress'
                                 ? 'warning.light'
                                 : checkpoint.status === 'delayed'
-                                ? 'error.light'
-                                : 'inherit',
+                                  ? 'error.light'
+                                  : 'inherit',
                           }}
                         >
                           <TableCell>
