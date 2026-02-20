@@ -3,7 +3,7 @@ Serializers for Inventory API.
 """
 from decimal import Decimal
 from rest_framework import serializers
-from .models import InventoryBalance, InventoryMovement, GoodsReceiptScan
+from .models import InventoryBalance, InventoryMovement, GoodsReceiptScan, DamagedItem
 
 
 class InventoryBalanceSerializer(serializers.ModelSerializer):
@@ -137,3 +137,37 @@ class GoodsReceiptScanRequestSerializer(serializers.Serializer):
     document_id = serializers.UUIDField(required=False)
     quantity = serializers.DecimalField(max_digits=15, decimal_places=3, default=Decimal("1"))
     strict = serializers.BooleanField(default=True)
+
+
+class DamagedItemSerializer(serializers.ModelSerializer):
+    sku_code = serializers.CharField(source="sku.code", read_only=True, allow_null=True)
+    location_code = serializers.CharField(source="location.code", read_only=True)
+    recorded_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = DamagedItem
+        fields = [
+            "id",
+            "scan_log",
+            "sku",
+            "sku_code",
+            "barcode_value",
+            "quantity",
+            "location",
+            "location_code",
+            "damage_type",
+            "severity",
+            "description",
+            "suggested_action",
+            "photo",
+            "recorded_at",
+            "recorded_by",
+            "recorded_by_name",
+            "status",
+        ]
+        read_only_fields = ["id", "recorded_at", "recorded_by"]
+
+    def get_recorded_by_name(self, obj):
+        if obj.recorded_by:
+            return obj.recorded_by.get_full_name() or obj.recorded_by.username
+        return None
