@@ -260,13 +260,13 @@ export default function ShopifyIntegration() {
       loadStores()
       setSelectedStore(created)
     } catch (error: any) {
-      const errorMessage = 
-        error.response?.data?.detail || 
+      const errorMessage =
+        error.response?.data?.detail ||
         error.response?.data?.connection_error ||
-        error.response?.data?.message || 
+        error.response?.data?.message ||
         error.message ||
         'Failed to connect store'
-      
+
       setSnackbar({
         open: true,
         message: errorMessage,
@@ -478,7 +478,7 @@ export default function ShopifyIntegration() {
             No Shopify Stores Connected
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            Connect your first Shopify store to start syncing products and inventory
+            You haven't linked any Shopify stores yet. Click "Connect Store" to link your e-commerce platform and start syncing products and inventory automatically.
           </Typography>
           <Button
             variant="contained"
@@ -787,21 +787,27 @@ export default function ShopifyIntegration() {
                       {filteredProducts.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={6} align="center" sx={{ py: 8 }}>
-                            <Box sx={{ color: 'text.secondary' }}>
+                            <Box sx={{ color: 'text.secondary', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                               <FilterList sx={{ fontSize: 40, mb: 1, opacity: 0.5 }} />
-                              <Typography variant="body1">No products match your filters</Typography>
-                              <Button
-                                size="small"
-                                onClick={() => {
-                                  setSearchQuery('')
-                                  setFilterType('All')
-                                  setFilterVendor('All')
-                                  setFilterStatus('All')
-                                }}
-                                sx={{ mt: 1 }}
-                              >
-                                Clear all filters
-                              </Button>
+                              <Typography variant="body1">
+                                {searchQuery || filterType !== 'All' || filterVendor !== 'All' || filterStatus !== 'All'
+                                  ? 'No products match your filters.'
+                                  : 'You haven\'t synced any products yet. Click "Sync" or "Products" in Quick Actions to pull them from Shopify.'}
+                              </Typography>
+                              {(searchQuery || filterType !== 'All' || filterVendor !== 'All' || filterStatus !== 'All') && (
+                                <Button
+                                  size="small"
+                                  onClick={() => {
+                                    setSearchQuery('')
+                                    setFilterType('All')
+                                    setFilterVendor('All')
+                                    setFilterStatus('All')
+                                  }}
+                                  sx={{ mt: 1 }}
+                                >
+                                  Clear all filters
+                                </Button>
+                              )}
                             </Box>
                           </TableCell>
                         </TableRow>
@@ -1250,7 +1256,14 @@ export default function ShopifyIntegration() {
                             }
                           />
                         }
-                        label="Auto-sync Products"
+                        label={
+                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                            Auto-sync Products
+                            <Tooltip title="Automatically pulls new products from Shopify into your Master Data every sync interval.">
+                              <Info sx={{ fontSize: 16, ml: 0.5, color: 'text.secondary', cursor: 'help' }} />
+                            </Tooltip>
+                          </Box>
+                        }
                       />
                       <FormControlLabel
                         control={
@@ -1261,7 +1274,14 @@ export default function ShopifyIntegration() {
                             }
                           />
                         }
-                        label="Auto-sync Inventory"
+                        label={
+                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                            Auto-sync Inventory
+                            <Tooltip title="Automatically updates Shopify inventory counts whenever items are received or sold in the ERP.">
+                              <Info sx={{ fontSize: 16, ml: 0.5, color: 'text.secondary', cursor: 'help' }} />
+                            </Tooltip>
+                          </Box>
+                        }
                       />
                       <FormControlLabel
                         control={
@@ -1272,7 +1292,14 @@ export default function ShopifyIntegration() {
                             }
                           />
                         }
-                        label="Auto-sync Orders"
+                        label={
+                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                            Auto-sync Orders
+                            <Tooltip title="Automatically pulls new customer orders from Shopify to process them in the ERP.">
+                              <Info sx={{ fontSize: 16, ml: 0.5, color: 'text.secondary', cursor: 'help' }} />
+                            </Tooltip>
+                          </Box>
+                        }
                       />
                     </Box>
                   </Grid>

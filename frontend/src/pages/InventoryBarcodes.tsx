@@ -22,8 +22,9 @@ import {
   TableRow,
   TextField,
   Typography,
+  Tooltip,
 } from '@mui/material'
-import { Download, LocalPrintshop, Refresh } from '@mui/icons-material'
+import { Download, LocalPrintshop, Refresh, Info } from '@mui/icons-material'
 import PageHeader from '../components/ui/PageHeader'
 import { mdmService, type SKU, type SKUBarcode } from '../services/mdm.service'
 import api from '../services/api'
@@ -402,7 +403,14 @@ export default function InventoryBarcodes() {
                       onChange={(e) => setForm((prev) => ({ ...prev, is_primary: e.target.checked }))}
                     />
                   }
-                  label="Primary Barcode (only one primary barcode allowed per SKU)"
+                  label={
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                      Primary Barcode (only one primary barcode allowed per SKU)
+                      <Tooltip title="If checked, this barcode will become the default used for scanning. Any existing primary barcode for this SKU will become secondary.">
+                        <Info sx={{ fontSize: 16, ml: 0.5, color: 'text.secondary', cursor: 'help' }} />
+                      </Tooltip>
+                    </Box>
+                  }
                 />
               </Grid>
               <Grid item xs={12}>
@@ -476,20 +484,29 @@ export default function InventoryBarcodes() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {barcodeList.map((row) => (
-                    <TableRow key={row.id}>
-                      <TableCell>{row.sku_code || row.sku}</TableCell>
-                      <TableCell>{row.product_name || '-'}</TableCell>
-                      <TableCell>{row.barcode_type}</TableCell>
-                      <TableCell>{row.barcode_value}</TableCell>
-                      <TableCell>{row.label_title || '-'}</TableCell>
-                      <TableCell>
-                        <Button size="small" onClick={() => void handlePreview(row)}>
-                          Preview
-                        </Button>
+                  {barcodeList.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} align="center">
+                        <Typography variant="body2" color="text.secondary" sx={{ py: 4 }}>
+                          You haven't generated any barcodes yet. Select a SKU above to create your first printable barcode label.
+                        </Typography>
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : (
+                    barcodeList.map((row) => (
+                      <TableRow key={row.id}>
+                        <TableCell>{row.sku_code || row.sku}</TableCell>
+                        <TableCell>{row.product_name || '-'}</TableCell>
+                        <TableCell>{row.barcode_type}</TableCell>
+                        <TableCell>{row.barcode_value}</TableCell>
+                        <TableCell>{row.label_title || '-'}</TableCell>
+                        <TableCell>
+                          <Button size="small" onClick={() => void handlePreview(row)}>
+                            Preview
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    )))}
                 </TableBody>
               </Table>
             </TableContainer>

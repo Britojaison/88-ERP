@@ -24,8 +24,9 @@ import {
   TableHead,
   TableRow,
   TextField,
+  Tooltip,
 } from '@mui/material'
-import { Add } from '@mui/icons-material'
+import { Add, Info } from '@mui/icons-material'
 import PageHeader from '../components/ui/PageHeader'
 import { mdmService, type BusinessUnit, type Company, type Location, type Product, type SKU } from '../services/mdm.service'
 
@@ -160,6 +161,7 @@ export default function MasterData() {
         base_price: '',
         cost_price: '',
         weight: '',
+        size: '',
         is_serialized: false,
         is_batch_tracked: false,
       })
@@ -377,10 +379,38 @@ export default function MasterData() {
 
       <Paper sx={{ width: '100%' }}>
         <Tabs value={tabValue} onChange={(_, v) => setTabValue(v)}>
-          <Tab label="Products" />
-          <Tab label="SKUs" />
-          <Tab label="Companies" />
-          <Tab label="Locations" />
+          <Tab label={
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              Products
+              <Tooltip title="General product categories (e.g., 'T-Shirt', 'Jeans'). You must create a Product before creating its SKUs.">
+                <Info sx={{ fontSize: 16, ml: 0.5, color: 'text.secondary', cursor: 'help' }} />
+              </Tooltip>
+            </Box>
+          } />
+          <Tab label={
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              SKUs
+              <Tooltip title="Specific item variations (e.g., 'Red T-Shirt - Size M') that you actually stock and sell.">
+                <Info sx={{ fontSize: 16, ml: 0.5, color: 'text.secondary', cursor: 'help' }} />
+              </Tooltip>
+            </Box>
+          } />
+          <Tab label={
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              Companies
+              <Tooltip title="Your business entities, suppliers, or vendors.">
+                <Info sx={{ fontSize: 16, ml: 0.5, color: 'text.secondary', cursor: 'help' }} />
+              </Tooltip>
+            </Box>
+          } />
+          <Tab label={
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              Locations
+              <Tooltip title="Warehouses or physical stores where you keep inventory.">
+                <Info sx={{ fontSize: 16, ml: 0.5, color: 'text.secondary', cursor: 'help' }} />
+              </Tooltip>
+            </Box>
+          } />
         </Tabs>
 
         <TabPanel value={tabValue} index={0}>
@@ -401,7 +431,7 @@ export default function MasterData() {
                   <TableRow>
                     <TableCell colSpan={6} align="center">
                       <Typography variant="body2" color="text.secondary" sx={{ py: 4 }}>
-                        No products found. Click "Add New" to create your first product.
+                        You haven't added any products (e.g., T-Shirts) yet. Click "Add New" to create your first product.
                       </Typography>
                     </TableCell>
                   </TableRow>
@@ -476,7 +506,7 @@ export default function MasterData() {
                   <TableRow>
                     <TableCell colSpan={5} align="center">
                       <Typography variant="body2" color="text.secondary" sx={{ py: 4 }}>
-                        No SKUs found.
+                        You haven't added any SKUs (Item Barcodes) yet. Click "Add New" to track specific styles or sizes.
                       </Typography>
                     </TableCell>
                   </TableRow>
@@ -538,7 +568,7 @@ export default function MasterData() {
                   <TableRow>
                     <TableCell colSpan={4} align="center">
                       <Typography variant="body2" color="text.secondary" sx={{ py: 4 }}>
-                        No companies found.
+                        No companies found. Click "Add New" to add your first Vendor or internal Company.
                       </Typography>
                     </TableCell>
                   </TableRow>
@@ -573,7 +603,7 @@ export default function MasterData() {
                   <TableRow>
                     <TableCell colSpan={4} align="center">
                       <Typography variant="body2" color="text.secondary" sx={{ py: 4 }}>
-                        No locations found.
+                        No locations found. Click "Add New" to add a Warehouse or Store.
                       </Typography>
                     </TableCell>
                   </TableRow>
