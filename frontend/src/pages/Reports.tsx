@@ -41,6 +41,7 @@ import {
 } from '@mui/icons-material'
 import PageHeader from '../components/ui/PageHeader'
 import ReportDisplay from '../components/reports/ReportDisplay'
+import VisualDashboard from '../components/reports/VisualDashboard'
 import { reportingService } from '../services/reporting.service'
 
 interface TabPanelProps {
@@ -301,14 +302,20 @@ export default function Reports() {
       {/* Tabs */}
       <Paper sx={{ mb: 2.5 }}>
         <Tabs value={tabValue} onChange={(_, newValue) => setTabValue(newValue)} variant="fullWidth">
+          <Tab label="Visual Analytics" icon={<TrendingUp />} iconPosition="start" />
           <Tab label="Online Business" icon={<ShoppingCart />} iconPosition="start" />
           <Tab label="Store Management" icon={<Store />} iconPosition="start" />
           <Tab label="Unified Reports" icon={<Assessment />} iconPosition="start" />
         </Tabs>
       </Paper>
 
-      {/* Online Business Reports */}
+      {/* Visual Analytics */}
       <TabPanel value={tabValue} index={0}>
+        <VisualDashboard />
+      </TabPanel>
+
+      {/* Online Business Reports */}
+      <TabPanel value={tabValue} index={1}>
         <Grid container spacing={2.5}>
           {onlineReports.map((category) => (
             <Grid item xs={12} md={6} key={category.title}>
@@ -338,7 +345,7 @@ export default function Reports() {
       </TabPanel>
 
       {/* Store Management Reports */}
-      <TabPanel value={tabValue} index={1}>
+      <TabPanel value={tabValue} index={2}>
         <Grid container spacing={2.5}>
           {storeReports.map((category) => (
             <Grid item xs={12} md={6} key={category.title}>
@@ -368,7 +375,7 @@ export default function Reports() {
       </TabPanel>
 
       {/* Unified Reports */}
-      <TabPanel value={tabValue} index={2}>
+      <TabPanel value={tabValue} index={3}>
         <Grid container spacing={2.5}>
           {unifiedReports.map((category) => (
             <Grid item xs={12} md={6} key={category.title}>

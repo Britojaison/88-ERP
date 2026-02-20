@@ -74,6 +74,11 @@ export const inventoryService = {
     return response.data
   },
 
+  getStockVelocity: async () => {
+    const response = await api.get('/inventory/balances/velocity/')
+    return response.data
+  },
+
   getStockAlerts: async () => {
     const response = await api.get('/inventory/movements/alerts/')
     return extractListData(response.data)
@@ -120,10 +125,14 @@ export const designApprovalService = {
     return response.data as DesignApprovalResponse
   },
 
-  approveDesign: async (id: string, notes: string, expectedDays: number) => {
-    const response = await api.post(`/inventory/design-approvals/${id}/approve/`, {
-      notes,
-      expected_days: expectedDays,
+  approveDesign: async (id: string, notes: string, expectedDays: number, attachment?: File) => {
+    const formData = new FormData()
+    formData.append('notes', notes)
+    formData.append('expected_days', expectedDays.toString())
+    if (attachment) formData.append('attachment', attachment)
+
+    const response = await api.post(`/inventory/design-approvals/${id}/approve/`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
     })
     return response.data
   },
@@ -134,4 +143,34 @@ export const designApprovalService = {
     })
     return response.data
   },
+}
+
+export interface ProductionKanbanItem {
+  id: string
+  code: string
+  name: string
+  latest_stage: string
+  measurement_value?: string
+  measurement_unit?: string
+  attachment_url?: string
+}
+
+export const productionKanbanService = {
+  getBoard: async () => {
+    const response = await api.get('/inventory/production-kanban/board/')
+    return response.data as Record<string, ProductionKanbanItem[]>
+  },
+
+  moveItem: async (id: string, stage: string, notes?: string, measurementValue?: string, attachment?: File) => {
+    const formData = new FormData()
+    formData.append('stage', stage)
+    if (notes) formData.append('notes', notes)
+    if (measurementValue) formData.append('measurement_value', measurementValue)
+    if (attachment) formData.append('attachment', attachment)
+
+    const response = await api.post(`/inventory/production-kanban/${id}/move/`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    return response.data
+  }
 }

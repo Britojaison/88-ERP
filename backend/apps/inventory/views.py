@@ -50,6 +50,65 @@ class InventoryBalanceViewSet(viewsets.ReadOnlyModelViewSet):
 
         return queryset.order_by("sku__code")
 
+    @action(detail=False, methods=['get'], url_path='velocity')
+    def stock_velocity(self, request):
+        """Calculates fast, slow, and dead stock based on recent sales vs current balance."""
+        from django.db.models import Sum
+        from apps.sales.models import SalesTransactionLine
+        from django.utils import timezone
+        import datetime
+
+        thirty_days_ago = timezone.now() - datetime.timedelta(days=30)
+        
+        # 1. Get current inventory by sku
+        balances = InventoryBalance.objects.filter(
+            company_id=request.user.company_id,
+            status="active"
+        ).values('sku__id', 'sku__code', 'sku__name').annotate(
+            total_quantity=Sum('quantity')
+        )
+        
+        # 2. Get sales last 30 days
+        sales = SalesTransactionLine.objects.filter(
+            sku__company_id=request.user.company_id,
+            transaction__transaction_date__gte=thirty_days_ago,
+            transaction__status='active'
+        ).values('sku__id').annotate(
+            sold_last_30_days=Sum('quantity')
+        )
+        sales_dict = {item['sku__id']: item['sold_last_30_days'] for item in sales}
+
+        fast, slow, dead = [], [], []
+        for bal in balances:
+            sku_id = bal['sku__id']
+            qty = bal['total_quantity'] or 0
+            sold = sales_dict.get(sku_id, 0)
+            
+            item = {
+                "sku_id": str(sku_id),
+                "sku_code": bal['sku__code'],
+                "sku_name": bal['sku__name'],
+                "current_stock": float(qty),
+                "sold_30d": float(sold)
+            }
+            if sold >= 20: # threshold could be dynamic
+                fast.append(item)
+            elif sold > 0:
+                slow.append(item)
+            else:
+                dead.append(item)
+                
+        # sort by highest sold / Highest stock
+        fast = sorted(fast, key=lambda x: x['sold_30d'], reverse=True)
+        slow = sorted(slow, key=lambda x: x['sold_30d'], reverse=True)
+        dead = sorted(dead, key=lambda x: x['current_stock'], reverse=True)
+        
+        return Response({
+            "fast_moving": fast[:20],  # Give top 20
+            "slow_moving": slow[:20],
+            "dead_stock": dead[:20]
+        })
+
 
 class InventoryMovementViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
@@ -577,6 +636,7 @@ class DesignerWorkbenchViewSet(viewsets.ViewSet):
 
         notes = request.data.get('notes', 'Design approved and moved to production.')
         expected_days = int(request.data.get('expected_days', 14))
+        attachment = request.FILES.get('attachment')
 
         with transaction.atomic():
             # 1. Update SKU lifecycle status
@@ -592,7 +652,8 @@ class DesignerWorkbenchViewSet(viewsets.ViewSet):
                 notes=notes,
                 user_name=request.user.get_full_name() or request.user.username,
                 timestamp=timezone.now(),
-                expected_time=timezone.now()
+                expected_time=timezone.now(),
+                attachment=attachment
             )
 
             # 3. Create the future "In Production" checkpoint
@@ -645,4 +706,122 @@ class DesignerWorkbenchViewSet(viewsets.ViewSet):
             )
 
         return Response({"message": "Design successfully rejected."}, status=status.HTTP_200_OK)
+
+class ProductionKanbanViewSet(viewsets.ViewSet):
+    """
+    Handles Kanban board data for Production: Fabric Sourced -> Dispatched -> Production -> Shoot -> Done.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @action(detail=False, methods=['get'])
+    def board(self, request):
+        """Fetch all SKUs currently in the production lifecycle and group by their latest checkpoint stage."""
+        from django.db.models import Prefetch
+        from apps.mdm.models import SKU
+        from .models import ProductJourneyCheckpoint
+
+        # Fetch SKUs in proto or in_production that aren't inactive
+        skus = SKU.objects.filter(
+            company_id=request.user.company_id,
+            lifecycle_status__in=[SKU.LIFECYCLE_PROTO, SKU.LIFECYCLE_IN_PRODUCTION],
+            status='active'
+        ).prefetch_related(
+            Prefetch(
+                'journey_checkpoints',
+                queryset=ProductJourneyCheckpoint.objects.order_by('-timestamp', '-created_at'),
+                to_attr='latest_checkpoints'
+            )
+        )
+
+        columns = {
+            'fabric_sourced': [],
+            'fabric_dispatched': [],
+            'design_approved': [],
+            'in_production': [],
+            'shoot': [],
+            'ready': []  # A pseudo-stage for when shoot is done before full warehouse receipt
+        }
+
+        for sku in skus:
+            checkpoints = getattr(sku, 'latest_checkpoints', [])
+            latest_stage = checkpoints[0].stage if checkpoints else 'fabric_sourced'
+            
+            # Map any old or weird states to generic ones for the board
+            mapped_stage = latest_stage
+            if mapped_stage not in columns:
+                if mapped_stage in ['received', 'quality_check', 'storage']:
+                    continue # Skip, it's already in the warehouse
+                mapped_stage = 'fabric_sourced' # Default fallback if no stage is matched to columns
+                if latest_stage == 'design_approved':
+                    mapped_stage = 'design_approved'
+            
+            item_data = {
+                "id": str(sku.id),
+                "code": sku.code,
+                "name": sku.name,
+                "latest_stage": latest_stage,
+                "measurement_value": checkpoints[0].measurement_value if checkpoints else None,
+                "measurement_unit": checkpoints[0].measurement_unit if checkpoints else None,
+                "attachment_url": request.build_absolute_uri(checkpoints[0].attachment.url) if checkpoints and checkpoints[0].attachment else None,
+            }
+            if mapped_stage in columns:
+                columns[mapped_stage].append(item_data)
+            else:
+                # specifically pushing to 'ready' if needed, but our stages are strictly defined.
+                # just fallback safely
+                if sku.lifecycle_status == SKU.LIFECYCLE_IN_PRODUCTION and latest_stage not in columns:
+                    columns['in_production'].append(item_data)
+
+        return Response(columns)
+
+    @action(detail=True, methods=['post'])
+    def move(self, request, pk=None):
+        """Move a SKU to a new Kanban stage, taking optional measurements/attachments."""
+        from django.utils import timezone
+        from apps.mdm.models import SKU
+        from .models import ProductJourneyCheckpoint
+
+        try:
+            sku = SKU.objects.get(id=pk, company_id=request.user.company_id)
+        except SKU.DoesNotExist:
+            return Response({"error": "SKU not found"}, status=404)
+
+        new_stage = request.data.get('stage')
+        if not new_stage:
+            return Response({"error": "stage is required"}, status=400)
+
+        notes = request.data.get('notes', f'Moved to {new_stage}')
+        measurement_value = request.data.get('measurement_value')
+        attachment = request.FILES.get('attachment')
+
+        with transaction.atomic():
+            # If moving to design_approved/in_production, ensure lifecycle is updated
+            if new_stage in ['in_production', 'shoot']:
+                sku.lifecycle_status = SKU.LIFECYCLE_IN_PRODUCTION
+                sku.save(update_fields=['lifecycle_status'])
+
+            # Complete previous "in_progress" checkpoints
+            ProductJourneyCheckpoint.objects.filter(
+                sku=sku, status=ProductJourneyCheckpoint.STATUS_IN_PROGRESS
+            ).update(
+                status=ProductJourneyCheckpoint.STATUS_COMPLETED,
+                timestamp=timezone.now()
+            )
+
+            # Create new checkpoint for the new stage
+            ProductJourneyCheckpoint.objects.create(
+                company_id=request.user.company_id,
+                sku=sku,
+                stage=new_stage,
+                status=ProductJourneyCheckpoint.STATUS_IN_PROGRESS,
+                notes=notes,
+                user_name=request.user.get_full_name() or request.user.username,
+                timestamp=timezone.now(),
+                expected_time=timezone.now(),
+                measurement_value=measurement_value,
+                measurement_unit='Meters' if measurement_value else None,
+                attachment=attachment
+            )
+
+        return Response({"message": f"Successfully moved to {new_stage}."})
 

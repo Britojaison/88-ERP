@@ -31,6 +31,7 @@ import {
   Tune as MetadataIcon,
   LocalOffer as BarcodeIcon,
   People as PeopleIcon,
+  Storefront as StoreIcon,
 } from '@mui/icons-material'
 import { logout } from '../store/slices/authSlice'
 import { authService } from '../services/auth.service'
@@ -47,6 +48,7 @@ const navSections = [
       { text: 'Inventory', icon: <InventoryIcon />, path: '/inventory' },
       { text: 'Barcodes', icon: <BarcodeIcon />, path: '/inventory/barcodes' },
       { text: 'Receiving', icon: <ReceivingIcon />, path: '/inventory/receiving' },
+      { text: 'Store POS', icon: <StoreIcon />, path: '/pos' },
       { text: 'Reports', icon: <ReportIcon />, path: '/reports' },
     ],
   },
