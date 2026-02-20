@@ -345,8 +345,10 @@ class ProductJourneyCheckpoint(TenantAwareModel):
     """Track product journey checkpoints"""
     
     STAGE_FABRIC_SOURCED = 'fabric_sourced'
+    STAGE_FABRIC_DISPATCHED = 'fabric_dispatched'
     STAGE_DESIGN_APPROVED = 'design_approved'
     STAGE_IN_PRODUCTION = 'in_production'
+    STAGE_SHOOT = 'shoot'
     STAGE_RECEIVED = 'received'
     STAGE_QUALITY_CHECK = 'quality_check'
     STAGE_STORAGE = 'storage'
@@ -358,8 +360,10 @@ class ProductJourneyCheckpoint(TenantAwareModel):
     
     STAGE_CHOICES = [
         (STAGE_FABRIC_SOURCED, 'Fabric Sourced'),
+        (STAGE_FABRIC_DISPATCHED, 'Fabric Dispatched'),
         (STAGE_DESIGN_APPROVED, 'Design Approved'),
         (STAGE_IN_PRODUCTION, 'In Production'),
+        (STAGE_SHOOT, 'Shoot / Photography'),
         (STAGE_RECEIVED, 'Received'),
         (STAGE_QUALITY_CHECK, 'Quality Check'),
         (STAGE_STORAGE, 'Storage'),
@@ -405,6 +409,11 @@ class ProductJourneyCheckpoint(TenantAwareModel):
     expected_time = models.DateTimeField(null=True, blank=True)
     notes = models.TextField(blank=True)
     user_name = models.CharField(max_length=255, blank=True)
+    
+    # Optional metadata per checkpoint
+    attachment = models.FileField(upload_to='journey_attachments/', null=True, blank=True)
+    measurement_value = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, help_text="e.g. Meters of fabric")
+    measurement_unit = models.CharField(max_length=20, null=True, blank=True, help_text="e.g. Meters, Kg")
     
     objects = models.Manager()
     active = ActiveManager()

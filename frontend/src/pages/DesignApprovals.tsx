@@ -17,7 +17,7 @@ import {
     Alert,
     Stack,
 } from '@mui/material'
-import { CheckCircle, Cancel, Schedule, Architecture, ChevronLeft, ChevronRight } from '@mui/icons-material'
+import { CheckCircle, Cancel, Schedule, Architecture, ChevronLeft, ChevronRight, CloudUpload } from '@mui/icons-material'
 import PageHeader from '../components/ui/PageHeader'
 import { designApprovalService, DesignApprovalItem } from '../services/inventory.service'
 
@@ -37,6 +37,7 @@ export default function DesignApprovals() {
     })
     const [submitting, setSubmitting] = useState(false)
     const [successMsg, setSuccessMsg] = useState<string | null>(null)
+    const [attachment, setAttachment] = useState<File | null>(null)
 
     const fetchPending = async () => {
         setLoading(true)
@@ -62,6 +63,7 @@ export default function DesignApprovals() {
             notes: 'Fabric tested and design approved.',
             expectedDays: 14,
         })
+        setAttachment(null)
         setApprovalModalOpen(true)
     }
 
@@ -72,7 +74,8 @@ export default function DesignApprovals() {
             await designApprovalService.approveDesign(
                 selectedItem.id,
                 approvalForm.notes,
-                approvalForm.expectedDays
+                approvalForm.expectedDays,
+                attachment || undefined
             )
             setSuccessMsg('Design successfully approved and sent to production!')
             setApprovalModalOpen(false)
@@ -266,7 +269,27 @@ export default function DesignApprovals() {
                                 value={approvalForm.expectedDays}
                                 onChange={(e) => setApprovalForm({ ...approvalForm, expectedDays: Number(e.target.value) })}
                                 helperText="Estimated days until the factory delivers this to the warehouse."
+                                sx={{ mb: 2 }}
                             />
+
+                            <Box>
+                                <Typography variant="subtitle2" gutterBottom>
+                                    Upload Pattern File / Design Specs (Optional)
+                                </Typography>
+                                <Button
+                                    variant="outlined"
+                                    component="label"
+                                    startIcon={<CloudUpload />}
+                                    fullWidth
+                                >
+                                    {attachment ? attachment.name : 'Choose File'}
+                                    <input
+                                        type="file"
+                                        hidden
+                                        onChange={(e) => setAttachment(e.target.files?.[0] || null)}
+                                    />
+                                </Button>
+                            </Box>
                         </Grid>
                     </Grid>
                 </DialogContent>

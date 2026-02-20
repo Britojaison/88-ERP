@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { Box, Button, Grid, Paper, Stack, Typography } from '@mui/material'
-import { Inventory2, LocalOffer, QrCodeScanner, Brush } from '@mui/icons-material'
+import { Inventory2, LocalOffer, QrCodeScanner, Brush, PrecisionManufacturing } from '@mui/icons-material'
 import PageHeader from '../components/ui/PageHeader'
 import MetricCard from '../components/ui/MetricCard'
 
@@ -81,6 +81,18 @@ export default function Inventory() {
           </Box>
         </Grid>
 
+        <Grid item xs={12} md={3}>
+          <Box onClick={() => navigate('/inventory/production-kanban')} sx={{ cursor: 'pointer' }}>
+            <MetricCard
+              label="Production Kanban"
+              value="Track"
+              icon={<PrecisionManufacturing />}
+              tone="primary"
+              note="Manage Fabric Dispatch and Shoot Status via drag and drop."
+            />
+          </Box>
+        </Grid>
+
         <Grid item xs={12}>
           <Paper sx={{ p: 3 }}>
             <Typography variant="h6" gutterBottom>
@@ -101,6 +113,6 @@ export default function Inventory() {
           </Paper>
         </Grid>
       </Grid>
-    </Box>
+    </Box >
   )
 }

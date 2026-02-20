@@ -121,8 +121,29 @@ export interface SalesByStore {
   avg_value: number
 }
 
+export interface POSCheckoutPayload {
+  store_id: string
+  items: Array<{
+    sku_id: string
+    quantity: number
+    unit_price: number
+  }>
+  payment_method: string
+  customer_mobile: string
+}
+
 export const salesService = {
   // Sales Transactions
+  posCheckout: async (payload: POSCheckoutPayload) => {
+    const response = await api.post('/sales/transactions/pos-checkout/', payload)
+    return response.data as SalesTransaction
+  },
+
+  getChannelComparison: async () => {
+    const response = await api.get('/sales/transactions/channel-comparison/')
+    return response.data as Array<{ date: string; store: number; online: number }>
+  },
+
   getTransactions: async (params?: any) => {
     const response = await api.get('/sales/transactions/', { params })
     return extractListData<SalesTransaction>(response.data)
