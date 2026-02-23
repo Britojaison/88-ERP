@@ -27,11 +27,11 @@ for ch in channels:
     channel_name = ch['sales_channel'].capitalize()
     count = ch['count']
     revenue = float(ch['revenue'] or 0)
-    print(f"   {channel_name:12} {count:6,} transactions  ${revenue:15,.2f}")
+    print(f"   {channel_name:12} {count:6,} transactions  ₹{revenue:15,.2f}")
 
 # Total revenue
 total_revenue = SalesTransaction.objects.aggregate(Sum('total_amount'))['total_amount__sum']
-print(f"\n💰 Total Revenue: ${float(total_revenue or 0):,.2f}")
+print(f"\n💰 Total Revenue: ₹{float(total_revenue or 0):,.2f}")
 
 print("\n" + "=" * 60)
 print("✅ Data generation successful!")

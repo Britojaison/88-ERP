@@ -132,7 +132,7 @@ class SalesTransaction(TenantAwareModel):
         ]
     
     def __str__(self):
-        return f"{self.transaction_number} - ${self.total_amount}"
+        return f"{self.transaction_number} - ₹{self.total_amount}"
 
 
 class SalesTransactionLine(BaseModel):
@@ -242,7 +242,7 @@ class ReturnTransaction(TenantAwareModel):
         ]
     
     def __str__(self):
-        return f"{self.return_number} - ${self.refund_amount}"
+        return f"{self.return_number} - ₹{self.refund_amount}"
 
 
 class StoreFootTraffic(TenantAwareModel):

@@ -9,7 +9,7 @@ const getCurrencySymbol = async (): Promise<string> => {
     if (orders.length > 0 && orders[0].currency) {
       const currencySymbols: { [key: string]: string } = {
         'INR': '₹',
-        'USD': '$',
+        'USD': '₹',
         'EUR': '€',
         'GBP': '£',
         'JPY': '¥',
@@ -35,7 +35,7 @@ export const loadShopifySalesByChannel = async () => {
 export const loadShopifySalesByStore = async () => {
   try {
     const data = await shopifyService.getSalesSummary()
-    
+
     if (!data || !data.by_store || data.by_store.length === 0) {
       return null
     }
@@ -74,7 +74,7 @@ export const loadShopifySalesByStore = async () => {
 export const loadShopifySalesTrend = async () => {
   try {
     const data = await shopifyService.getSalesSummary()
-    
+
     if (!data || !data.daily_sales || data.daily_sales.length === 0) {
       return null
     }
@@ -115,7 +115,7 @@ export const loadShopifySalesTrend = async () => {
 export const loadShopifyTopProducts = async () => {
   try {
     const data = await shopifyService.getTopProducts(20)
-    
+
     if (!data || data.products.length === 0) {
       return null
     }
@@ -159,15 +159,14 @@ export const loadShopifyTopProducts = async () => {
 export const loadShopifyOrderStatus = async () => {
   try {
     const data = await shopifyService.getSalesSummary()
-    
-    if (!data || !data.status_breakdown) {
+
+    if (!data || !(data as any).status_breakdown) {
       return null
     }
 
-    const statusBreakdown = data.status_breakdown
-    const fulfillmentBreakdown = data.fulfillment_breakdown
+    const statusBreakdown = (data as any).status_breakdown
+    const fulfillmentBreakdown = (data as any).fulfillment_breakdown
     const totalOrders = data.summary.total_transactions
-    const currency = await getCurrencySymbol()
 
     return {
       type: 'summary',
@@ -208,7 +207,7 @@ export const loadShopifyOrderStatus = async () => {
 export const loadShopifyGeographicSales = async () => {
   try {
     const data = await shopifyService.getGeographicSales()
-    
+
     if (!data || data.locations.length === 0) {
       return null
     }
@@ -251,7 +250,7 @@ export const loadShopifyGeographicSales = async () => {
 export const loadShopifyProductPerformance = async () => {
   try {
     const data = await shopifyService.getProductPerformance()
-    
+
     if (!data || data.products.length === 0) {
       return null
     }
@@ -291,7 +290,7 @@ export const loadShopifyProductPerformance = async () => {
 export const loadShopifyCustomerAnalysis = async () => {
   try {
     const data = await shopifyService.getCustomerAnalysis()
-    
+
     if (!data || data.customers.length === 0) {
       return null
     }
@@ -331,7 +330,7 @@ export const loadShopifyCustomerAnalysis = async () => {
 export const loadShopifyTrafficSource = async () => {
   try {
     const data = await shopifyService.getTrafficSource()
-    
+
     if (!data || data.sources.length === 0) {
       return null
     }
@@ -375,7 +374,7 @@ export const loadShopifyTrafficSource = async () => {
 export const loadShopifyAverageOrderValue = async () => {
   try {
     const data = await shopifyService.getSalesSummary()
-    
+
     if (!data || data.summary.total_transactions === 0) {
       return null
     }
@@ -413,7 +412,7 @@ export const loadShopifyAverageOrderValue = async () => {
 export const loadShopifyInventorySummary = async () => {
   try {
     const data = await shopifyService.getInventorySummary()
-    
+
     if (!data || data.total_products === 0) {
       return null
     }
@@ -459,7 +458,7 @@ export const loadShopifyInventorySummary = async () => {
 export const loadShopifyReturnsAnalysis = async () => {
   try {
     const data = await shopifyService.getReturnsAnalysis()
-    
+
     if (!data || data.refund_count === 0) {
       return null
     }

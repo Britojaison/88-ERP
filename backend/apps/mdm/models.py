@@ -47,7 +47,7 @@ class Company(BaseModel):
     name = models.CharField(max_length=255)
     legal_name = models.CharField(max_length=255, blank=True)
     tax_id = models.CharField(max_length=100, blank=True)
-    currency = models.CharField(max_length=3, default='USD')
+    currency = models.CharField(max_length=3, default='INR')
     
     parent = models.ForeignKey(
         'self',

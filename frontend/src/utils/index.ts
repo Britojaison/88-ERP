@@ -1,7 +1,7 @@
 // Utility functions
 
-export const formatCurrency = (amount: number, currency: string = 'USD'): string => {
-  return new Intl.NumberFormat('en-US', {
+export const formatCurrency = (amount: number, currency: string = 'INR'): string => {
+  return new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency,
   }).format(amount)
@@ -9,11 +9,11 @@ export const formatCurrency = (amount: number, currency: string = 'USD'): string
 
 export const formatDate = (date: string | Date, format: string = 'MM/DD/YYYY'): string => {
   const d = typeof date === 'string' ? new Date(date) : date
-  
+
   const month = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   const year = d.getFullYear()
-  
+
   return format
     .replace('MM', month)
     .replace('DD', day)
@@ -22,12 +22,12 @@ export const formatDate = (date: string | Date, format: string = 'MM/DD/YYYY'): 
 
 export const formatDateTime = (date: string | Date): string => {
   const d = typeof date === 'string' ? new Date(date) : date
-  
+
   const dateStr = formatDate(d)
   const hours = String(d.getHours()).padStart(2, '0')
   const minutes = String(d.getMinutes()).padStart(2, '0')
   const seconds = String(d.getSeconds()).padStart(2, '0')
-  
+
   return `${dateStr} ${hours}:${minutes}:${seconds}`
 }
 
@@ -41,7 +41,7 @@ export const debounce = <T extends (...args: any[]) => any>(
   wait: number
 ): ((...args: Parameters<T>) => void) => {
   let timeout: ReturnType<typeof setTimeout> | null = null
-  
+
   return (...args: Parameters<T>) => {
     if (timeout) clearTimeout(timeout)
     timeout = setTimeout(() => func(...args), wait)

@@ -206,10 +206,10 @@ export default function POSCheckout() {
                                         >
                                             <ListItemText
                                                 primary={item.sku.name}
-                                                secondary={`${item.quantity}x @ $${parseFloat(item.sku.base_price || '0').toFixed(2)}`}
+                                                secondary={`${item.quantity}x @ ₹${parseFloat(item.sku.base_price || '0').toFixed(2)}`}
                                             />
                                             <Typography variant="body1" fontWeight="bold" mr={2}>
-                                                ${(parseFloat(item.sku.base_price || '0') * item.quantity).toFixed(2)}
+                                                ₹{(parseFloat(item.sku.base_price || '0') * item.quantity).toFixed(2)}
                                             </Typography>
                                         </ListItem>
                                     ))}
@@ -221,7 +221,7 @@ export default function POSCheckout() {
                         <Box sx={{ mt: 'auto', p: 2, bgcolor: 'background.default', borderTop: '1px solid', borderColor: 'divider' }}>
                             <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
                                 <Typography variant="h5">Total Due:</Typography>
-                                <Typography variant="h4" fontWeight="bold" color="primary">${subtotal.toFixed(2)}</Typography>
+                                <Typography variant="h4" fontWeight="bold" color="primary">₹{subtotal.toFixed(2)}</Typography>
                             </Box>
                             <Button
                                 fullWidth
@@ -274,7 +274,7 @@ export default function POSCheckout() {
                                                     {sku.name}
                                                 </Typography>
                                                 <Typography variant="body1" color="primary.main" mt={1}>
-                                                    ${parseFloat(sku.base_price || '0').toFixed(2)}
+                                                    ₹{parseFloat(sku.base_price || '0').toFixed(2)}
                                                 </Typography>
                                             </CardContent>
                                         </Card>
