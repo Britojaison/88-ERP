@@ -89,6 +89,7 @@ export interface ProductDemandResponse {
   total_units_sold: number
   total_revenue: number
   total_orders: number
+  period: string
   items: Array<{
     title: string
     variant_title: string
@@ -205,45 +206,24 @@ export const shopifyService = {
     return response.data
   },
 
-  listSyncJobs: async (storeId: string) => {
-    const response = await api.get('/integrations/shopify/sync-jobs/', { params: { store: storeId } })
-    // Handle both paginated and non-paginated responses
-    if (Array.isArray(response.data)) {
-      return response.data
-    }
-    if (response.data.results) {
-      return response.data.results
-    }
-    return []
-  },
-
-  getProductDemand: async (storeId: string) => {
-    const response = await api.get(`/integrations/shopify/stores/${storeId}/product_demand/`)
+  listSyncJobs: async (params?: any) => {
+    const response = await api.get('/integrations/shopify/sync-jobs/', { params })
     return response.data
   },
 
-  listDraftOrders: async (storeId: string) => {
-    const response = await api.get('/integrations/shopify/draft-orders/', { params: { store: storeId } })
-    // Handle both paginated and non-paginated responses
-    if (Array.isArray(response.data)) {
-      return response.data
-    }
-    if (response.data.results) {
-      return response.data.results
-    }
-    return []
+  getProductDemand: async (storeId: string, params?: { days?: number; date_from?: string; date_to?: string }) => {
+    const response = await api.get(`/integrations/shopify/stores/${storeId}/product_demand/`, { params })
+    return response.data
   },
 
-  listDiscounts: async (storeId: string) => {
-    const response = await api.get('/integrations/shopify/discounts/', { params: { store: storeId } })
-    // Handle both paginated and non-paginated responses
-    if (Array.isArray(response.data)) {
-      return response.data
-    }
-    if (response.data.results) {
-      return response.data.results
-    }
-    return []
+  listDraftOrders: async (params?: any) => {
+    const response = await api.get('/integrations/shopify/draft-orders/', { params })
+    return response.data
+  },
+
+  listDiscounts: async (params?: any) => {
+    const response = await api.get('/integrations/shopify/discounts/', { params })
+    return response.data
   },
 
   getSyncStatus: async (storeId: string) => {

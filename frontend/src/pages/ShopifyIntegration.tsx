@@ -81,12 +81,24 @@ export default function ShopifyIntegration() {
   const [productCount, setProductCount] = useState(0)
   const [productPage, setProductPage] = useState(1)
   const [syncJobs, setSyncJobs] = useState<ShopifySyncJob[]>([])
+  const [syncJobCount, setSyncJobCount] = useState(0)
+  const [syncJobPage, setSyncJobPage] = useState(1)
   const [syncStatus, setSyncStatus] = useState<any>(null)
+
   const [productDemand, setProductDemand] = useState<ProductDemandResponse | null>(null)
+  const [productDemandPage, setProductDemandPage] = useState(1)
+
   const [draftOrders, setDraftOrders] = useState<ShopifyDraftOrder[]>([])
+  const [draftOrderCount, setDraftOrderCount] = useState(0)
+  const [draftOrderPage, setDraftOrderPage] = useState(1)
+
   const [discounts, setDiscounts] = useState<ShopifyDiscount[]>([])
+  const [discountCount, setDiscountCount] = useState(0)
+  const [discountPage, setDiscountPage] = useState(1)
   const [tabValue, setTabValue] = useState(0)
   const [demandSearch, setDemandSearch] = useState('')
+  const [demandPeriod, setDemandPeriod] = useState<string>('')  // '' = All Time, '30', '90', '365'
+  const demandPeriodRef = React.useRef(demandPeriod)
   const [searchQuery, setSearchQuery] = useState('')
   const [filterType, setFilterType] = useState('All')
   const [filterVendor, setFilterVendor] = useState('All')
@@ -125,6 +137,7 @@ export default function ShopifyIntegration() {
   useEffect(() => {
     if (selectedStore) {
       loadStoreData(selectedStore.id)
+      loadDemandData(selectedStore.id)
 
       // Set up polling only if a sync is running
       const interval = setInterval(() => {
@@ -176,10 +189,33 @@ export default function ShopifyIntegration() {
             setProductPage(1)
           }
         }).catch(e => console.error('Failed to load products:', e)),
-        shopifyService.listSyncJobs(storeId).then(setSyncJobs).catch(e => console.error('Failed to load sync jobs:', e)),
-        shopifyService.getProductDemand(storeId).then(setProductDemand).catch(e => console.error('Failed to load product demand:', e)),
-        shopifyService.listDraftOrders(storeId).then(setDraftOrders).catch(e => console.error('Failed to load draft orders:', e)),
-        shopifyService.listDiscounts(storeId).then(setDiscounts).catch(e => console.error('Failed to load discounts:', e))
+        shopifyService.listSyncJobs({ store: storeId, page: 1 }).then(res => {
+          if (res && res.results) {
+            setSyncJobs(res.results)
+            setSyncJobCount(res.count || 0)
+            setSyncJobPage(1)
+          } else {
+            setSyncJobs([])
+          }
+        }).catch(e => console.error('Failed to load sync jobs:', e)),
+        shopifyService.listDraftOrders({ store: storeId, page: 1 }).then(res => {
+          if (res && res.results) {
+            setDraftOrders(res.results)
+            setDraftOrderCount(res.count || 0)
+            setDraftOrderPage(1)
+          } else {
+            setDraftOrders([])
+          }
+        }).catch(e => console.error('Failed to load draft orders:', e)),
+        shopifyService.listDiscounts({ store: storeId, page: 1 }).then(res => {
+          if (res && res.results) {
+            setDiscounts(res.results)
+            setDiscountCount(res.count || 0)
+            setDiscountPage(1)
+          } else {
+            setDiscounts([])
+          }
+        }).catch(e => console.error('Failed to load discounts:', e))
       ]);
     } catch (error: any) {
       console.error('Failed to load essential store data:', error)
@@ -188,6 +224,20 @@ export default function ShopifyIntegration() {
         message: 'Could not fetch store status. Please check your connection.',
         severity: 'error'
       })
+    }
+  }
+
+  const loadDemandData = async (storeId: string, period?: string) => {
+    const p = period !== undefined ? period : demandPeriodRef.current
+    try {
+      const res = await shopifyService.getProductDemand(
+        storeId,
+        p ? { days: parseInt(p) } : undefined
+      )
+      setProductDemand(res)
+      setProductDemandPage(1)
+    } catch (e) {
+      console.error('Failed to load product demand:', e)
     }
   }
 
@@ -200,6 +250,42 @@ export default function ShopifyIntegration() {
       setProductPage(page)
     } catch (e) {
       console.error('Failed to load products page:', e)
+    }
+  }
+
+  const loadSyncJobPage = async (page: number) => {
+    if (!selectedStore) return
+    try {
+      const res = await shopifyService.listSyncJobs({ store: selectedStore.id, page })
+      setSyncJobs(res.results)
+      setSyncJobCount(res.count)
+      setSyncJobPage(page)
+    } catch (e) {
+      console.error('Failed to load sync jobs page:', e)
+    }
+  }
+
+  const loadDraftOrderPage = async (page: number) => {
+    if (!selectedStore) return
+    try {
+      const res = await shopifyService.listDraftOrders({ store: selectedStore.id, page })
+      setDraftOrders(res.results)
+      setDraftOrderCount(res.count)
+      setDraftOrderPage(page)
+    } catch (e) {
+      console.error('Failed to load draft orders page:', e)
+    }
+  }
+
+  const loadDiscountPage = async (page: number) => {
+    if (!selectedStore) return
+    try {
+      const res = await shopifyService.listDiscounts({ store: selectedStore.id, page })
+      setDiscounts(res.results)
+      setDiscountCount(res.count)
+      setDiscountPage(page)
+    } catch (e) {
+      console.error('Failed to load discounts page:', e)
     }
   }
 
@@ -907,14 +993,47 @@ export default function ShopifyIntegration() {
 
 
               <TabPanel value={tabValue} index={2}>
-                {/* Summary Cards */}
+                {/* Period Selector + Summary Cards */}
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                  <Box>
+                    <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                      Product Demand Analytics
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {productDemand?.period || 'Loading...'}
+                    </Typography>
+                  </Box>
+                  <FormControl size="small" sx={{ minWidth: 160 }}>
+                    <InputLabel>Time Period</InputLabel>
+                    <Select
+                      value={demandPeriod}
+                      label="Time Period"
+                      onChange={(e) => {
+                        const val = e.target.value as string
+                        setDemandPeriod(val)
+                        demandPeriodRef.current = val
+                        if (selectedStore) {
+                          loadDemandData(selectedStore.id, val)
+                        }
+                      }}
+                    >
+                      <MenuItem value="">All Time</MenuItem>
+                      <MenuItem value="7">Last 7 Days</MenuItem>
+                      <MenuItem value="14">Last 14 Days</MenuItem>
+                      <MenuItem value="30">Last 30 Days</MenuItem>
+                      <MenuItem value="90">Last 90 Days</MenuItem>
+                      <MenuItem value="365">Last 1 Year</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Box>
+
                 <Grid container spacing={2} sx={{ mb: 3 }}>
                   <Grid item xs={6} md={3}>
                     <Card variant="outlined" sx={{ textAlign: 'center', py: 1 }}>
                       <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
                         <Typography variant="overline" color="text.secondary">Total Orders</Typography>
                         <Typography variant="h4" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                          {productDemand?.total_orders || 0}
+                          {productDemand?.total_orders?.toLocaleString() || 0}
                         </Typography>
                       </CardContent>
                     </Card>
@@ -934,7 +1053,7 @@ export default function ShopifyIntegration() {
                       <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
                         <Typography variant="overline" color="text.secondary">Products Ordered</Typography>
                         <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                          {productDemand?.total_products || 0}
+                          {productDemand?.total_products?.toLocaleString() || 0}
                         </Typography>
                       </CardContent>
                     </Card>
@@ -957,7 +1076,7 @@ export default function ShopifyIntegration() {
                     size="small"
                     placeholder="Search by product name, variant, or SKU..."
                     value={demandSearch}
-                    onChange={(e) => setDemandSearch(e.target.value)}
+                    onChange={(e) => { setDemandSearch(e.target.value); setProductDemandPage(1) }}
                     sx={{ width: 400 }}
                     InputProps={{ startAdornment: <Search sx={{ mr: 1, color: 'text.secondary' }} /> }}
                   />
@@ -999,13 +1118,13 @@ export default function ShopifyIntegration() {
                               (item.sku || '').toLowerCase().includes(q)
                             )
                           })
-                          .slice(0, 100) // Limit to first 100 items for performance
+                          .slice((productDemandPage - 1) * 50, productDemandPage * 50)
                           .map((item, idx) => {
                             const isLowStock = item.current_stock !== null && item.current_stock <= 10
                             const isOutOfStock = item.current_stock !== null && item.current_stock <= 0
                             return (
                               <TableRow key={`${item.title}-${item.variant_title}-${item.sku}`} hover>
-                                <TableCell sx={{ color: 'text.secondary' }}>{idx + 1}</TableCell>
+                                <TableCell sx={{ color: 'text.secondary' }}>{(productDemandPage - 1) * 50 + idx + 1}</TableCell>
                                 <TableCell sx={{ fontWeight: 600 }}>{item.title}</TableCell>
                                 <TableCell>
                                   {item.variant_title ? (
@@ -1058,6 +1177,55 @@ export default function ShopifyIntegration() {
                     </TableBody>
                   </Table>
                 </TableContainer>
+
+                {/* Product Demand Pagination */}
+                {productDemand && productDemand.items.filter(item => {
+                  if (!demandSearch) return true
+                  const q = demandSearch.toLowerCase()
+                  return (
+                    item.title.toLowerCase().includes(q) ||
+                    (item.variant_title || '').toLowerCase().includes(q) ||
+                    (item.sku || '').toLowerCase().includes(q)
+                  )
+                }).length > 50 && (() => {
+                  const filteredItems = productDemand.items.filter(item => {
+                    if (!demandSearch) return true
+                    const q = demandSearch.toLowerCase()
+                    return (
+                      item.title.toLowerCase().includes(q) ||
+                      (item.variant_title || '').toLowerCase().includes(q) ||
+                      (item.sku || '').toLowerCase().includes(q)
+                    )
+                  })
+                  const totalItems = filteredItems.length
+                  return (
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2, px: 1 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        Showing {(productDemandPage - 1) * 50 + 1}-{Math.min(productDemandPage * 50, totalItems)} of {totalItems} items
+                      </Typography>
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          disabled={productDemandPage <= 1}
+                          onClick={() => setProductDemandPage(productDemandPage - 1)}
+                        >
+                          Previous
+                        </Button>
+                        <Chip label={`Page ${productDemandPage} of ${Math.ceil(totalItems / 50)}`} variant="outlined" />
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          disabled={productDemandPage * 50 >= totalItems}
+                          onClick={() => setProductDemandPage(productDemandPage + 1)}
+                        >
+                          Next
+                        </Button>
+                      </Box>
+                    </Box>
+                  )
+                })()}
+
               </TabPanel>
 
               <TabPanel value={tabValue} index={3}>
@@ -1115,6 +1283,33 @@ export default function ShopifyIntegration() {
                       </TableBody>
                     </Table>
                   </TableContainer>
+                  {/* Pagination */}
+                  {discountCount > 50 && (
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2, px: 1 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        Showing {(discountPage - 1) * 50 + 1}-{Math.min(discountPage * 50, discountCount)} of {discountCount} discounts
+                      </Typography>
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          disabled={discountPage <= 1}
+                          onClick={() => void loadDiscountPage(discountPage - 1)}
+                        >
+                          Previous
+                        </Button>
+                        <Chip label={`Page ${discountPage} of ${Math.ceil(discountCount / 50)}`} variant="outlined" />
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          disabled={discountPage * 50 >= discountCount}
+                          onClick={() => void loadDiscountPage(discountPage + 1)}
+                        >
+                          Next
+                        </Button>
+                      </Box>
+                    </Box>
+                  )}
                 </Box>
 
                 {/* Draft Orders Section */}
@@ -1190,6 +1385,33 @@ export default function ShopifyIntegration() {
                       </TableBody>
                     </Table>
                   </TableContainer>
+                  {/* Pagination */}
+                  {draftOrderCount > 50 && (
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2, px: 1 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        Showing {(draftOrderPage - 1) * 50 + 1}-{Math.min(draftOrderPage * 50, draftOrderCount)} of {draftOrderCount} draft orders
+                      </Typography>
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          disabled={draftOrderPage <= 1}
+                          onClick={() => void loadDraftOrderPage(draftOrderPage - 1)}
+                        >
+                          Previous
+                        </Button>
+                        <Chip label={`Page ${draftOrderPage} of ${Math.ceil(draftOrderCount / 50)}`} variant="outlined" />
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          disabled={draftOrderPage * 50 >= draftOrderCount}
+                          onClick={() => void loadDraftOrderPage(draftOrderPage + 1)}
+                        >
+                          Next
+                        </Button>
+                      </Box>
+                    </Box>
+                  )}
                 </Box>
               </TabPanel>
 
@@ -1240,6 +1462,33 @@ export default function ShopifyIntegration() {
                     </TableBody>
                   </Table>
                 </TableContainer>
+                {/* Pagination */}
+                {syncJobCount > 50 && (
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2, px: 1 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      Showing {(syncJobPage - 1) * 50 + 1}-{Math.min(syncJobPage * 50, syncJobCount)} of {syncJobCount} sync jobs
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        disabled={syncJobPage <= 1}
+                        onClick={() => void loadSyncJobPage(syncJobPage - 1)}
+                      >
+                        Previous
+                      </Button>
+                      <Chip label={`Page ${syncJobPage} of ${Math.ceil(syncJobCount / 50)}`} variant="outlined" />
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        disabled={syncJobPage * 50 >= syncJobCount}
+                        onClick={() => void loadSyncJobPage(syncJobPage + 1)}
+                      >
+                        Next
+                      </Button>
+                    </Box>
+                  </Box>
+                )}
               </TabPanel>
 
               <TabPanel value={tabValue} index={5}>

@@ -1,0 +1,9 @@
+shopify_sync_job_job_status_check
+CHECK (((job_status)::text = ANY ((ARRAY['running'::character varying, 'completed'::character varying, 'failed'::character varying])::text[])))
+
+shopify_sync_job_job_type_check
+CHECK (((job_type)::text = ANY ((ARRAY['products'::character varying, 'inventory'::character varying, 'orders'::character varying, 'full_sync'::character varying])::text[])))
+
+shopify_sync_job_status_check
+CHECK (((status)::text = ANY ((ARRAY['active'::character varying, 'inactive'::character varying, 'deleted'::character varying])::text[])))
+
