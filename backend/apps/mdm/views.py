@@ -142,8 +142,14 @@ class ProductViewSet(TenantScopedViewSet):
         
         for size in sizes:
             # Generate SKU code: product-code-size
-            size_suffix = str(size).lower().replace(" ", "").replace("-", "")
-            sku_code = f"{product.code}-{size_suffix}"
+            size_suffix = str(size).upper().replace(" ", "").replace("-", "")
+            
+            # If product code uses dashes, try to insert the size before the last part
+            parts = product.code.rsplit("-", 1)
+            if len(parts) == 2:
+                sku_code = f"{parts[0]}-{size_suffix}-{parts[1]}"
+            else:
+                sku_code = f"{product.code}-{size_suffix}"
             
             # Check if SKU already exists
             if SKU.objects.filter(code=sku_code).exists():

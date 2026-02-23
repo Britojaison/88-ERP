@@ -5,13 +5,9 @@ import {
   Box,
   Button,
   Checkbox,
-  FormControl,
   FormControlLabel,
   Grid,
-  InputLabel,
-  MenuItem,
   Paper,
-  Select,
   Snackbar,
   Stack,
   Table,
@@ -45,7 +41,7 @@ export default function InventoryBarcodes() {
 
   const [form, setForm] = useState({
     sku: '',
-    barcode_type: 'code128',
+    barcode_type: 'ean13',
     barcode_value: '',
     display_code: '',
     label_title: '',
@@ -141,7 +137,7 @@ export default function InventoryBarcodes() {
       // Reset form
       setForm({
         sku: '',
-        barcode_type: 'code128',
+        barcode_type: 'ean13',
         barcode_value: '',
         display_code: '',
         label_title: '',
@@ -327,21 +323,7 @@ export default function InventoryBarcodes() {
                   fullWidth
                 />
               </Grid>
-              <Grid item xs={12} md={6}>
-                <FormControl fullWidth required>
-                  <InputLabel>Barcode Type *</InputLabel>
-                  <Select
-                    value={form.barcode_type}
-                    label="Barcode Type *"
-                    onChange={(e) => setForm((prev) => ({ ...prev, barcode_type: e.target.value }))}
-                    required
-                  >
-                    <MenuItem value="code128">Code 128</MenuItem>
-                    <MenuItem value="gs1_128">GS1-128</MenuItem>
-                    <MenuItem value="ean13">EAN-13</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
+
               <Grid item xs={12} md={4}>
                 <TextField
                   fullWidth

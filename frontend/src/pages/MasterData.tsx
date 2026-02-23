@@ -417,22 +417,22 @@ export default function MasterData() {
               setProductForm((prev) => {
                 // Auto-suggest code from name if code is empty or was auto-generated
                 const baseCode = name
-                  .toLowerCase()
-                  .replace(/[^a-z0-9\s]/g, '')
+                  .toUpperCase()
+                  .replace(/[^A-Z0-9\s]/g, '')
                   .trim()
                   .split(/\s+/)
-                  .slice(0, 2)
-                  .join('-');
+                  .slice(0, 1)
+                  .join('');
 
                 // Add a random 3-digit number for uniqueness
-                const randomSuffix = Math.floor(100 + Math.random() * 900);
-                const suggestedCode = baseCode ? `${baseCode}-${randomSuffix}` : '';
+                const randomSuffix = Math.floor(1 + Math.random() * 999).toString().padStart(3, '0');
+                const suggestedCode = baseCode ? `MMW-${randomSuffix}-${baseCode}` : '';
 
                 return {
                   ...prev,
                   name,
                   // Only update code if it's empty or matches a previous auto-suggestion pattern
-                  code: prev.code === '' || /^[a-z0-9-]+-\d{3}$/.test(prev.code)
+                  code: prev.code === '' || /^MMW-\d{3}-[A-Z0-9]+$/.test(prev.code.toUpperCase()) || /^[a-z0-9-]+-\d{3}$/.test(prev.code)
                     ? suggestedCode
                     : prev.code
                 };
