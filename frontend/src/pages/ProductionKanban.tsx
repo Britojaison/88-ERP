@@ -14,7 +14,8 @@ import {
     TextField,
     Chip,
     IconButton,
-    Tooltip
+    Tooltip,
+    MenuItem
 } from '@mui/material'
 import { CloudUpload, Link as LinkIcon } from '@mui/icons-material'
 import PageHeader from '../components/ui/PageHeader'
@@ -26,7 +27,9 @@ const COLUMNS = [
     { id: 'design_approved', title: 'Design Approved', color: 'warning' as const },
     { id: 'in_production', title: 'In Production', color: 'primary' as const },
     { id: 'shoot', title: 'Shoot Status', color: 'error' as const },
-    { id: 'ready', title: 'Ready for WH', color: 'success' as const },
+    { id: 'received', title: 'Warehouse Received', color: 'info' as const },
+    { id: 'quality_check', title: 'Quality Check', color: 'warning' as const },
+    { id: 'ready', title: 'Ready for Storage', color: 'success' as const },
 ]
 
 export default function ProductionKanban() {
@@ -41,9 +44,11 @@ export default function ProductionKanban() {
     const [moveForm, setMoveForm] = useState({
         notes: '',
         measurementValue: '',
+        locationId: '',
     })
     const [attachment, setAttachment] = useState<File | null>(null)
     const [moving, setMoving] = useState(false)
+    const [locations, setLocations] = useState<any[]>([])
 
     const fetchBoard = async () => {
         setLoading(true)
@@ -51,6 +56,8 @@ export default function ProductionKanban() {
         try {
             const data = await productionKanbanService.getBoard()
             setBoardData(data || {})
+            const locData = await productionKanbanService.getLocations()
+            setLocations(locData || [])
         } catch (err: any) {
             setError(err.message || 'Failed to fetch Kanban board')
         } finally {
@@ -85,7 +92,11 @@ export default function ProductionKanban() {
         // Open confirmation modal to ask for notes/files
         setActiveItem(item)
         setTargetStage(targetCol)
-        setMoveForm({ notes: `Moved to ${COLUMNS.find(c => c.id === targetCol)?.title}`, measurementValue: '' })
+        setMoveForm({
+            notes: `Moved to ${COLUMNS.find(c => c.id === targetCol)?.title}`,
+            measurementValue: '',
+            locationId: ''
+        })
         setAttachment(null)
         setModalOpen(true)
     }
@@ -99,7 +110,8 @@ export default function ProductionKanban() {
                 targetStage,
                 moveForm.notes,
                 moveForm.measurementValue || undefined,
-                attachment || undefined
+                attachment || undefined,
+                moveForm.locationId || undefined
             )
             setModalOpen(false)
             fetchBoard()
@@ -218,6 +230,25 @@ export default function ProductionKanban() {
                                 sx={{ mb: 2 }}
                                 helperText="How many meters of fabric are being dispatched or used?"
                             />
+                        )}
+
+                        {(targetStage === 'fabric_dispatched' || targetStage === 'in_production') && locations.length > 0 && (
+                            <TextField
+                                select
+                                fullWidth
+                                label="Select Production Unit"
+                                value={moveForm.locationId}
+                                onChange={(e) => setMoveForm({ ...moveForm, locationId: e.target.value })}
+                                sx={{ mb: 2 }}
+                                helperText="Which unit is the fabric going to or currently at?"
+                            >
+                                <MenuItem value=""><em>None / Unknown</em></MenuItem>
+                                {locations.map(loc => (
+                                    <MenuItem key={loc.id} value={loc.id}>
+                                        {loc.name} ({loc.code})
+                                    </MenuItem>
+                                ))}
+                            </TextField>
                         )}
 
                         <Box>
