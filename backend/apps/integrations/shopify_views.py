@@ -35,7 +35,7 @@ class ShopifyProductPagination(PageNumberPagination):
 
 
 class ShopifyOrderPagination(PageNumberPagination):
-    page_size = 25
+    page_size = 50
     page_size_query_param = 'page_size'
     max_page_size = 100
 
@@ -62,10 +62,11 @@ class ShopifyStoreCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = ShopifyStore
         fields = [
-            'name', 'shop_domain', 'access_token', 'api_key', 'api_secret',
+            'id', 'name', 'shop_domain', 'access_token', 'api_key', 'api_secret',
             'api_version', 'webhook_secret', 'auto_sync_products',
             'auto_sync_inventory', 'auto_sync_orders', 'sync_interval_minutes'
         ]
+        read_only_fields = ['id']
         extra_kwargs = {
             'shop_domain': {
                 'validators': [],  # Remove unique validator; perform_create handles duplicates
@@ -240,17 +241,7 @@ class ShopifyStoreViewSet(viewsets.ModelViewSet):
     permission_classes = [AllowAny]  # Temporarily disabled for testing
     
     def get_queryset(self):
-        user = self.request.user
-        
-        # If user is authenticated and has a company, filter by company
-        if user and user.is_authenticated:
-            company_id = getattr(user, 'company_id', None)
-            if company_id:
-                return ShopifyStore.objects.filter(company_id=company_id, status='active')
-            # If user has no company, return stores they created
-            return ShopifyStore.objects.filter(created_by=user, status='active')
-        
-        # For anonymous users, return all active stores (for testing)
+        # Return all active stores — auth is handled by permission_classes
         return ShopifyStore.objects.filter(status='active')
     
     def get_serializer_class(self):
@@ -258,6 +249,16 @@ class ShopifyStoreViewSet(viewsets.ModelViewSet):
             return ShopifyStoreCreateSerializer
         return ShopifyStoreSerializer
     
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        instance = self.perform_create(serializer)
+        
+        # Return full store data using standard serializer
+        response_serializer = ShopifyStoreSerializer(instance)
+        headers = self.get_success_headers(response_serializer.data)
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
     def perform_create(self, serializer):
         user = self.request.user if self.request.user and self.request.user.is_authenticated else None
         
@@ -276,9 +277,9 @@ class ShopifyStoreViewSet(viewsets.ModelViewSet):
             # Test connection
             ShopifyService.test_connection(existing)
             
+            
             # Replace the instance in serializer
-            serializer.instance = existing
-            return
+            return existing
         
         # Get or create company
         company_id = getattr(user, 'company_id', None) if user else None
@@ -289,7 +290,7 @@ class ShopifyStoreViewSet(viewsets.ModelViewSet):
                 defaults={'name': 'Default Company', 'status': 'active'}
             )
             company_id = company.id
-        
+
         # Save the store
         save_params = {'company_id': company_id}
         if user:
@@ -302,6 +303,8 @@ class ShopifyStoreViewSet(viewsets.ModelViewSet):
             ShopifyService.test_connection(store)
         except Exception as e:
             logger.warning(f"Auto connection test failed for store {store.id}: {e}")
+            
+        return store
     
     @action(detail=False, methods=['post'], permission_classes=[AllowAny])
     def quick_connect(self, request):
@@ -531,7 +534,27 @@ class ShopifyStoreViewSet(viewsets.ModelViewSet):
         Shows what products were ordered and total quantities — for ERP inventory planning.
         """
         store = self.get_object()
+
+        # Support optional date range filtering
+        from datetime import datetime, timedelta
+        from django.utils import timezone as tz
+        days = request.query_params.get('days')  # e.g. 30, 90, 365
+        date_from = request.query_params.get('date_from')
+        date_to = request.query_params.get('date_to')
+
         orders = ShopifyOrder.objects.filter(store=store)
+        period_label = 'All Time'
+
+        if days:
+            cutoff = tz.now() - timedelta(days=int(days))
+            orders = orders.filter(processed_at__gte=cutoff)
+            period_label = f'Last {days} days'
+        elif date_from:
+            orders = orders.filter(processed_at__gte=date_from)
+            period_label = f'From {date_from}'
+            if date_to:
+                orders = orders.filter(processed_at__lte=date_to)
+                period_label = f'{date_from} to {date_to}'
 
         # Aggregate line items across all orders by product title + variant + SKU
         demand = defaultdict(lambda: {
@@ -591,11 +614,23 @@ class ShopifyStoreViewSet(viewsets.ModelViewSet):
         # Sort by total quantity sold descending
         result.sort(key=lambda x: x['total_quantity_sold'], reverse=True)
 
+        # Compute actual date range of orders used
+        from django.db.models import Min, Max
+        date_stats = orders.aggregate(Min('processed_at'), Max('processed_at'))
+        order_date_from = date_stats['processed_at__min']
+        order_date_to = date_stats['processed_at__max']
+
+        if period_label == 'All Time' and order_date_from and order_date_to:
+            period_label = f"{order_date_from.strftime('%b %d, %Y')} \u2013 {order_date_to.strftime('%b %d, %Y')}"
+
         return Response({
             'total_products': len(result),
             'total_units_sold': sum(r['total_quantity_sold'] for r in result),
             'total_revenue': round(sum(r['total_revenue'] for r in result), 2),
             'total_orders': orders.count(),
+            'period': period_label,
+            'order_date_from': order_date_from.isoformat() if order_date_from else None,
+            'order_date_to': order_date_to.isoformat() if order_date_to else None,
             'items': result,
         })
 
@@ -681,19 +716,7 @@ class ShopifyProductViewSet(viewsets.ReadOnlyModelViewSet):
     pagination_class = ShopifyProductPagination
     
     def get_queryset(self):
-        user = self.request.user
-        if user and user.is_authenticated:
-            company_id = getattr(user, 'company_id', None)
-            if company_id:
-                queryset = ShopifyProduct.objects.filter(
-                    store__company_id=company_id
-                ).select_related('store', 'erp_product', 'erp_sku')
-            else:
-                queryset = ShopifyProduct.objects.filter(
-                    store__created_by=user
-                ).select_related('store', 'erp_product', 'erp_sku')
-        else:
-            queryset = ShopifyProduct.objects.all().select_related('store', 'erp_product', 'erp_sku')
+        queryset = ShopifyProduct.objects.all().select_related('store', 'erp_product', 'erp_sku')
         
         # Filter by store
         store_id = self.request.query_params.get('store')
@@ -766,21 +789,10 @@ class ShopifySyncJobViewSet(viewsets.ReadOnlyModelViewSet):
     """
     permission_classes = [AllowAny]  # Temporarily disabled for testing
     serializer_class = ShopifySyncJobSerializer
+    pagination_class = ShopifyProductPagination
     
     def get_queryset(self):
-        user = self.request.user
-        if user and user.is_authenticated:
-            company_id = getattr(user, 'company_id', None)
-            if company_id:
-                queryset = ShopifySyncJob.objects.filter(
-                    store__company_id=company_id
-                ).select_related('store')
-            else:
-                queryset = ShopifySyncJob.objects.filter(
-                    store__created_by=user
-                ).select_related('store')
-        else:
-            queryset = ShopifySyncJob.objects.all().select_related('store')
+        queryset = ShopifySyncJob.objects.all().select_related('store')
         
         store_id = self.request.query_params.get('store')
         if store_id:
@@ -839,14 +851,7 @@ class ShopifyOrderViewSet(viewsets.ReadOnlyModelViewSet):
     pagination_class = ShopifyOrderPagination
 
     def get_queryset(self):
-        user = self.request.user
-        company_id = getattr(user, 'company_id', None)
         queryset = ShopifyOrder.objects.select_related('erp_document', 'store').order_by('-processed_at')
-        if company_id:
-            queryset = queryset.filter(store__company_id=company_id)
-        elif user.is_authenticated:
-            queryset = queryset.filter(store__created_by=user)
-        # If not authenticated, return all orders (since permission is AllowAny)
         store_id = self.request.query_params.get('store')
         if store_id:
             queryset = queryset.filter(store_id=store_id)
@@ -1003,16 +1008,10 @@ class ShopifyOrderViewSet(viewsets.ReadOnlyModelViewSet):
 class ShopifyDraftOrderViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [AllowAny]  # Temporarily disabled for testing
     serializer_class = ShopifyDraftOrderSerializer
+    pagination_class = ShopifyProductPagination
 
     def get_queryset(self):
-        user = self.request.user
         queryset = ShopifyDraftOrder.objects.select_related('store')
-        if user and user.is_authenticated:
-            company_id = getattr(user, 'company_id', None)
-            if company_id:
-                queryset = queryset.filter(store__company_id=company_id)
-            else:
-                queryset = queryset.filter(store__created_by=user)
         store_id = self.request.query_params.get('store')
         if store_id:
             queryset = queryset.filter(store_id=store_id)
@@ -1021,16 +1020,10 @@ class ShopifyDraftOrderViewSet(viewsets.ReadOnlyModelViewSet):
 class ShopifyDiscountViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [AllowAny]  # Temporarily disabled for testing
     serializer_class = ShopifyDiscountSerializer
+    pagination_class = ShopifyProductPagination
 
     def get_queryset(self):
-        user = self.request.user
         queryset = ShopifyDiscount.objects.select_related('store')
-        if user and user.is_authenticated:
-            company_id = getattr(user, 'company_id', None)
-            if company_id:
-                queryset = queryset.filter(store__company_id=company_id)
-            else:
-                queryset = queryset.filter(store__created_by=user)
         store_id = self.request.query_params.get('store')
         if store_id:
             queryset = queryset.filter(store_id=store_id)
@@ -1040,14 +1033,12 @@ class ShopifyDiscountViewSet(viewsets.ReadOnlyModelViewSet):
 class ShopifyGiftCardViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [AllowAny]  # Temporarily disabled for testing
     serializer_class = ShopifyGiftCardSerializer
+    pagination_class = ShopifyProductPagination
 
     def get_queryset(self):
-        user = self.request.user
         queryset = ShopifyGiftCard.objects.select_related('store')
-        if user and user.is_authenticated:
-            company_id = getattr(user, 'company_id', None)
-            if company_id:
-                return queryset.filter(store__company_id=company_id)
-            return queryset.filter(store__created_by=user)
+        store_id = self.request.query_params.get('store')
+        if store_id:
+            queryset = queryset.filter(store_id=store_id)
         return queryset
 
