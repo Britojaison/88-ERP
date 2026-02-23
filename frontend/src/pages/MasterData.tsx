@@ -24,9 +24,8 @@ import {
   TableHead,
   TableRow,
   TextField,
-  Tooltip,
 } from '@mui/material'
-import { Add, Info } from '@mui/icons-material'
+import { Add } from '@mui/icons-material'
 import PageHeader from '../components/ui/PageHeader'
 import { mdmService, type BusinessUnit, type Company, type Location, type Product, type SKU } from '../services/mdm.service'
 
@@ -52,10 +51,6 @@ export default function MasterData() {
   const [companies, setCompanies] = useState<Company[]>([])
   const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>([])
   const [locations, setLocations] = useState<Location[]>([])
-  const [productPage, setProductPage] = useState(1)
-  const [productCount, setProductCount] = useState(0)
-  const [skuPage, setSkuPage] = useState(1)
-  const [skuCount, setSkuCount] = useState(0)
   const [openProductDialog, setOpenProductDialog] = useState(false)
   const [openSkuDialog, setOpenSkuDialog] = useState(false)
   const [openCompanyDialog, setOpenCompanyDialog] = useState(false)
@@ -79,7 +74,6 @@ export default function MasterData() {
     base_price: '',
     cost_price: '',
     weight: '',
-    size: '',
     is_serialized: false,
     is_batch_tracked: false,
   })
@@ -101,35 +95,20 @@ export default function MasterData() {
     { open: false, message: '', severity: 'info' },
   )
 
-  const loadData = async (prodPage = 1, sPage = 1) => {
+  const loadData = async () => {
     try {
       const [productData, skuData, companyData, businessUnitData, locationData] = await Promise.all([
-        mdmService.getProducts({ page: prodPage }),
-        mdmService.getSKUs({ page: sPage }),
+        mdmService.getProducts(),
+        mdmService.getSKUs(),
         mdmService.getCompanies(),
         mdmService.getBusinessUnits(),
         mdmService.getLocations(),
       ])
-
-      if (productData && 'results' in productData) {
-        setProducts(productData.results)
-        setProductCount(productData.count)
-        setProductPage(prodPage)
-      } else {
-        setProducts(productData as Product[])
-      }
-
-      if (skuData && 'results' in skuData) {
-        setSkus(skuData.results)
-        setSkuCount(skuData.count)
-        setSkuPage(sPage)
-      } else {
-        setSkus(skuData as SKU[])
-      }
-
-      setCompanies(companyData as Company[])
-      setBusinessUnits(businessUnitData as BusinessUnit[])
-      setLocations(locationData as Location[])
+      setProducts(productData)
+      setSkus(skuData)
+      setCompanies(companyData)
+      setBusinessUnits(businessUnitData)
+      setLocations(locationData)
     } catch (error) {
       setSnackbar({ open: true, message: 'Failed to load master data.', severity: 'error' })
     }
@@ -161,7 +140,6 @@ export default function MasterData() {
         base_price: '',
         cost_price: '',
         weight: '',
-        size: '',
         is_serialized: false,
         is_batch_tracked: false,
       })
@@ -215,32 +193,14 @@ export default function MasterData() {
 
   const handleCreateVariants = async () => {
     if (!selectedProduct) return
-
+    
     if (variantForm.sizes.length === 0) {
       setSnackbar({ open: true, message: 'Please select at least one size.', severity: 'error' })
       return
     }
-
+    
     if (!variantForm.selling_price || !variantForm.mrp) {
       setSnackbar({ open: true, message: 'Selling price and MRP are required.', severity: 'error' })
-      return
-    }
-
-    const sellingPrice = parseFloat(variantForm.selling_price)
-    const mrp = parseFloat(variantForm.mrp)
-
-    if (isNaN(sellingPrice) || sellingPrice <= 0) {
-      setSnackbar({ open: true, message: 'Selling price must be a positive number.', severity: 'error' })
-      return
-    }
-
-    if (isNaN(mrp) || mrp <= 0) {
-      setSnackbar({ open: true, message: 'MRP must be a positive number.', severity: 'error' })
-      return
-    }
-
-    if (sellingPrice > mrp) {
-      setSnackbar({ open: true, message: 'Selling price cannot be greater than MRP.', severity: 'error' })
       return
     }
 
@@ -250,118 +210,13 @@ export default function MasterData() {
       setVariantForm({ sizes: [], selling_price: '', mrp: '' })
       setSelectedProduct(null)
       await loadData()
-
-      let message = `${result.created} SKU(s) created successfully.`
-      if (result.skipped > 0) {
-        message += ` ${result.skipped} size(s) skipped (already exist).`
-      }
-
-      setSnackbar({ open: true, message, severity: 'success' })
+      setSnackbar({ 
+        open: true, 
+        message: `Created ${result.created} SKUs. ${result.skipped > 0 ? `Skipped ${result.skipped} existing sizes.` : ''}`, 
+        severity: 'success' 
+      })
     } catch (error) {
       setSnackbar({ open: true, message: 'Failed to create variants.', severity: 'error' })
-    }
-  }
-
-  const handleCreateSKU = async () => {
-    if (!skuForm.code || !skuForm.name || !skuForm.product || !skuForm.base_price || !skuForm.cost_price) {
-      setSnackbar({ open: true, message: 'Code, name, product, selling price, and MRP are required.', severity: 'error' })
-      return
-    }
-
-    try {
-      await mdmService.createSKU({
-        code: skuForm.code,
-        name: skuForm.name,
-        product: skuForm.product,
-        base_price: skuForm.base_price,
-        cost_price: skuForm.cost_price,
-        weight: skuForm.weight || undefined,
-        size: skuForm.size || undefined,
-        is_serialized: skuForm.is_serialized,
-        is_batch_tracked: skuForm.is_batch_tracked,
-      })
-      setOpenSkuDialog(false)
-      setSkuForm({
-        code: '',
-        name: '',
-        product: '',
-        base_price: '',
-        cost_price: '',
-        weight: '',
-        size: '',
-        is_serialized: false,
-        is_batch_tracked: false,
-      })
-      await loadData()
-      setSnackbar({ open: true, message: 'SKU created.', severity: 'success' })
-    } catch (error) {
-      setSnackbar({ open: true, message: 'Failed to create SKU.', severity: 'error' })
-    }
-  }
-
-  const handleCreateCompany = async () => {
-    if (!companyForm.code || !companyForm.name) {
-      setSnackbar({ open: true, message: 'Company code and name are required.', severity: 'error' })
-      return
-    }
-
-    try {
-      await mdmService.createCompany({
-        code: companyForm.code,
-        name: companyForm.name,
-        legal_name: companyForm.legal_name || undefined,
-        tax_id: companyForm.tax_id || undefined,
-        currency: companyForm.currency,
-      })
-      setOpenCompanyDialog(false)
-      setCompanyForm({ code: '', name: '', legal_name: '', tax_id: '', currency: 'USD' })
-      await loadData()
-      setSnackbar({ open: true, message: 'Company created.', severity: 'success' })
-    } catch (error) {
-      setSnackbar({ open: true, message: 'Failed to create company.', severity: 'error' })
-    }
-  }
-
-  const handleCreateLocation = async () => {
-    if (!locationForm.code || !locationForm.name) {
-      setSnackbar({ open: true, message: 'Location code and name are required.', severity: 'error' })
-      return
-    }
-
-    try {
-      let businessUnitId = locationForm.business_unit
-      if (!businessUnitId) {
-        const fallback = businessUnits[0]
-        if (fallback) {
-          businessUnitId = fallback.id
-        } else {
-          const createdBU = await mdmService.createBusinessUnit({
-            code: 'MAIN',
-            name: 'Main Unit',
-          })
-          businessUnitId = createdBU.id
-        }
-      }
-
-      await mdmService.createLocation({
-        code: locationForm.code,
-        name: locationForm.name,
-        location_type: locationForm.location_type,
-        business_unit: businessUnitId,
-        is_inventory_location: locationForm.is_inventory_location,
-      })
-      setOpenLocationDialog(false)
-      setLocationForm({
-        code: '',
-        name: '',
-        location_type: 'warehouse',
-        business_unit: '',
-        is_inventory_location: true,
-      })
-      await loadData()
-      setSnackbar({ open: true, message: 'Location created.', severity: 'success' })
-    } catch (error) {
-      setSnackbar({ open: true, message: 'Failed to create location.', severity: 'error' })
     }
   }
 
@@ -377,40 +232,12 @@ export default function MasterData() {
         }
       />
 
-      <Paper sx={{ width: '100%' }}>
-        <Tabs value={tabValue} onChange={(_, v) => setTabValue(v)}>
-          <Tab label={
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              Products
-              <Tooltip title="General product categories (e.g., 'T-Shirt', 'Jeans'). You must create a Product before creating its SKUs.">
-                <Info sx={{ fontSize: 16, ml: 0.5, color: 'text.secondary', cursor: 'help' }} />
-              </Tooltip>
-            </Box>
-          } />
-          <Tab label={
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              SKUs
-              <Tooltip title="Specific item variations (e.g., 'Red T-Shirt - Size M') that you actually stock and sell.">
-                <Info sx={{ fontSize: 16, ml: 0.5, color: 'text.secondary', cursor: 'help' }} />
-              </Tooltip>
-            </Box>
-          } />
-          <Tab label={
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              Companies
-              <Tooltip title="Your business entities, suppliers, or vendors.">
-                <Info sx={{ fontSize: 16, ml: 0.5, color: 'text.secondary', cursor: 'help' }} />
-              </Tooltip>
-            </Box>
-          } />
-          <Tab label={
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              Locations
-              <Tooltip title="Warehouses or physical stores where you keep inventory.">
-                <Info sx={{ fontSize: 16, ml: 0.5, color: 'text.secondary', cursor: 'help' }} />
-              </Tooltip>
-            </Box>
-          } />
+      <Paper>
+        <Tabs value={tabValue} onChange={(_, newValue) => setTabValue(newValue)}>
+          <Tab label="Products" />
+          <Tab label="SKUs" />
+          <Tab label="Companies" />
+          <Tab label="Locations" />
         </Tabs>
 
         <TabPanel value={tabValue} index={0}>
@@ -420,7 +247,7 @@ export default function MasterData() {
                 <TableRow>
                   <TableCell>Product Code</TableCell>
                   <TableCell>Name</TableCell>
-                  <TableCell>Category</TableCell>
+                  <TableCell>Description</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell>Created</TableCell>
                   <TableCell>Actions</TableCell>
@@ -431,7 +258,7 @@ export default function MasterData() {
                   <TableRow>
                     <TableCell colSpan={6} align="center">
                       <Typography variant="body2" color="text.secondary" sx={{ py: 4 }}>
-                        You haven't added any products (e.g., T-Shirts) yet. Click "Add New" to create your first product.
+                        No products found. Click "Add New" to create your first product.
                       </Typography>
                     </TableCell>
                   </TableRow>
@@ -461,32 +288,6 @@ export default function MasterData() {
               </TableBody>
             </Table>
           </TableContainer>
-          {productCount > 50 && (
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2, px: 2, pb: 2 }}>
-              <Typography variant="body2" color="text.secondary">
-                Showing {(productPage - 1) * 50 + 1}-{Math.min(productPage * 50, productCount)} of {productCount} products
-              </Typography>
-              <Box sx={{ display: 'flex', gap: 1 }}>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  disabled={productPage === 1}
-                  onClick={() => void loadData(productPage - 1, skuPage)}
-                >
-                  Previous
-                </Button>
-                <Chip label={`Page ${productPage}`} variant="outlined" size="small" />
-                <Button
-                  size="small"
-                  variant="outlined"
-                  disabled={productPage * 50 >= productCount}
-                  onClick={() => void loadData(productPage + 1, skuPage)}
-                >
-                  Next
-                </Button>
-              </Box>
-            </Box>
-          )}
         </TabPanel>
 
         <TabPanel value={tabValue} index={1}>
@@ -506,7 +307,7 @@ export default function MasterData() {
                   <TableRow>
                     <TableCell colSpan={5} align="center">
                       <Typography variant="body2" color="text.secondary" sx={{ py: 4 }}>
-                        You haven't added any SKUs (Item Barcodes) yet. Click "Add New" to track specific styles or sizes.
+                        No SKUs found.
                       </Typography>
                     </TableCell>
                   </TableRow>
@@ -524,32 +325,6 @@ export default function MasterData() {
               </TableBody>
             </Table>
           </TableContainer>
-          {skuCount > 50 && (
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2, px: 2, pb: 2 }}>
-              <Typography variant="body2" color="text.secondary">
-                Showing {(skuPage - 1) * 50 + 1}-{Math.min(skuPage * 50, skuCount)} of {skuCount} SKUs
-              </Typography>
-              <Box sx={{ display: 'flex', gap: 1 }}>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  disabled={skuPage === 1}
-                  onClick={() => void loadData(productPage, skuPage - 1)}
-                >
-                  Previous
-                </Button>
-                <Chip label={`Page ${skuPage}`} variant="outlined" size="small" />
-                <Button
-                  size="small"
-                  variant="outlined"
-                  disabled={skuPage * 50 >= skuCount}
-                  onClick={() => void loadData(productPage, skuPage + 1)}
-                >
-                  Next
-                </Button>
-              </Box>
-            </Box>
-          )}
         </TabPanel>
 
         <TabPanel value={tabValue} index={2}>
@@ -568,7 +343,7 @@ export default function MasterData() {
                   <TableRow>
                     <TableCell colSpan={4} align="center">
                       <Typography variant="body2" color="text.secondary" sx={{ py: 4 }}>
-                        No companies found. Click "Add New" to add your first Vendor or internal Company.
+                        No companies found.
                       </Typography>
                     </TableCell>
                   </TableRow>
@@ -603,7 +378,7 @@ export default function MasterData() {
                   <TableRow>
                     <TableCell colSpan={4} align="center">
                       <Typography variant="body2" color="text.secondary" sx={{ py: 4 }}>
-                        No locations found. Click "Add New" to add a Warehouse or Store.
+                        No locations found.
                       </Typography>
                     </TableCell>
                   </TableRow>
@@ -622,6 +397,8 @@ export default function MasterData() {
           </TableContainer>
         </TabPanel>
       </Paper>
+
+      {/* Product Dialog */}
       <Dialog open={openProductDialog} onClose={() => setOpenProductDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Create Product</DialogTitle>
         <DialogContent>
@@ -641,11 +418,11 @@ export default function MasterData() {
                   .split(/\s+/)
                   .slice(0, 2)
                   .join('-');
-
+                
                 // Add a random 3-digit number for uniqueness
                 const randomSuffix = Math.floor(100 + Math.random() * 900);
                 const suggestedCode = baseCode ? `${baseCode}-${randomSuffix}` : '';
-
+                
                 return {
                   ...prev,
                   name,
@@ -681,381 +458,58 @@ export default function MasterData() {
           </Button>
         </DialogActions>
       </Dialog>
-      <Dialog open={openSkuDialog} onClose={() => setOpenSkuDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Create SKU</DialogTitle>
+
+      {/* Variants Dialog */}
+      <Dialog open={openVariantsDialog} onClose={() => setOpenVariantsDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Create Product Variants</DialogTitle>
         <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Product: {selectedProduct?.name}
+          </Typography>
           <Autocomplete
-            options={products}
-            getOptionLabel={(option) => `${option.code} - ${option.name}`}
-            value={products.find(p => p.id === skuForm.product) || null}
-            onChange={(event, newValue) => {
-              if (newValue) {
-                const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-                const suggestedCode = `${newValue.code}-${randomSuffix}`;
-
-                setSkuForm((prev) => ({
-                  ...prev,
-                  product: newValue.id,
-                  code: prev.code === '' || /^[a-z0-9-]+-\d{4}$/.test(prev.code)
-                    ? suggestedCode
-                    : prev.code,
-                  name: prev.name === '' ? newValue.name : prev.name
-                }));
-              } else {
-                setSkuForm((prev) => ({ ...prev, product: '', code: '', name: '' }));
-              }
-            }}
+            multiple
+            options={['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'Free Size']}
+            value={variantForm.sizes}
+            onChange={(_, newValue) => setVariantForm((prev) => ({ ...prev, sizes: newValue }))}
             renderInput={(params) => (
-              <TextField
-                {...params}
-                label="Product *"
-                required
-                margin="normal"
-                placeholder="Type to search product..."
-              />
+              <TextField {...params} label="Sizes" placeholder="Select sizes..." />
             )}
-            renderOption={(props, option) => (
-              <li {...props} key={option.id}>
-                <Box>
-                  <Typography variant="body2" fontWeight={500}>
-                    {option.code}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {option.name}
-                  </Typography>
-                </Box>
-              </li>
-            )}
-            isOptionEqualToValue={(option, value) => option.id === value.id}
-            noOptionsText="No products available"
-            fullWidth
+            renderTags={(value, getTagProps) =>
+              value.map((option, index) => (
+                <Chip variant="outlined" label={option} {...getTagProps({ index })} key={option} />
+              ))
+            }
+            sx={{ mb: 2 }}
           />
-          <TextField
-            fullWidth
-            margin="normal"
-            label="SKU Code *"
-            value={skuForm.code}
-            onChange={(e) => setSkuForm((prev) => ({ ...prev, code: e.target.value }))}
-            helperText="Auto-suggested, editable"
-          />
-          <TextField
-            fullWidth
-            margin="normal"
-            label="SKU Name *"
-            value={skuForm.name}
-            onChange={(e) => setSkuForm((prev) => ({ ...prev, name: e.target.value }))}
-          />
-          <TextField
-            fullWidth
-            select
-            margin="normal"
-            label="Size"
-            value={skuForm.size || ''}
-            onChange={(e) => setSkuForm((prev) => ({ ...prev, size: e.target.value }))}
-            SelectProps={{ native: true }}
-            helperText="Optional: Select size for this SKU"
-          >
-            <option value="">No Size</option>
-            <option value="XS">XS - Extra Small</option>
-            <option value="S">S - Small</option>
-            <option value="M">M - Medium</option>
-            <option value="L">L - Large</option>
-            <option value="XL">XL - Extra Large</option>
-            <option value="XXL">XXL - Double Extra Large</option>
-            <option value="XXXL">XXXL - Triple Extra Large</option>
-            <option value="Free Size">Free Size</option>
-            <option value="One Size">One Size</option>
-            <option value="28">28</option>
-            <option value="30">30</option>
-            <option value="32">32</option>
-            <option value="34">34</option>
-            <option value="36">36</option>
-            <option value="38">38</option>
-            <option value="40">40</option>
-            <option value="42">42</option>
-            <option value="44">44</option>
-          </TextField>
-          <TextField
-            fullWidth
-            margin="normal"
-            label="Selling Price *"
-            type="number"
-            value={skuForm.base_price}
-            onChange={(e) => setSkuForm((prev) => ({ ...prev, base_price: e.target.value }))}
-            helperText="Actual selling price"
-            inputProps={{ min: 0, step: 0.01 }}
-          />
-          <TextField
-            fullWidth
-            margin="normal"
-            label="MRP *"
-            type="number"
-            value={skuForm.cost_price}
-            onChange={(e) => setSkuForm((prev) => ({ ...prev, cost_price: e.target.value }))}
-            helperText="Maximum Retail Price"
-            inputProps={{ min: 0, step: 0.01 }}
-          />
-          <TextField
-            fullWidth
-            margin="normal"
-            label="Weight (optional)"
-            type="number"
-            value={skuForm.weight}
-            onChange={(e) => setSkuForm((prev) => ({ ...prev, weight: e.target.value }))}
-          />
-          <TextField
-            fullWidth
-            select
-            margin="normal"
-            label="Serialized Tracking"
-            value={skuForm.is_serialized ? 'yes' : 'no'}
-            onChange={(e) => setSkuForm((prev) => ({ ...prev, is_serialized: e.target.value === 'yes' }))}
-            SelectProps={{ native: true }}
-          >
-            <option value="no">No</option>
-            <option value="yes">Yes</option>
-          </TextField>
-          <TextField
-            fullWidth
-            select
-            margin="normal"
-            label="Batch Tracking"
-            value={skuForm.is_batch_tracked ? 'yes' : 'no'}
-            onChange={(e) => setSkuForm((prev) => ({ ...prev, is_batch_tracked: e.target.value === 'yes' }))}
-            SelectProps={{ native: true }}
-          >
-            <option value="no">No</option>
-            <option value="yes">Yes</option>
-          </TextField>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenSkuDialog(false)}>Cancel</Button>
-          <Button variant="contained" onClick={() => void handleCreateSKU()}>
-            Create
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Create Variants Dialog */}
-      <Dialog open={openVariantsDialog} onClose={() => setOpenVariantsDialog(false)} maxWidth="md" fullWidth>
-        <DialogTitle>Create Variants for "{selectedProduct?.name}"</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2, mt: 1 }}>
-            Select sizes to create SKU variants. Each variant will have the same pricing.
-          </Typography>
-
-          <Typography variant="subtitle2" sx={{ mt: 3, mb: 1 }}>
-            Select Sizes:
-          </Typography>
-          <Grid container spacing={1}>
-            {['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'Free Size', 'One Size', '28', '30', '32', '34', '36', '38', '40', '42', '44'].map((size) => (
-              <Grid item key={size}>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={variantForm.sizes.includes(size)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setVariantForm((prev) => ({ ...prev, sizes: [...prev.sizes, size] }))
-                        } else {
-                          setVariantForm((prev) => ({ ...prev, sizes: prev.sizes.filter(s => s !== size) }))
-                        }
-                      }}
-                    />
-                  }
-                  label={size}
-                />
-              </Grid>
-            ))}
-          </Grid>
-
-          {variantForm.sizes.length > 0 && (
-            <Box sx={{ mt: 2 }}>
-              <Typography variant="body2" color="text.secondary">
-                Selected: {variantForm.sizes.map(s => <Chip key={s} label={s} size="small" sx={{ mr: 0.5 }} />)}
-              </Typography>
-            </Box>
-          )}
-
-          <Typography variant="subtitle2" sx={{ mt: 3, mb: 1 }}>
-            Pricing (applies to all variants):
-          </Typography>
           <Grid container spacing={2}>
             <Grid item xs={6}>
               <TextField
                 fullWidth
-                label="Selling Price *"
-                type="number"
+                label="Selling Price"
                 value={variantForm.selling_price}
                 onChange={(e) => setVariantForm((prev) => ({ ...prev, selling_price: e.target.value }))}
-                inputProps={{ min: 0, step: 0.01 }}
+                type="number"
               />
             </Grid>
             <Grid item xs={6}>
               <TextField
                 fullWidth
-                label="MRP *"
-                type="number"
+                label="MRP"
                 value={variantForm.mrp}
                 onChange={(e) => setVariantForm((prev) => ({ ...prev, mrp: e.target.value }))}
-                inputProps={{ min: 0, step: 0.01 }}
+                type="number"
               />
             </Grid>
           </Grid>
-
-          {variantForm.sizes.length > 0 && selectedProduct && (
-            <Box sx={{ mt: 3, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
-              <Typography variant="subtitle2" gutterBottom>
-                Preview ({variantForm.sizes.length} SKUs will be created):
-              </Typography>
-              {variantForm.sizes.slice(0, 5).map((size) => {
-                const sizeCode = size.toLowerCase().replace(/\s+/g, '')
-                return (
-                  <Typography key={size} variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
-                    • {selectedProduct.code}-{sizeCode} → {selectedProduct.name} - {size}
-                  </Typography>
-                )
-              })}
-              {variantForm.sizes.length > 5 && (
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                  ... and {variantForm.sizes.length - 5} more
-                </Typography>
-              )}
-            </Box>
-          )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => {
-            setOpenVariantsDialog(false)
-            setVariantForm({ sizes: [], selling_price: '', mrp: '' })
-            setSelectedProduct(null)
-          }}>
-            Cancel
-          </Button>
-          <Button
-            variant="contained"
-            onClick={() => void handleCreateVariants()}
-            disabled={variantForm.sizes.length === 0}
-          >
-            Create {variantForm.sizes.length} SKU{variantForm.sizes.length !== 1 ? 's' : ''}
+          <Button onClick={() => setOpenVariantsDialog(false)}>Cancel</Button>
+          <Button variant="contained" onClick={() => void handleCreateVariants()}>
+            Create Variants
           </Button>
         </DialogActions>
       </Dialog>
 
-      <Dialog open={openCompanyDialog} onClose={() => setOpenCompanyDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Create Company</DialogTitle>
-        <DialogContent>
-          <TextField
-            fullWidth
-            margin="normal"
-            label="Company Code"
-            value={companyForm.code}
-            onChange={(e) => setCompanyForm((prev) => ({ ...prev, code: e.target.value }))}
-          />
-          <TextField
-            fullWidth
-            margin="normal"
-            label="Company Name"
-            value={companyForm.name}
-            onChange={(e) => setCompanyForm((prev) => ({ ...prev, name: e.target.value }))}
-          />
-          <TextField
-            fullWidth
-            margin="normal"
-            label="Legal Name (optional)"
-            value={companyForm.legal_name}
-            onChange={(e) => setCompanyForm((prev) => ({ ...prev, legal_name: e.target.value }))}
-          />
-          <TextField
-            fullWidth
-            margin="normal"
-            label="Tax ID (optional)"
-            value={companyForm.tax_id}
-            onChange={(e) => setCompanyForm((prev) => ({ ...prev, tax_id: e.target.value }))}
-          />
-          <TextField
-            fullWidth
-            margin="normal"
-            label="Currency"
-            value={companyForm.currency}
-            onChange={(e) => setCompanyForm((prev) => ({ ...prev, currency: e.target.value.toUpperCase() }))}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenCompanyDialog(false)}>Cancel</Button>
-          <Button variant="contained" onClick={() => void handleCreateCompany()}>
-            Create
-          </Button>
-        </DialogActions>
-      </Dialog>
-      <Dialog open={openLocationDialog} onClose={() => setOpenLocationDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Create Location</DialogTitle>
-        <DialogContent>
-          <TextField
-            fullWidth
-            margin="normal"
-            label="Location Code"
-            value={locationForm.code}
-            onChange={(e) => setLocationForm((prev) => ({ ...prev, code: e.target.value }))}
-          />
-          <TextField
-            fullWidth
-            margin="normal"
-            label="Location Name"
-            value={locationForm.name}
-            onChange={(e) => setLocationForm((prev) => ({ ...prev, name: e.target.value }))}
-          />
-          <TextField
-            fullWidth
-            select
-            margin="normal"
-            label="Location Type"
-            value={locationForm.location_type}
-            onChange={(e) => setLocationForm((prev) => ({ ...prev, location_type: e.target.value as Location['location_type'] }))}
-            SelectProps={{ native: true }}
-          >
-            <option value="warehouse">Warehouse</option>
-            <option value="store">Store</option>
-            <option value="office">Office</option>
-            <option value="virtual">Virtual</option>
-          </TextField>
-          <TextField
-            fullWidth
-            select
-            margin="normal"
-            label="Business Unit"
-            value={locationForm.business_unit}
-            onChange={(e) => setLocationForm((prev) => ({ ...prev, business_unit: e.target.value }))}
-            SelectProps={{ native: true }}
-            helperText={businessUnits.length === 0 ? 'A default business unit will be created automatically.' : ''}
-          >
-            <option value="">Auto / First available</option>
-            {businessUnits.map((unit) => (
-              <option key={unit.id} value={unit.id}>
-                {unit.code} - {unit.name}
-              </option>
-            ))}
-          </TextField>
-          <TextField
-            fullWidth
-            select
-            margin="normal"
-            label="Inventory Location"
-            value={locationForm.is_inventory_location ? 'yes' : 'no'}
-            onChange={(e) => setLocationForm((prev) => ({ ...prev, is_inventory_location: e.target.value === 'yes' }))}
-            SelectProps={{ native: true }}
-          >
-            <option value="yes">Yes</option>
-            <option value="no">No</option>
-          </TextField>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenLocationDialog(false)}>Cancel</Button>
-          <Button variant="contained" onClick={() => void handleCreateLocation()}>
-            Create
-          </Button>
-        </DialogActions>
-      </Dialog>
       <Snackbar
         open={snackbar.open}
         autoHideDuration={4000}
