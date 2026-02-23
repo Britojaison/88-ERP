@@ -99,7 +99,7 @@ export const mdmService = {
   // Products
   getProducts: async (params?: any) => {
     const response = await api.get('/mdm/products/', { params })
-    return response.data as PaginatedResponse<Product> | Product[]
+    return extractListData<Product>(response.data)
   },
 
   getProduct: async (id: string) => {
@@ -134,7 +134,7 @@ export const mdmService = {
   // SKUs
   getSKUs: async (params?: any) => {
     const response = await api.get('/mdm/skus/', { params })
-    return response.data as PaginatedResponse<SKU> | SKU[]
+    return extractListData<SKU>(response.data)
   },
 
   getSKU: async (id: string) => {
