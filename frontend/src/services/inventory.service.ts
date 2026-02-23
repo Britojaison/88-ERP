@@ -161,16 +161,76 @@ export const productionKanbanService = {
     return response.data as Record<string, ProductionKanbanItem[]>
   },
 
-  moveItem: async (id: string, stage: string, notes?: string, measurementValue?: string, attachment?: File) => {
+  getLocations: async () => {
+    const response = await api.get('/inventory/production-kanban/locations/')
+    return response.data as { id: string, code: string, name: string, location_type: string }[]
+  },
+
+  moveItem: async (id: string, stage: string, notes?: string, measurementValue?: string, attachment?: File, locationId?: string) => {
     const formData = new FormData()
     formData.append('stage', stage)
     if (notes) formData.append('notes', notes)
     if (measurementValue) formData.append('measurement_value', measurementValue)
     if (attachment) formData.append('attachment', attachment)
+    if (locationId) formData.append('location_id', locationId)
 
     const response = await api.post(`/inventory/production-kanban/${id}/move/`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
     return response.data
+  }
+}
+
+export interface JourneySearchResult {
+  sku: string
+  sku_code: string
+  product_name: string
+  sku_name: string
+  barcode: string
+  lifecycle_status: string
+  current_stage: string
+  current_status: string
+  current_location: string
+  checkpoints: any[]
+}
+
+export const productJourneyService = {
+  searchJourney: async (query: string) => {
+    const response = await api.get('/inventory/product-journey/search/', { params: { q: query } })
+    return response.data as JourneySearchResult
+  },
+
+  addCheckpoint: async (skuId: string, payload: { stage: string, status?: string, notes?: string, location_id?: string, attachment?: File }) => {
+    const formData = new FormData()
+    formData.append('stage', payload.stage)
+    if (payload.status) formData.append('status', payload.status)
+    if (payload.notes) formData.append('notes', payload.notes)
+    if (payload.location_id) formData.append('location_id', payload.location_id)
+    if (payload.attachment) formData.append('attachment', payload.attachment)
+
+    const response = await api.post(`/inventory/product-journey/${skuId}/add_checkpoint/`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    return response.data
+  },
+
+  getPhotos: async (skuId: string) => {
+    const response = await api.get(`/inventory/product-journey/${skuId}/photos/`)
+    return response.data as {
+      sku_code: string,
+      sku_name: string,
+      total_photos: number,
+      photos: {
+        id: string,
+        stage: string,
+        user_name: string,
+        timestamp: string,
+        notes: string,
+        location_name: string,
+        attachment_url: string,
+        measurement_value: string,
+        measurement_unit: string,
+      }[]
+    }
   }
 }

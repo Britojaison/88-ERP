@@ -27,15 +27,11 @@ import {
   Typography,
   Avatar,
   Divider,
-  ToggleButton,
-  ToggleButtonGroup,
-  ListItem,
-  ListItemText,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  IconButton,
+  CircularProgress,
 } from '@mui/material'
 import {
   Search,
@@ -49,13 +45,13 @@ import {
   Description,
   Timeline as TimelineIcon,
   FilterList,
-  CurrencyRupee,
   Edit,
   Brush,
   Factory,
 } from '@mui/icons-material'
 import PageHeader from '../components/ui/PageHeader'
 import { mdmService, type SKU } from '../services/mdm.service'
+import { productJourneyService } from '../services/inventory.service'
 
 interface ProductOption {
   sku: string
@@ -68,12 +64,15 @@ interface ProductOption {
 interface JourneyCheckpoint {
   id: string
   stage: string
-  status: 'completed' | 'in_progress' | 'pending' | 'delayed'
-  location: string
+  status: 'completed' | 'in_progress' | 'pending' | 'delayed' | string
+  location_name?: string
   timestamp?: string
-  user?: string
+  user_name?: string
   notes?: string
-  expectedTime?: string
+  expected_time?: string
+  attachment_url?: string
+  measurement_value?: string
+  measurement_unit?: string
 }
 
 export default function ProductJourney() {
@@ -96,13 +95,18 @@ export default function ProductJourney() {
     notes: '',
   })
 
+  // Gallery State
+  const [photosDialogOpen, setPhotosDialogOpen] = useState(false)
+  const [galleryPhotos, setGalleryPhotos] = useState<any[]>([])
+  const [loadingPhotos, setLoadingPhotos] = useState(false)
+
   // Load all products from API
   useEffect(() => {
     const loadProducts = async () => {
       try {
         setLoadingProducts(true)
         const skuData = await mdmService.getSKUs()
-        const skus = Array.isArray(skuData) ? skuData : skuData.results
+        const skus = Array.isArray(skuData) ? skuData : (skuData as any).results
 
         // Convert SKUs to ProductOption format
         const options: ProductOption[] = skus.map((sku: SKU) => ({
@@ -124,315 +128,81 @@ export default function ProductJourney() {
     void loadProducts()
   }, [])
 
-  // Mock data - replace with actual API call
-  const [mockJourneyData, setMockJourneyData] = useState<Record<string, any>>({
-    'MMW-NEW-DESIGN': {
-      sku: 'MMW-NEW-DESIGN',
-      productName: 'Summer Collection Proto (Pre-Production)',
-      barcode: 'UNASSIGNED',
-      currentStatus: 'in_progress',
-      currentLocation: 'Factory Unit B',
-      orderNumber: 'PRE-PROD-001',
-      checkpoints: [
-        {
-          id: '1',
-          stage: 'Fabric Sourced',
-          status: 'completed',
-          location: 'Supplier Central',
-          timestamp: '2024-02-15T09:00:00',
-          user: 'Procurement Team',
-          notes: 'Cotton blend received and verified',
-          expectedTime: '2024-02-15T09:00:00',
-        },
-        {
-          id: '2',
-          stage: 'Design Approved',
-          status: 'completed',
-          location: 'Design Studio',
-          timestamp: '2024-02-18T10:00:00',
-          user: 'Lead Designer',
-          notes: 'Material approved. Pattern sent to factory.',
-          expectedTime: '2024-02-18T10:00:00',
-        },
-        {
-          id: '3',
-          stage: 'In Production',
-          status: 'in_progress',
-          location: 'Factory Unit B',
-          timestamp: '2024-02-19T08:00:00',
-          user: 'Production Manager',
-          notes: 'Manufacturing started. Expected delivery to warehouse is tracked here.',
-          expectedTime: '2024-02-25T18:00:00',
-        },
-        {
-          id: '4',
-          stage: 'Dispatched to Warehouse',
-          status: 'pending',
-          location: 'Factory Unit B',
-          expectedTime: '2024-02-26T08:00:00',
-        },
-        {
-          id: '5',
-          stage: 'Received at Warehouse',
-          status: 'pending',
-          location: 'WH-NYC',
-          expectedTime: '2024-02-26T10:00:00',
-        },
-      ]
-    },
-    'MMW-2804-S-CL': {
-      sku: 'MMW-2804-S-CL',
-      productName: 'Shawl Style_V2 Casual Loungewear - Full Length',
-      barcode: '74178073563812',
-      currentStatus: 'in_transit',
-      currentLocation: 'En Route to SHOPIFY-WH',
-      orderNumber: 'ORD-2024-001',
-      checkpoints: [
-        {
-          id: '1',
-          stage: 'Received',
-          status: 'completed' as const,
-          location: 'WH-NYC',
-          timestamp: '2024-02-10T10:00:00',
-          user: 'John Smith',
-          notes: 'Received from vendor, quantity verified',
-          expectedTime: '2024-02-10T10:00:00',
-        },
-        {
-          id: '2',
-          stage: 'Quality Check',
-          status: 'completed' as const,
-          location: 'WH-NYC',
-          timestamp: '2024-02-10T11:30:00',
-          user: 'Sarah Johnson',
-          notes: 'Quality inspection passed',
-          expectedTime: '2024-02-10T11:00:00',
-        },
-        {
-          id: '3',
-          stage: 'Storage',
-          status: 'completed' as const,
-          location: 'WH-NYC - Bin A-15',
-          timestamp: '2024-02-10T14:00:00',
-          user: 'Mike Wilson',
-          notes: 'Stored in designated bin',
-          expectedTime: '2024-02-10T14:00:00',
-        },
-        {
-          id: '4',
-          stage: 'Picked',
-          status: 'completed' as const,
-          location: 'WH-NYC',
-          timestamp: '2024-02-11T09:00:00',
-          user: 'Emily Davis',
-          notes: 'Picked for order ORD-2024-001',
-          expectedTime: '2024-02-11T09:00:00',
-        },
-        {
-          id: '5',
-          stage: 'Packed',
-          status: 'completed' as const,
-          location: 'WH-NYC - Packing Station 3',
-          timestamp: '2024-02-11T10:30:00',
-          user: 'Robert Brown',
-          notes: 'Packed in box #BOX-456, weight: 0.5kg',
-          expectedTime: '2024-02-11T10:00:00',
-        },
-        {
-          id: '6',
-          stage: 'Dispatched',
-          status: 'completed' as const,
-          location: 'WH-NYC',
-          timestamp: '2024-02-11T14:00:00',
-          user: 'David Lee',
-          notes: 'Loaded on Truck #TRK-789, Carrier: FedEx',
-          expectedTime: '2024-02-11T14:00:00',
-        },
-        {
-          id: '7',
-          stage: 'In Transit',
-          status: 'in_progress' as const,
-          location: 'En Route',
-          timestamp: '2024-02-11T14:30:00',
-          user: 'System',
-          notes: 'Last checkpoint: Chicago Hub',
-          expectedTime: '2024-02-12T17:00:00',
-        },
-        {
-          id: '8',
-          stage: 'Delivered',
-          status: 'pending' as const,
-          location: 'STORE-SF',
-          expectedTime: '2024-02-12T17:00:00',
-        },
-      ],
-    },
-    'MMW-1347-S-MAXI': {
-      sku: 'MMW-1347-S-MAXI',
-      productName: 'Nyra Maternity Maxi',
-      barcode: '50460223539172',
-      currentStatus: 'completed',
-      currentLocation: 'SHOPIFY-WH',
-      orderNumber: 'ORD-2024-002',
-      checkpoints: [
-        {
-          id: '1',
-          stage: 'Received',
-          status: 'completed' as const,
-          location: 'WH-LA',
-          timestamp: '2024-02-08T09:00:00',
-          user: 'Alice Brown',
-          notes: 'Received from vendor',
-          expectedTime: '2024-02-08T09:00:00',
-        },
-        {
-          id: '2',
-          stage: 'Quality Check',
-          status: 'completed' as const,
-          location: 'WH-LA',
-          timestamp: '2024-02-08T10:00:00',
-          user: 'Bob White',
-          notes: 'Quality approved',
-          expectedTime: '2024-02-08T10:00:00',
-        },
-        {
-          id: '3',
-          stage: 'Storage',
-          status: 'completed' as const,
-          location: 'WH-LA - Bin B-20',
-          timestamp: '2024-02-08T11:00:00',
-          user: 'Carol Green',
-          notes: 'Stored successfully',
-          expectedTime: '2024-02-08T11:00:00',
-        },
-        {
-          id: '4',
-          stage: 'Picked',
-          status: 'completed' as const,
-          location: 'WH-LA',
-          timestamp: '2024-02-09T08:00:00',
-          user: 'Dan Black',
-          notes: 'Picked for order',
-          expectedTime: '2024-02-09T08:00:00',
-        },
-        {
-          id: '5',
-          stage: 'Packed',
-          status: 'completed' as const,
-          location: 'WH-LA',
-          timestamp: '2024-02-09T09:00:00',
-          user: 'Eve Blue',
-          notes: 'Packed in box #BOX-789',
-          expectedTime: '2024-02-09T09:00:00',
-        },
-        {
-          id: '6',
-          stage: 'Dispatched',
-          status: 'completed' as const,
-          location: 'WH-LA',
-          timestamp: '2024-02-09T10:00:00',
-          user: 'Frank Red',
-          notes: 'Dispatched via UPS',
-          expectedTime: '2024-02-09T10:00:00',
-        },
-        {
-          id: '7',
-          stage: 'In Transit',
-          status: 'completed' as const,
-          location: 'En Route',
-          timestamp: '2024-02-09T11:00:00',
-          user: 'System',
-          notes: 'In transit to store',
-          expectedTime: '2024-02-10T15:00:00',
-        },
-        {
-          id: '8',
-          stage: 'Delivered',
-          status: 'completed' as const,
-          location: 'STORE-SF',
-          timestamp: '2024-02-10T14:30:00',
-          user: 'Store Manager',
-          notes: 'Delivered and signed',
-          expectedTime: '2024-02-10T15:00:00',
-        },
-      ],
-    },
-  })
+  // No mock data needed anymore!
 
-  const handleSearch = () => {
+  const handleSearch = async () => {
     if (!searchTerm.trim()) return
     setLoading(true)
-    // Simulate API call - search by SKU, barcode, order, or product name
-    setTimeout(() => {
-      const term = searchTerm.toLowerCase()
-      let result = null
-
-      // Search through all mock data
-      for (const key in mockJourneyData) {
-        const data = mockJourneyData[key]
-        if (
-          data.sku.toLowerCase().includes(term) ||
-          data.barcode.includes(term) ||
-          data.orderNumber.toLowerCase().includes(term) ||
-          data.productName.toLowerCase().includes(term)
-        ) {
-          result = data
-          break
-        }
-      }
-
-      setSearchResults(result || mockJourneyData['MMW-NEW-DESIGN'])
+    try {
+      const result = await productJourneyService.searchJourney(searchTerm)
+      setSearchResults(result)
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'SKU not found')
+      setSearchResults(null)
+    } finally {
       setLoading(false)
-    }, 500)
+    }
   }
 
-  const handleQuickSearch = (searchValue: string) => {
+  const handleQuickSearch = async (searchValue: string) => {
     setSearchTerm(searchValue)
-    setTimeout(() => {
-      const result = mockJourneyData[searchValue] || mockJourneyData['MMW-NEW-DESIGN']
+    setLoading(true)
+    try {
+      const result = await productJourneyService.searchJourney(searchValue)
       setSearchResults(result)
-    }, 100)
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'SKU not found')
+      setSearchResults(null)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleOpenGallery = async () => {
+    if (!searchResults) return
+    setPhotosDialogOpen(true)
+    setLoadingPhotos(true)
+    try {
+      const res = await productJourneyService.getPhotos(searchResults.sku)
+      setGalleryPhotos(res.photos || [])
+    } catch (err: any) {
+      alert('Error fetching photos: ' + err.message)
+    } finally {
+      setLoadingPhotos(false)
+    }
   }
 
   const handleOpenUpdate = (checkpoint: JourneyCheckpoint) => {
     setSelectedCheckpoint(checkpoint)
     setUpdateForm({
       status: checkpoint.status,
-      expectedTime: checkpoint.expectedTime ? new Date(checkpoint.expectedTime).toISOString().slice(0, 16) : '',
+      expectedTime: checkpoint.expected_time ? new Date(checkpoint.expected_time).toISOString().slice(0, 16) : '',
       notes: checkpoint.notes || '',
     })
     setUpdateDialogOpen(true)
   }
 
-  const handleSaveUpdate = () => {
+  const handleSaveUpdate = async () => {
     if (!selectedCheckpoint || !searchResults) return
-    const updatedCheckpoints = searchResults.checkpoints.map((cp: JourneyCheckpoint) =>
-      cp.id === selectedCheckpoint.id
-        ? {
-          ...cp,
-          status: updateForm.status as any,
-          expectedTime: updateForm.expectedTime ? new Date(updateForm.expectedTime).toISOString() : undefined,
-          notes: updateForm.notes,
-          user: 'Current User' // Mocking the updated user
-        }
-        : cp
-    )
-
-    const updatedProduct = { ...searchResults, checkpoints: updatedCheckpoints }
-
-    // Auto-update parent mock state tracking
-    setMockJourneyData((prev) => ({
-      ...prev,
-      [searchResults.sku]: updatedProduct
-    }))
-    setSearchResults(updatedProduct)
-    setUpdateDialogOpen(false)
+    try {
+      await productJourneyService.addCheckpoint(searchResults.sku, {
+        stage: selectedCheckpoint.stage,
+        status: updateForm.status,
+        notes: updateForm.notes
+        // ignoring datetime/location here as the frontend model just overwrites basic fields on quick edit
+      })
+      // reload search to refresh timeline
+      await handleQuickSearch(searchResults.sku_code)
+      setUpdateDialogOpen(false)
+    } catch (e: any) {
+      alert('Error updating checkpoint: ' + e.message)
+    }
   }
 
   const filteredCheckpoints = searchResults?.checkpoints.filter((cp: JourneyCheckpoint) => {
     if (statusFilter !== 'all' && cp.status !== statusFilter) return false
     if (stageFilter !== 'all' && cp.stage !== stageFilter) return false
-    if (locationFilter !== 'all' && !cp.location.includes(locationFilter)) return false
+    if (locationFilter !== 'all' && !(cp.location_name || '').includes(locationFilter)) return false
     return true
   }) || []
 
@@ -545,6 +315,16 @@ export default function ProductJourney() {
                 >
                   {loading ? 'Searching...' : 'Search'}
                 </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<Brush />}
+                  onClick={handleOpenGallery}
+                  disabled={loading}
+                  sx={{ minWidth: 150 }}
+                  color="secondary"
+                >
+                  Photo History
+                </Button>
               </Stack>
 
               {/* Quick Search Buttons */}
@@ -611,15 +391,15 @@ export default function ProductJourney() {
                         <Typography variant="caption" color="text.secondary">
                           Product
                         </Typography>
-                        <Typography variant="body1">{searchResults.productName}</Typography>
+                        <Typography variant="body1">{searchResults.product_name}</Typography>
                       </Stack>
                     </Grid>
                     <Grid item xs={12} md={2}>
                       <Stack spacing={0.5}>
                         <Typography variant="caption" color="text.secondary">
-                          Order Number
+                          Barcode
                         </Typography>
-                        <Typography variant="body1">{searchResults.orderNumber}</Typography>
+                        <Typography variant="body1">{searchResults.barcode || 'N/A'}</Typography>
                       </Stack>
                     </Grid>
                     <Grid item xs={12} md={3}>
@@ -628,8 +408,8 @@ export default function ProductJourney() {
                           Current Status
                         </Typography>
                         <Chip
-                          label={searchResults.currentStatus.replace('_', ' ').toUpperCase()}
-                          color={getStatusColor(searchResults.currentStatus)}
+                          label={(searchResults.current_status || '').replace('_', ' ').toUpperCase()}
+                          color={getStatusColor(searchResults.current_status || 'pending')}
                           size="small"
                         />
                       </Stack>
@@ -644,7 +424,7 @@ export default function ProductJourney() {
                           Current Location:
                         </Typography>
                         <Typography variant="body1" fontWeight={500}>
-                          {searchResults.currentLocation}
+                          {searchResults.current_location || 'Unknown'}
                         </Typography>
                       </Stack>
                     </Grid>
@@ -688,7 +468,7 @@ export default function ProductJourney() {
                           {checkpoint.stage}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          {checkpoint.location}
+                          {checkpoint.location_name}
                         </Typography>
                       </StepLabel>
                     </Step>
@@ -823,15 +603,15 @@ export default function ProductJourney() {
                               color={getStatusColor(checkpoint.status)}
                             />
                           </TableCell>
-                          <TableCell>{checkpoint.location}</TableCell>
+                          <TableCell>{checkpoint.location_name}</TableCell>
                           <TableCell>
                             {checkpoint.timestamp ? new Date(checkpoint.timestamp).toLocaleString() : '-'}
                           </TableCell>
                           <TableCell>
-                            {checkpoint.user ? (
+                            {checkpoint.user_name ? (
                               <Stack direction="row" spacing={1} alignItems="center">
                                 <Person fontSize="small" color="action" />
-                                <Typography variant="body2">{checkpoint.user}</Typography>
+                                <Typography variant="body2">{checkpoint.user_name}</Typography>
                               </Stack>
                             ) : (
                               '-'
@@ -848,23 +628,37 @@ export default function ProductJourney() {
                             )}
                           </TableCell>
                           <TableCell>
-                            {checkpoint.expectedTime ? (
+                            {checkpoint.expected_time ? (
                               <Typography variant="caption" color="text.secondary">
-                                {new Date(checkpoint.expectedTime).toLocaleString()}
+                                {new Date(checkpoint.expected_time).toLocaleString()}
                               </Typography>
                             ) : (
                               '-'
                             )}
                           </TableCell>
                           <TableCell align="right">
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              startIcon={<Edit />}
-                              onClick={() => handleOpenUpdate(checkpoint)}
-                            >
-                              Update
-                            </Button>
+                            <Stack direction="row" spacing={1} justifyContent="flex-end">
+                              {checkpoint.attachment_url && (
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  color="secondary"
+                                  component="a"
+                                  href={checkpoint.attachment_url}
+                                  target="_blank"
+                                >
+                                  View File
+                                </Button>
+                              )}
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                startIcon={<Edit />}
+                                onClick={() => handleOpenUpdate(checkpoint)}
+                              >
+                                Update
+                              </Button>
+                            </Stack>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -936,6 +730,51 @@ export default function ProductJourney() {
         <DialogActions>
           <Button onClick={() => setUpdateDialogOpen(false)}>Cancel</Button>
           <Button onClick={handleSaveUpdate} variant="contained">Save Updates</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Photo Gallery Dialog */}
+      <Dialog open={photosDialogOpen} onClose={() => setPhotosDialogOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>Photo & Pattern History</DialogTitle>
+        <DialogContent dividers>
+          {loadingPhotos ? (
+            <Box display="flex" justifyContent="center" p={4}><CircularProgress /></Box>
+          ) : galleryPhotos.length === 0 ? (
+            <Alert severity="info" sx={{ m: 2 }}>No photos or patterns found for this product.</Alert>
+          ) : (
+            <Grid container spacing={2}>
+              {galleryPhotos.map((photo, i) => (
+                <Grid item xs={12} sm={6} md={4} key={i}>
+                  <Card variant="outlined">
+                    <CardContent>
+                      <img src={photo.attachment_url} alt="Upload" style={{ width: '100%', height: 180, objectFit: 'cover', borderRadius: 4 }} />
+                      <Typography variant="subtitle2" mt={1}>{photo.stage}</Typography>
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        {new Date(photo.timestamp).toLocaleString()}
+                      </Typography>
+                      {photo.measurement_value && (
+                        <Typography variant="caption" color="primary" display="block">
+                          Fabric: {photo.measurement_value} {photo.measurement_unit}
+                        </Typography>
+                      )}
+                      {photo.notes && (
+                        <Typography variant="body2" mt={1} sx={{ fontStyle: 'italic' }}>"{photo.notes}"</Typography>
+                      )}
+                      {photo.user_name && (
+                        <Typography variant="caption" color="text.secondary" mt={1} display="block">By {photo.user_name}</Typography>
+                      )}
+                      {photo.location_name && (
+                        <Typography variant="caption" color="text.secondary" display="block">At {photo.location_name}</Typography>
+                      )}
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPhotosDialogOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
     </Box>

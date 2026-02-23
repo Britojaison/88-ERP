@@ -709,7 +709,7 @@ class DesignerWorkbenchViewSet(viewsets.ViewSet):
 
 class ProductionKanbanViewSet(viewsets.ViewSet):
     """
-    Handles Kanban board data for Production: Fabric Sourced -> Dispatched -> Production -> Shoot -> Done.
+    Handles Kanban board data for Production: Fabric Sourced -> Dispatched -> Production -> Shoot -> QC -> Done.
     """
     permission_classes = [IsAuthenticated]
 
@@ -728,7 +728,7 @@ class ProductionKanbanViewSet(viewsets.ViewSet):
         ).prefetch_related(
             Prefetch(
                 'journey_checkpoints',
-                queryset=ProductJourneyCheckpoint.objects.order_by('-timestamp', '-created_at'),
+                queryset=ProductJourneyCheckpoint.objects.select_related('location').order_by('-timestamp', '-created_at'),
                 to_attr='latest_checkpoints'
             )
         )
@@ -739,36 +739,44 @@ class ProductionKanbanViewSet(viewsets.ViewSet):
             'design_approved': [],
             'in_production': [],
             'shoot': [],
-            'ready': []  # A pseudo-stage for when shoot is done before full warehouse receipt
+            'received': [],
+            'quality_check': [],
+            'ready': [],
         }
 
         for sku in skus:
             checkpoints = getattr(sku, 'latest_checkpoints', [])
             latest_stage = checkpoints[0].stage if checkpoints else 'fabric_sourced'
-            
-            # Map any old or weird states to generic ones for the board
+            latest_cp = checkpoints[0] if checkpoints else None
+
+            # Map to kanban columns
             mapped_stage = latest_stage
-            if mapped_stage not in columns:
-                if mapped_stage in ['received', 'quality_check', 'storage']:
-                    continue # Skip, it's already in the warehouse
-                mapped_stage = 'fabric_sourced' # Default fallback if no stage is matched to columns
+            if mapped_stage == 'storage':
+                mapped_stage = 'ready'
+            elif mapped_stage in ['picked', 'packed', 'dispatched', 'in_transit', 'delivered']:
+                continue  # Already beyond production
+            elif mapped_stage not in columns:
                 if latest_stage == 'design_approved':
                     mapped_stage = 'design_approved'
-            
+                else:
+                    mapped_stage = 'fabric_sourced'
+
             item_data = {
                 "id": str(sku.id),
                 "code": sku.code,
                 "name": sku.name,
                 "latest_stage": latest_stage,
-                "measurement_value": checkpoints[0].measurement_value if checkpoints else None,
-                "measurement_unit": checkpoints[0].measurement_unit if checkpoints else None,
-                "attachment_url": request.build_absolute_uri(checkpoints[0].attachment.url) if checkpoints and checkpoints[0].attachment else None,
+                "location_name": latest_cp.location.name if latest_cp and latest_cp.location else None,
+                "measurement_value": str(latest_cp.measurement_value) if latest_cp and latest_cp.measurement_value else None,
+                "measurement_unit": latest_cp.measurement_unit if latest_cp else None,
+                "notes": latest_cp.notes if latest_cp else None,
+                "user_name": latest_cp.user_name if latest_cp else None,
+                "timestamp": latest_cp.timestamp.isoformat() if latest_cp and latest_cp.timestamp else None,
+                "attachment_url": request.build_absolute_uri(latest_cp.attachment.url) if latest_cp and latest_cp.attachment else None,
             }
             if mapped_stage in columns:
                 columns[mapped_stage].append(item_data)
             else:
-                # specifically pushing to 'ready' if needed, but our stages are strictly defined.
-                # just fallback safely
                 if sku.lifecycle_status == SKU.LIFECYCLE_IN_PRODUCTION and latest_stage not in columns:
                     columns['in_production'].append(item_data)
 
@@ -776,9 +784,9 @@ class ProductionKanbanViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'])
     def move(self, request, pk=None):
-        """Move a SKU to a new Kanban stage, taking optional measurements/attachments."""
+        """Move a SKU to a new Kanban stage, taking optional measurements/attachments/location."""
         from django.utils import timezone
-        from apps.mdm.models import SKU
+        from apps.mdm.models import SKU, Location
         from .models import ProductJourneyCheckpoint
 
         try:
@@ -792,13 +800,28 @@ class ProductionKanbanViewSet(viewsets.ViewSet):
 
         notes = request.data.get('notes', f'Moved to {new_stage}')
         measurement_value = request.data.get('measurement_value')
+        measurement_unit = request.data.get('measurement_unit', 'Meters' if measurement_value else None)
         attachment = request.FILES.get('attachment')
+        location_id = request.data.get('location_id')
+
+        # Validate location if provided
+        location = None
+        if location_id:
+            try:
+                location = Location.objects.get(id=location_id)
+            except Location.DoesNotExist:
+                return Response({"error": "Location not found"}, status=400)
 
         with transaction.atomic():
-            # If moving to design_approved/in_production, ensure lifecycle is updated
+            # Update lifecycle status
             if new_stage in ['in_production', 'shoot']:
                 sku.lifecycle_status = SKU.LIFECYCLE_IN_PRODUCTION
                 sku.save(update_fields=['lifecycle_status'])
+            elif new_stage in ['received', 'quality_check', 'storage', 'ready']:
+                # Mark as active once goods are received
+                if new_stage in ['storage', 'ready']:
+                    sku.lifecycle_status = SKU.LIFECYCLE_ACTIVE
+                    sku.save(update_fields=['lifecycle_status'])
 
             # Complete previous "in_progress" checkpoints
             ProductJourneyCheckpoint.objects.filter(
@@ -819,9 +842,213 @@ class ProductionKanbanViewSet(viewsets.ViewSet):
                 timestamp=timezone.now(),
                 expected_time=timezone.now(),
                 measurement_value=measurement_value,
-                measurement_unit='Meters' if measurement_value else None,
-                attachment=attachment
+                measurement_unit=measurement_unit,
+                attachment=attachment,
+                location=location,
             )
 
         return Response({"message": f"Successfully moved to {new_stage}."})
+
+    @action(detail=False, methods=['get'])
+    def locations(self, request):
+        """Return available factory/unit locations for dispatch dropdown."""
+        from apps.mdm.models import Location
+        locs = Location.objects.filter(
+            company_id=request.user.company_id,
+            status='active',
+            is_inventory_location=True
+        ).values('id', 'code', 'name', 'location_type')
+        return Response(list(locs))
+
+
+class ProductJourneyViewSet(viewsets.ViewSet):
+    """
+    API for the Product Journey page — search SKUs and view their full checkpoint timeline.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @action(detail=False, methods=['get'])
+    def search(self, request):
+        """
+        Search for a SKU by code, name, or barcode value.
+        Returns the SKU info + full checkpoint timeline.
+        """
+        from apps.mdm.models import SKU, SKUBarcode
+        from .models import ProductJourneyCheckpoint
+        from .serializers import ProductJourneyCheckpointSerializer
+
+        query = request.query_params.get('q', '').strip()
+        if not query:
+            return Response({"error": "Search query 'q' is required."}, status=400)
+
+        company_id = request.user.company_id
+
+        # Try to find SKU by code, name, or barcode
+        sku = None
+        # 1. Exact code match
+        sku = SKU.objects.filter(company_id=company_id, code__iexact=query, status='active').first()
+        # 2. Barcode match
+        if not sku:
+            barcode = SKUBarcode.objects.filter(
+                company_id=company_id, barcode_value=query, status='active'
+            ).select_related('sku').first()
+            if barcode:
+                sku = barcode.sku
+        # 3. Name contains
+        if not sku:
+            sku = SKU.objects.filter(
+                company_id=company_id, name__icontains=query, status='active'
+            ).first()
+        # 4. Partial code match
+        if not sku:
+            sku = SKU.objects.filter(
+                company_id=company_id, code__icontains=query, status='active'
+            ).first()
+
+        if not sku:
+            return Response({"error": "No SKU found matching your search."}, status=404)
+
+        # Get all checkpoints for this SKU
+        checkpoints = ProductJourneyCheckpoint.objects.filter(
+            sku=sku
+        ).select_related('location').order_by('created_at')
+
+        serializer = ProductJourneyCheckpointSerializer(
+            checkpoints, many=True, context={'request': request}
+        )
+
+        # Determine overall status
+        current_stage = 'fabric_sourced'
+        current_status = 'pending'
+        current_location = None
+        if checkpoints.exists():
+            latest = checkpoints.order_by('-timestamp', '-created_at').first()
+            current_stage = latest.stage
+            current_status = latest.status
+            current_location = latest.location.name if latest.location else None
+
+        # Get barcode value
+        barcode_obj = SKUBarcode.objects.filter(sku=sku, status='active').first()
+
+        return Response({
+            'sku': str(sku.id),
+            'sku_code': sku.code,
+            'product_name': sku.product.name if sku.product else sku.name,
+            'sku_name': sku.name,
+            'barcode': barcode_obj.barcode_value if barcode_obj else '',
+            'lifecycle_status': sku.lifecycle_status,
+            'current_stage': current_stage,
+            'current_status': current_status,
+            'current_location': current_location or '',
+            'checkpoints': serializer.data,
+        })
+
+    @action(detail=True, methods=['get'])
+    def checkpoints(self, request, pk=None):
+        """Get all checkpoints for a specific SKU."""
+        from apps.mdm.models import SKU
+        from .models import ProductJourneyCheckpoint
+        from .serializers import ProductJourneyCheckpointSerializer
+
+        try:
+            sku = SKU.objects.get(id=pk, company_id=request.user.company_id)
+        except SKU.DoesNotExist:
+            return Response({"error": "SKU not found"}, status=404)
+
+        checkpoints = ProductJourneyCheckpoint.objects.filter(
+            sku=sku
+        ).select_related('location').order_by('created_at')
+
+        serializer = ProductJourneyCheckpointSerializer(
+            checkpoints, many=True, context={'request': request}
+        )
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def add_checkpoint(self, request, pk=None):
+        """Manually add a checkpoint to a SKU's journey."""
+        from django.utils import timezone as tz
+        from apps.mdm.models import SKU, Location
+        from .models import ProductJourneyCheckpoint
+
+        try:
+            sku = SKU.objects.get(id=pk, company_id=request.user.company_id)
+        except SKU.DoesNotExist:
+            return Response({"error": "SKU not found"}, status=404)
+
+        stage = request.data.get('stage')
+        checkpoint_status = request.data.get('status', 'in_progress')
+        notes = request.data.get('notes', '')
+        location_id = request.data.get('location_id')
+        measurement_value = request.data.get('measurement_value')
+        measurement_unit = request.data.get('measurement_unit')
+        attachment = request.FILES.get('attachment')
+
+        location = None
+        if location_id:
+            try:
+                location = Location.objects.get(id=location_id)
+            except Location.DoesNotExist:
+                return Response({"error": "Location not found"}, status=400)
+
+        if not stage:
+            return Response({"error": "stage is required"}, status=400)
+
+        checkpoint = ProductJourneyCheckpoint.objects.create(
+            company_id=request.user.company_id,
+            sku=sku,
+            stage=stage,
+            status=checkpoint_status,
+            notes=notes,
+            user_name=request.user.get_full_name() or request.user.username,
+            timestamp=tz.now(),
+            expected_time=tz.now(),
+            location=location,
+            measurement_value=measurement_value,
+            measurement_unit=measurement_unit,
+            attachment=attachment,
+        )
+
+        from .serializers import ProductJourneyCheckpointSerializer
+        serializer = ProductJourneyCheckpointSerializer(
+            checkpoint, context={'request': request}
+        )
+        return Response(serializer.data, status=201)
+
+    @action(detail=True, methods=['get'])
+    def photos(self, request, pk=None):
+        """Get all photos/attachments for a SKU's journey checkpoints."""
+        from apps.mdm.models import SKU
+        from .models import ProductJourneyCheckpoint
+
+        try:
+            sku = SKU.objects.get(id=pk, company_id=request.user.company_id)
+        except SKU.DoesNotExist:
+            return Response({"error": "SKU not found"}, status=404)
+
+        checkpoints = ProductJourneyCheckpoint.objects.filter(
+            sku=sku,
+            attachment__isnull=False,
+        ).exclude(attachment='').select_related('location').order_by('-created_at')
+
+        photos = []
+        for cp in checkpoints:
+            photos.append({
+                'id': str(cp.id),
+                'stage': cp.stage,
+                'user_name': cp.user_name,
+                'timestamp': cp.timestamp.isoformat() if cp.timestamp else None,
+                'notes': cp.notes,
+                'location_name': cp.location.name if cp.location else None,
+                'attachment_url': request.build_absolute_uri(cp.attachment.url),
+                'measurement_value': str(cp.measurement_value) if cp.measurement_value else None,
+                'measurement_unit': cp.measurement_unit,
+            })
+
+        return Response({
+            'sku_code': sku.code,
+            'sku_name': sku.name,
+            'total_photos': len(photos),
+            'photos': photos,
+        })
 

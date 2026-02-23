@@ -175,7 +175,30 @@ class DamagedItemSerializer(serializers.ModelSerializer):
 from .models import ProductJourneyCheckpoint
 
 class ProductJourneyCheckpointSerializer(serializers.ModelSerializer):
+    sku_code = serializers.CharField(source='sku.code', read_only=True)
+    sku_name = serializers.CharField(source='sku.name', read_only=True)
+    location_name = serializers.SerializerMethodField()
+    attachment_url = serializers.SerializerMethodField()
+
     class Meta:
         model = ProductJourneyCheckpoint
-        fields = '__all__'
+        fields = [
+            'id', 'sku', 'sku_code', 'sku_name', 'document',
+            'stage', 'status', 'location', 'location_name',
+            'timestamp', 'expected_time', 'notes', 'user_name',
+            'attachment', 'attachment_url',
+            'measurement_value', 'measurement_unit',
+            'created_at',
+        ]
+        read_only_fields = ['id', 'created_at']
 
+    def get_location_name(self, obj):
+        return obj.location.name if obj.location else None
+
+    def get_attachment_url(self, obj):
+        if obj.attachment:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.attachment.url)
+            return obj.attachment.url
+        return None
