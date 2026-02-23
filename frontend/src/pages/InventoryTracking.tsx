@@ -233,7 +233,7 @@ export default function InventoryTracking() {
                       <Typography variant="caption" color="text.secondary">
                         Total Value
                       </Typography>
-                      <Typography variant="h4">${stats.totalValue.toFixed(0)}</Typography>
+                      <Typography variant="h4">₹{stats.totalValue.toFixed(0)}</Typography>
                     </Box>
                     <Inventory2 color="success" sx={{ fontSize: 40 }} />
                   </Stack>
@@ -349,8 +349,8 @@ export default function InventoryTracking() {
                           <TableCell>{movement.from_location_code || movement.from_location || '-'}</TableCell>
                           <TableCell>{movement.to_location_code || movement.to_location || '-'}</TableCell>
                           <TableCell align="right">{movement.quantity}</TableCell>
-                          <TableCell align="right">${movement.unit_cost}</TableCell>
-                          <TableCell align="right">${movement.total_cost}</TableCell>
+                          <TableCell align="right">₹{movement.unit_cost}</TableCell>
+                          <TableCell align="right">₹{movement.total_cost}</TableCell>
                           <TableCell>{movement.reference_number || '-'}</TableCell>
                         </TableRow>
                       ))}

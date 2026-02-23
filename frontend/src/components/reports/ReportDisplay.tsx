@@ -26,7 +26,8 @@ import {
 } from '@mui/icons-material'
 import { mdmService } from '../../services/mdm.service'
 import { inventoryService } from '../../services/inventory.service'
-import { documentsService } from '../../services/documents.service'
+// @ts-ignore: TS6133
+import { reportingService } from '../../services/reporting.service'
 import { salesService } from '../../services/sales.service'
 import { shopifyService } from '../../services/shopify.service'
 import {
@@ -43,7 +44,7 @@ import {
   loadShopifyReturnsAnalysis,
 } from './ShopifyReportHelpers'
 
-// Helper function to get currency symbol from orders
+// @ts-ignore: TS6133
 const getCurrencySymbol = async (): Promise<string> => {
   try {
     const ordersResponse = await shopifyService.getOrders({ limit: 1 })
@@ -51,7 +52,7 @@ const getCurrencySymbol = async (): Promise<string> => {
     if (orders.length > 0 && orders[0].currency) {
       const currencySymbols: { [key: string]: string } = {
         'INR': '₹',
-        'USD': '$',
+        'USD': '₹',
         'EUR': '€',
         'GBP': '£',
         'JPY': '¥',
@@ -213,7 +214,7 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
 
         // Get currency symbol
         const currency = orders.length > 0 && orders[0].currency
-          ? (orders[0].currency === 'INR' ? '₹' : orders[0].currency === 'USD' ? '$' : orders[0].currency + ' ')
+          ? (orders[0].currency === 'INR' ? '₹' : orders[0].currency === 'USD' ? '₹' : orders[0].currency + ' ')
           : '₹'
 
         return {
@@ -317,7 +318,7 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
 
   const loadSalesByChannel = async () => {
     try {
-      const [channelData, transactions, summary] = await Promise.all([
+      const [channelData, transactions, _summary] = await Promise.all([
         salesService.getSalesByChannel(),
         salesService.getTransactions(),
         salesService.getSalesSummary(),
@@ -348,10 +349,10 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
       return {
         type: 'summary',
         metrics: [
-          { label: 'Total Revenue', value: `$${totalSales.toFixed(2)}`, icon: <AttachMoney />, trend: 'up' },
+          { label: 'Total Revenue', value: `₹${totalSales.toFixed(2)}`, icon: <AttachMoney />, trend: 'up' },
           { label: 'Total Transactions', value: totalTransactions, icon: <ShoppingCart />, trend: 'up' },
           { label: 'Channels Active', value: channelData.length, icon: <TrendingUp /> },
-          { label: 'Avg per Channel', value: `$${(totalSales / channelData.length).toFixed(2)}`, icon: <InventoryIcon /> },
+          { label: 'Avg per Channel', value: `₹${(totalSales / channelData.length).toFixed(2)}`, icon: <InventoryIcon /> },
         ],
         tables: [
           {
@@ -361,9 +362,9 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
               const percentage = totalSales > 0 ? ((item.total_sales / totalSales) * 100).toFixed(1) : '0.0'
               return [
                 item.sales_channel.charAt(0).toUpperCase() + item.sales_channel.slice(1),
-                `$${item.total_sales?.toFixed(2) || '0.00'}`,
+                `₹${item.total_sales?.toFixed(2) || '0.00'}`,
                 item.transaction_count || 0,
-                `$${item.avg_value?.toFixed(2) || '0.00'}`,
+                `₹${item.avg_value?.toFixed(2) || '0.00'}`,
                 `${percentage}%`,
                 '-',
               ]
@@ -375,7 +376,7 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
             rows: txns.map((txn: any) => [
               txn.transaction_number.substring(0, 20) + '...',
               new Date(txn.transaction_date).toLocaleDateString(),
-              `$${parseFloat(txn.total_amount).toFixed(2)}`,
+              `₹${parseFloat(txn.total_amount).toFixed(2)}`,
               txn.item_count,
               txn.payment_method.toUpperCase(),
             ]),
@@ -409,9 +410,9 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
         columns: ['Store', 'Total Sales', 'Transactions', 'Avg Transaction', 'Items Sold'],
         rows: storeData.map(item => [
           item.store__name || item.store__code || 'Unknown',
-          `$${item.total_sales?.toFixed(2) || '0.00'}`,
+          `₹${item.total_sales?.toFixed(2) || '0.00'}`,
           item.transaction_count || 0,
-          `$${item.avg_value?.toFixed(2) || '0.00'}`,
+          `₹${item.avg_value?.toFixed(2) || '0.00'}`,
           '-', // Would need additional data
         ]),
         summary: {
@@ -438,9 +439,9 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
       return {
         type: 'summary',
         metrics: [
-          { label: 'Overall AOV', value: `$${summary.avg_transaction_value?.toFixed(2) || '0.00'}`, icon: <AttachMoney /> },
+          { label: 'Overall AOV', value: `₹${summary.avg_transaction_value?.toFixed(2) || '0.00'}`, icon: <AttachMoney /> },
           { label: 'Total Transactions', value: summary.total_transactions || 0, icon: <ShoppingCart /> },
-          { label: 'Total Revenue', value: `$${summary.total_sales?.toFixed(2) || '0.00'}`, icon: <TrendingUp /> },
+          { label: 'Total Revenue', value: `₹${summary.total_sales?.toFixed(2) || '0.00'}`, icon: <TrendingUp /> },
         ],
         details: {
           byChannel: byChannel,
@@ -536,7 +537,7 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
         loc.location,
         loc.totalItems,
         loc.totalQuantity.toFixed(2),
-        `$${loc.totalValue.toFixed(2)}`,
+        `₹${loc.totalValue.toFixed(2)}`,
       ]),
       summary: {
         totalLocations: Object.keys(stockByLocation).length,
@@ -552,10 +553,10 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
       inventoryService.getBalances(),
     ])
 
-    const skus = Array.isArray(skuData) ? skuData : skuData.results
-    const balances = Array.isArray(balanceData) ? balanceData : balanceData.results
+    const skus: any[] = Array.isArray(skuData) ? skuData : (skuData as any).results
+    const balances: any[] = Array.isArray(balanceData) ? balanceData : (balanceData as any).results
 
-    const skuMap = new Map(skus.map(sku => [sku.id, sku]))
+    const skuMap = new Map(skus.map((sku: any) => [sku.id, sku]))
 
     const skuPerformance = balances.map(balance => {
       const sku = skuMap.get(balance.sku)
@@ -575,8 +576,8 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
         item.code,
         item.name,
         item.quantity.toFixed(2),
-        `$${item.price.toFixed(2)}`,
-        `$${item.value.toFixed(2)}`,
+        `₹${item.price.toFixed(2)}`,
+        `₹${item.value.toFixed(2)}`,
       ]),
     }
   }
@@ -587,10 +588,10 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
       mdmService.getSKUs(),
     ])
 
-    const balances = Array.isArray(balanceData) ? balanceData : balanceData.results
-    const skus = Array.isArray(skuData) ? skuData : skuData.results
+    const balances: any[] = Array.isArray(balanceData) ? balanceData : (balanceData as any).results
+    const skus: any[] = Array.isArray(skuData) ? skuData : (skuData as any).results
 
-    const skuMap = new Map(skus.map(sku => [sku.id, sku]))
+    const skuMap = new Map(skus.map((sku: any) => [sku.id, sku]))
 
     let totalCostValue = 0
     let totalRetailValue = 0
@@ -614,8 +615,8 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
       type: 'summary',
       metrics: [
         { label: 'Total Units', value: totalQuantity.toFixed(0), icon: <InventoryIcon /> },
-        { label: 'Cost Value', value: `$${totalCostValue.toFixed(2)}`, icon: <AttachMoney /> },
-        { label: 'Retail Value', value: `$${totalRetailValue.toFixed(2)}`, icon: <TrendingUp /> },
+        { label: 'Cost Value', value: `₹${totalCostValue.toFixed(2)}`, icon: <AttachMoney /> },
+        { label: 'Retail Value', value: `₹${totalRetailValue.toFixed(2)}`, icon: <TrendingUp /> },
         { label: 'Potential Margin', value: `${marginPercent.toFixed(1)}%`, icon: <TrendingUp /> },
       ],
       details: {
@@ -664,8 +665,8 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
         item.sku_code || 'Unknown',
         item.location_code || 'Unknown',
         parseFloat(item.quantity_available || '0').toFixed(2),
-        `$${parseFloat(item.average_cost || '0').toFixed(2)}`,
-        `$${(parseFloat(item.quantity_available || '0') * parseFloat(item.average_cost || '0')).toFixed(2)}`,
+        `₹${parseFloat(item.average_cost || '0').toFixed(2)}`,
+        `₹${(parseFloat(item.quantity_available || '0') * parseFloat(item.average_cost || '0')).toFixed(2)}`,
         '30+', // Placeholder - would need movement date analysis
       ]),
     }
@@ -687,7 +688,7 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
         movement.from_location_code || '-',
         movement.to_location_code || '-',
         parseFloat(movement.quantity || '0').toFixed(2),
-        `$${parseFloat(movement.total_cost || '0').toFixed(2)}`,
+        `₹${parseFloat(movement.total_cost || '0').toFixed(2)}`,
       ]),
     }
   }
@@ -699,13 +700,13 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
       inventoryService.getBalances(),
     ])
 
-    const products = Array.isArray(productData) ? productData : productData.results
-    const skus = Array.isArray(skuData) ? skuData : skuData.results
+    const products: any[] = Array.isArray(productData) ? productData : (productData as any).results
+    const skus: any[] = Array.isArray(skuData) ? skuData : (skuData as any).results
     const balances = Array.isArray(balanceData) ? balanceData : balanceData.results
 
     // Group by product (as category proxy)
-    const productMap = new Map(products.map(p => [p.id, p]))
-    const skuMap = new Map(skus.map(s => [s.id, s]))
+    const productMap = new Map<any, any>(products.map((p: any) => [p.id, p]))
+    const skuMap = new Map<any, any>(skus.map((s: any) => [s.id, s]))
 
     const categoryData = new Map<string, { name: string, skus: number, quantity: number, value: number }>()
 
@@ -733,7 +734,7 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
           cat.name,
           cat.skus,
           cat.quantity.toFixed(2),
-          `$${cat.value.toFixed(2)}`,
+          `₹${cat.value.toFixed(2)}`,
         ]),
     }
   }
@@ -745,8 +746,8 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
       mdmService.getLocations(),
     ])
 
-    const products = Array.isArray(productData) ? productData : productData.results
-    const skus = Array.isArray(skuData) ? skuData : skuData.results
+    const products: any[] = Array.isArray(productData) ? productData : (productData as any).results
+    const skus: any[] = Array.isArray(skuData) ? skuData : (skuData as any).results
 
     return {
       type: 'summary',

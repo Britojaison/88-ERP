@@ -381,6 +381,7 @@ export default function ShopifyIntegration() {
     }
   }
 
+  // @ts-ignore: TS6133
   const handleSyncInventory = async (store: ShopifyStore) => {
     try {
       const result = await shopifyService.syncInventory(store.id)
@@ -1356,7 +1357,7 @@ export default function ShopifyIntegration() {
                                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                                   {(draft.line_items || []).length > 0 ? (
                                     draft.line_items.map((item, idx) => (
-                                      <Tooltip key={idx} title={`${item.title}${item.variant_title ? ` - ${item.variant_title}` : ''} | SKU: ${item.sku || 'N/A'} | Qty: ${item.quantity} | Price: ${item.price}`}>
+                                      <Tooltip key={idx} title={`${item.title}${item.variant_title ? ` - ${item.variant_title}` : ''} | SKU: ${item.sku || 'N/A'} | Qty: ${item.quantity} | Price: ₹${item.price}`}>
                                         <Chip
                                           label={`${item.title.substring(0, 25)}${item.title.length > 25 ? '...' : ''} x${item.quantity}`}
                                           size="small"

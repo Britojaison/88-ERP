@@ -1,0 +1,36 @@
+src/components/reports/ReportDisplay.tsx(29,1): error TS6133: 'documentsService' is declared but its value is never read.
+src/components/reports/ReportDisplay.tsx(47,7): error TS6133: 'getCurrencySymbol' is declared but its value is never read.
+src/components/reports/ReportDisplay.tsx(320,41): error TS6133: 'summary' is declared but its value is never read.
+src/components/reports/ReportDisplay.tsx(555,61): error TS2339: Property 'results' does not exist on type 'never'.
+src/components/reports/ReportDisplay.tsx(558,37): error TS7006: Parameter 'sku' implicitly has an 'any' type.
+src/components/reports/ReportDisplay.tsx(563,20): error TS2339: Property 'code' does not exist on type '{}'.
+src/components/reports/ReportDisplay.tsx(564,20): error TS2339: Property 'name' does not exist on type '{}'.
+src/components/reports/ReportDisplay.tsx(567,32): error TS2339: Property 'base_price' does not exist on type '{}'.
+src/components/reports/ReportDisplay.tsx(591,61): error TS2339: Property 'results' does not exist on type 'never'.
+src/components/reports/ReportDisplay.tsx(593,37): error TS7006: Parameter 'sku' implicitly has an 'any' type.
+src/components/reports/ReportDisplay.tsx(603,38): error TS2339: Property 'base_price' does not exist on type '{}'.
+src/components/reports/ReportDisplay.tsx(626,42): error TS2339: Property 'base_price' does not exist on type '{}'.
+src/components/reports/ReportDisplay.tsx(629,23): error TS2339: Property 'code' does not exist on type '{}'.
+src/components/reports/ReportDisplay.tsx(702,77): error TS2339: Property 'results' does not exist on type 'never'.
+src/components/reports/ReportDisplay.tsx(703,61): error TS2339: Property 'results' does not exist on type 'never'.
+src/components/reports/ReportDisplay.tsx(707,45): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/components/reports/ReportDisplay.tsx(708,37): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/components/reports/ReportDisplay.tsx(714,48): error TS2339: Property 'product' does not exist on type '{}'.
+src/components/reports/ReportDisplay.tsx(715,37): error TS2339: Property 'name' does not exist on type '{}'.
+src/components/reports/ReportDisplay.tsx(748,77): error TS2339: Property 'results' does not exist on type 'never'.
+src/components/reports/ReportDisplay.tsx(749,61): error TS2339: Property 'results' does not exist on type 'never'.
+src/components/reports/ShopifyReportHelpers.tsx(163,24): error TS2339: Property 'status_breakdown' does not exist on type 'ShopifySalesSummary'.
+src/components/reports/ShopifyReportHelpers.tsx(167,34): error TS2339: Property 'status_breakdown' does not exist on type 'ShopifySalesSummary'.
+src/components/reports/ShopifyReportHelpers.tsx(168,39): error TS2339: Property 'fulfillment_breakdown' does not exist on type 'ShopifySalesSummary'.
+src/components/reports/ShopifyReportHelpers.tsx(170,11): error TS6133: 'currency' is declared but its value is never read.
+src/pages/InventoryBarcodes.tsx(65,60): error TS2339: Property 'results' does not exist on type 'never'.
+src/pages/MasterData.tsx(11,3): error TS6133: 'Checkbox' is declared but its value is never read.
+src/pages/MasterData.tsx(17,3): error TS6133: 'FormControlLabel' is declared but its value is never read.
+src/pages/MasterData.tsx(52,10): error TS6133: 'businessUnits' is declared but its value is never read.
+src/pages/MasterData.tsx(55,10): error TS6133: 'openSkuDialog' is declared but its value is never read.
+src/pages/MasterData.tsx(56,10): error TS6133: 'openCompanyDialog' is declared but its value is never read.
+src/pages/MasterData.tsx(57,10): error TS6133: 'openLocationDialog' is declared but its value is never read.
+src/pages/MasterData.tsx(70,10): error TS6133: 'skuForm' is declared but its value is never read.
+src/pages/MasterData.tsx(80,10): error TS6133: 'companyForm' is declared but its value is never read.
+src/pages/MasterData.tsx(87,10): error TS6133: 'locationForm' is declared but its value is never read.
+src/pages/ShopifyIntegration.tsx(384,9): error TS6133: 'handleSyncInventory' is declared but its value is never read.

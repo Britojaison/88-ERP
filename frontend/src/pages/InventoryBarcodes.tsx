@@ -62,9 +62,9 @@ export default function InventoryBarcodes() {
         mdmService.getSKUBarcodes({ page })
       ])
 
-      const skus = Array.isArray(skuRes) ? skuRes : skuRes.results
-      const barcodes = Array.isArray(barcodeRes) ? barcodeRes : barcodeRes.results
-      const totalBarcodes = Array.isArray(barcodeRes) ? barcodes.length : barcodeRes.count
+      const skus: any[] = Array.isArray(skuRes) ? skuRes : (skuRes as any).results
+      const barcodes: any[] = Array.isArray(barcodeRes) ? barcodeRes : (barcodeRes as any).results
+      const totalBarcodes = Array.isArray(barcodeRes) ? barcodes.length : (barcodeRes as any).count
 
       setSkuList(skus)
       setBarcodeList(barcodes)

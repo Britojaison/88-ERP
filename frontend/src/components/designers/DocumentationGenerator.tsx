@@ -83,7 +83,7 @@ const sampleDocumentation: DocumentationSection[] = [
 - **Approve**: Pending Approval → Approved
   - Condition: amount < 10000 OR approver_is_director
   - Requires Approval: Yes
-  - Approver Role: Manager (< $10k), Director (≥ $10k)
+  - Approver Role: Manager (< ₹10k), Director (≥ ₹10k)
 `,
   },
   {
@@ -123,7 +123,7 @@ const sampleDocumentation: DocumentationSection[] = [
 ## Manager
 - View/Create/Edit Products
 - View/Create/Edit SKUs
-- Approve Documents (< $10,000)
+- Approve Documents (< ₹10,000)
 - View Reports
 - Export Data
 
@@ -229,10 +229,10 @@ export default function DocumentationGenerator() {
                       doc.type === 'attribute'
                         ? 'primary'
                         : doc.type === 'workflow'
-                        ? 'secondary'
-                        : doc.type === 'rule'
-                        ? 'error'
-                        : 'success'
+                          ? 'secondary'
+                          : doc.type === 'rule'
+                            ? 'error'
+                            : 'success'
                     }
                   />
                 </Box>

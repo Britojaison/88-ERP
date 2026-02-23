@@ -41,7 +41,7 @@ def create_demo_user():
             code="88GB",
             name="88 Global Business",
             legal_name="88 Global Business Ltd",
-            currency="USD",
+            currency="INR",
             status="active"
         )
         print(f"✓ Created company: {company.name}")

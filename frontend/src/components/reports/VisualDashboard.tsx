@@ -40,7 +40,7 @@ const BarChart = ({ data, theme }: { data: ChannelSales[], theme: any }) => {
                 <Box key={i} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 30, flex: 1 }}>
                     <Box sx={{ display: 'flex', gap: 0.5, height: 200, alignItems: 'flex-end', width: '100%', justifyContent: 'center' }}>
                         {/* Store Bar */}
-                        <Box title={`Store: $${d.store.toFixed(2)}`} sx={{
+                        <Box title={`Store: ₹${d.store.toFixed(2)}`} sx={{
                             width: '12px',
                             height: `${(d.store / maxVal) * 100}%`,
                             bgcolor: theme.palette.primary.main,
@@ -49,7 +49,7 @@ const BarChart = ({ data, theme }: { data: ChannelSales[], theme: any }) => {
                             '&:hover': { opacity: 0.8 }
                         }} />
                         {/* Online Bar */}
-                        <Box title={`Online: $${d.online.toFixed(2)}`} sx={{
+                        <Box title={`Online: ₹${d.online.toFixed(2)}`} sx={{
                             width: '12px',
                             height: `${(d.online / maxVal) * 100}%`,
                             bgcolor: theme.palette.secondary.main,
