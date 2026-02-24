@@ -13,6 +13,10 @@ import {
   DialogContent,
   DialogTitle,
   Grid,
+  MenuItem,
+  Select,
+  FormControl,
+  InputLabel,
   Snackbar,
   Table,
   TableBody,
@@ -21,10 +25,12 @@ import {
   TableHead,
   TableRow,
   TextField,
+  IconButton,
+  Tooltip,
 } from '@mui/material'
-import { Add } from '@mui/icons-material'
+import { Add, CheckCircle, Cancel } from '@mui/icons-material'
 import PageHeader from '../components/ui/PageHeader'
-import { mdmService, type BusinessUnit, type Company, type Location, type Product, type SKU } from '../services/mdm.service'
+import { mdmService, type BusinessUnit, type Company, type Location, type Product, type SKU, type Fabric } from '../services/mdm.service'
 
 interface TabPanelProps {
   children?: React.ReactNode
@@ -49,6 +55,8 @@ export default function MasterData() {
   // @ts-ignore: TS6133
   const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>([])
   const [locations, setLocations] = useState<Location[]>([])
+  const [fabrics, setFabrics] = useState<Fabric[]>([])
+  const [fabricFilter, setFabricFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all')
   const [openProductDialog, setOpenProductDialog] = useState(false)
   // @ts-ignore: TS6133
   const [openSkuDialog, setOpenSkuDialog] = useState(false)
@@ -57,6 +65,10 @@ export default function MasterData() {
   // @ts-ignore: TS6133
   const [openLocationDialog, setOpenLocationDialog] = useState(false)
   const [openVariantsDialog, setOpenVariantsDialog] = useState(false)
+  const [openFabricDialog, setOpenFabricDialog] = useState(false)
+  const [openRejectDialog, setOpenRejectDialog] = useState(false)
+  const [rejectFabricId, setRejectFabricId] = useState('')
+  const [rejectReason, setRejectReason] = useState('')
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [variantForm, setVariantForm] = useState({
     sizes: [] as string[],
@@ -68,6 +80,17 @@ export default function MasterData() {
     name: '',
     description: '',
   })
+  const [fabricForm, setFabricForm] = useState({
+    name: '',
+    color: '',
+    fabric_type: '',
+    total_meters: '',
+    cost_per_meter: '',
+    dispatch_unit: '',
+    notes: '',
+  })
+  const [fabricPhotoFile, setFabricPhotoFile] = useState<File | null>(null)
+  const [fabricPhotoPreview, setFabricPhotoPreview] = useState('')
   // @ts-ignore: TS6133
   const [skuForm, setSkuForm] = useState({
     code: '',
@@ -102,19 +125,20 @@ export default function MasterData() {
 
   const loadData = async () => {
     try {
-      const [productData, skuData, companyData, businessUnitData, locationData] = await Promise.all([
+      const [productData, skuData, companyData, businessUnitData, locationData, fabricData] = await Promise.all([
         mdmService.getProducts(),
         mdmService.getSKUs(),
         mdmService.getCompanies(),
         mdmService.getBusinessUnits(),
         mdmService.getLocations(),
+        mdmService.getFabrics(),
       ])
-      // Use functional updates to ensure latest state is reflected
       setProducts(productData)
       setSkus(skuData)
       setCompanies(companyData)
       setBusinessUnits(businessUnitData)
       setLocations(locationData)
+      setFabrics(fabricData)
     } catch (error) {
       setSnackbar({ open: true, message: 'Failed to load master data.', severity: 'error' })
     }
@@ -141,6 +165,12 @@ export default function MasterData() {
       })
       setOpenProductDialog(true)
       return
+    } else if (tabValue === 2) {
+      setFabricForm({ name: '', color: '', fabric_type: '', total_meters: '', cost_per_meter: '', dispatch_unit: '', notes: '' })
+      setFabricPhotoFile(null)
+      setFabricPhotoPreview('')
+      setOpenFabricDialog(true)
+      return
     }
     if (tabValue === 1) {
       if (products.length === 0) {
@@ -165,7 +195,7 @@ export default function MasterData() {
       setOpenSkuDialog(true)
       return
     }
-    if (tabValue === 2) {
+    if (tabValue === 3) {
       setCompanyForm({
         code: '',
         name: '',
@@ -176,7 +206,7 @@ export default function MasterData() {
       setOpenCompanyDialog(true)
       return
     }
-    if (tabValue === 3) {
+    if (tabValue === 4) {
       setLocationForm({
         code: '',
         name: '',
@@ -296,11 +326,55 @@ export default function MasterData() {
     }
   }
 
+  const handleCreateFabric = async () => {
+    if (!fabricForm.name.trim()) {
+      setSnackbar({ open: true, message: 'Fabric name is required.', severity: 'error' })
+      return
+    }
+    try {
+      await mdmService.createFabric(fabricForm, fabricPhotoFile || undefined)
+      setOpenFabricDialog(false)
+      setFabricForm({ name: '', color: '', fabric_type: '', total_meters: '', cost_per_meter: '', dispatch_unit: '', notes: '' })
+      setFabricPhotoFile(null)
+      setFabricPhotoPreview('')
+      setTimeout(() => { void loadData() }, 500)
+      setSnackbar({ open: true, message: 'Fabric created successfully with auto-generated SKU!', severity: 'success' })
+    } catch (error: any) {
+      setSnackbar({ open: true, message: error?.response?.data?.detail || 'Failed to create fabric.', severity: 'error' })
+    }
+  }
+
+  const handleApproveFabric = async (id: string) => {
+    try {
+      await mdmService.approveFabric(id)
+      setTimeout(() => { void loadData() }, 300)
+      setSnackbar({ open: true, message: 'Fabric approved!', severity: 'success' })
+    } catch {
+      setSnackbar({ open: true, message: 'Failed to approve fabric.', severity: 'error' })
+    }
+  }
+
+  const handleRejectFabric = async () => {
+    if (!rejectFabricId) return
+    try {
+      await mdmService.rejectFabric(rejectFabricId, rejectReason)
+      setOpenRejectDialog(false)
+      setRejectReason('')
+      setRejectFabricId('')
+      setTimeout(() => { void loadData() }, 300)
+      setSnackbar({ open: true, message: 'Fabric rejected.', severity: 'info' })
+    } catch {
+      setSnackbar({ open: true, message: 'Failed to reject fabric.', severity: 'error' })
+    }
+  }
+
+  const filteredFabrics = fabricFilter === 'all' ? fabrics : fabrics.filter(f => f.approval_status === fabricFilter)
+
   return (
     <Box>
       <PageHeader
         title="Master Data Management"
-        subtitle="Manage products, SKUs, and business entities."
+        subtitle="Manage products, SKUs, fabrics, and business entities."
         actions={
           tabValue !== 1 ? (
             <Button variant="contained" startIcon={<Add />} onClick={handleAddNew}>
@@ -314,6 +388,7 @@ export default function MasterData() {
         <Tabs value={tabValue} onChange={(_, newValue) => setTabValue(newValue)}>
           <Tab label="Products" />
           <Tab label="SKUs" />
+          <Tab label="Fabrics" />
           <Tab label="Companies" />
           <Tab label="Locations" />
         </Tabs>
@@ -407,7 +482,107 @@ export default function MasterData() {
           </TableContainer>
         </TabPanel>
 
+        {/* Fabrics Tab */}
         <TabPanel value={tabValue} index={2}>
+          <Box sx={{ mb: 2, display: 'flex', gap: 1 }}>
+            {(['all', 'pending', 'approved', 'rejected'] as const).map((f) => (
+              <Chip
+                key={f}
+                label={f === 'all' ? `All (${fabrics.length})` : `${f.charAt(0).toUpperCase() + f.slice(1)} (${fabrics.filter(fb => fb.approval_status === f).length})`}
+                onClick={() => setFabricFilter(f)}
+                color={fabricFilter === f ? (f === 'approved' ? 'success' : f === 'rejected' ? 'error' : f === 'pending' ? 'warning' : 'primary') : 'default'}
+                variant={fabricFilter === f ? 'filled' : 'outlined'}
+                sx={{ cursor: 'pointer' }}
+              />
+            ))}
+          </Box>
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Code / SKU</TableCell>
+                  <TableCell>Name</TableCell>
+                  <TableCell>Type</TableCell>
+                  <TableCell>Color</TableCell>
+                  <TableCell>Meters (Total / Used / Left)</TableCell>
+                  <TableCell>₹/m</TableCell>
+                  <TableCell>Unit</TableCell>
+                  <TableCell>Approval</TableCell>
+                  <TableCell>Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {filteredFabrics.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={9} align="center">
+                      <Typography variant="body2" color="text.secondary" sx={{ py: 4 }}>
+                        No fabrics found. Click "Add New" to create your first fabric.
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredFabrics.map((fabric) => (
+                    <TableRow key={fabric.id}>
+                      <TableCell>
+                        <Typography variant="body2" fontWeight={600}>{fabric.code}</Typography>
+                        {fabric.sku_code && <Typography variant="caption" color="text.secondary">SKU: {fabric.sku_code}</Typography>}
+                      </TableCell>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          {fabric.photo_url && (
+                            <Box component="img" src={fabric.photo_url} sx={{ width: 32, height: 32, borderRadius: 0.5, objectFit: 'cover' }} />
+                          )}
+                          {fabric.name}
+                        </Box>
+                      </TableCell>
+                      <TableCell>{fabric.fabric_type || '-'}</TableCell>
+                      <TableCell>{fabric.color || '-'}</TableCell>
+                      <TableCell>
+                        <Typography variant="body2">
+                          {fabric.total_meters} / {fabric.used_meters} / <strong>{fabric.remaining_meters}</strong>
+                        </Typography>
+                      </TableCell>
+                      <TableCell>₹{fabric.cost_per_meter}</TableCell>
+                      <TableCell>
+                        {fabric.dispatch_unit ? (
+                          <Chip label={`Unit ${fabric.dispatch_unit}`} size="small" color="info" variant="outlined" />
+                        ) : '-'}
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          label={fabric.approval_status}
+                          size="small"
+                          color={fabric.approval_status === 'approved' ? 'success' : fabric.approval_status === 'rejected' ? 'error' : 'warning'}
+                        />
+                        {fabric.rejection_reason && (
+                          <Typography variant="caption" display="block" color="error.main">{fabric.rejection_reason}</Typography>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {fabric.approval_status === 'pending' && (
+                          <Box sx={{ display: 'flex', gap: 0.5 }}>
+                            <Tooltip title="Approve">
+                              <IconButton size="small" color="success" onClick={() => void handleApproveFabric(fabric.id)}>
+                                <CheckCircle fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Reject">
+                              <IconButton size="small" color="error" onClick={() => { setRejectFabricId(fabric.id); setRejectReason(''); setOpenRejectDialog(true) }}>
+                                <Cancel fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </Box>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </TabPanel>
+
+        <TabPanel value={tabValue} index={3}>
           <TableContainer>
             <Table>
               <TableHead>
@@ -442,7 +617,7 @@ export default function MasterData() {
           </TableContainer>
         </TabPanel>
 
-        <TabPanel value={tabValue} index={3}>
+        <TabPanel value={tabValue} index={4}>
           <TableContainer>
             <Table>
               <TableHead>
@@ -699,6 +874,130 @@ export default function MasterData() {
           <Button variant="contained" onClick={() => void handleCreateVariants()}>
             Create Variants
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Create Fabric Dialog */}
+      <Dialog open={openFabricDialog} onClose={() => setOpenFabricDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Create Fabric</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth margin="normal" label="Fabric Name" required
+            value={fabricForm.name}
+            onChange={(e) => setFabricForm(prev => ({ ...prev, name: e.target.value }))}
+            placeholder="e.g. Royal Blue Cotton"
+          />
+          <Grid container spacing={2}>
+            <Grid item xs={6}>
+              <TextField
+                fullWidth margin="normal" label="Color"
+                value={fabricForm.color}
+                onChange={(e) => setFabricForm(prev => ({ ...prev, color: e.target.value }))}
+                placeholder="e.g. Royal Blue"
+              />
+            </Grid>
+            <Grid item xs={6}>
+              <FormControl fullWidth margin="normal">
+                <InputLabel>Fabric Type</InputLabel>
+                <Select
+                  value={fabricForm.fabric_type}
+                  label="Fabric Type"
+                  onChange={(e) => setFabricForm(prev => ({ ...prev, fabric_type: e.target.value }))}
+                >
+                  <MenuItem value="Cotton">Cotton</MenuItem>
+                  <MenuItem value="Silk">Silk</MenuItem>
+                  <MenuItem value="Polyester">Polyester</MenuItem>
+                  <MenuItem value="Linen">Linen</MenuItem>
+                  <MenuItem value="Rayon">Rayon</MenuItem>
+                  <MenuItem value="Denim">Denim</MenuItem>
+                  <MenuItem value="Wool">Wool</MenuItem>
+                  <MenuItem value="Blend">Blend</MenuItem>
+                  <MenuItem value="Other">Other</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+          </Grid>
+          <Grid container spacing={2}>
+            <Grid item xs={6}>
+              <TextField
+                fullWidth margin="normal" label="Total Meters" type="number"
+                value={fabricForm.total_meters}
+                onChange={(e) => setFabricForm(prev => ({ ...prev, total_meters: e.target.value }))}
+              />
+            </Grid>
+            <Grid item xs={6}>
+              <TextField
+                fullWidth margin="normal" label="Cost per Meter (₹)" type="number"
+                value={fabricForm.cost_per_meter}
+                onChange={(e) => setFabricForm(prev => ({ ...prev, cost_per_meter: e.target.value }))}
+              />
+            </Grid>
+          </Grid>
+          <FormControl fullWidth margin="normal">
+            <InputLabel>Dispatch Unit</InputLabel>
+            <Select
+              value={fabricForm.dispatch_unit}
+              label="Dispatch Unit"
+              onChange={(e) => setFabricForm(prev => ({ ...prev, dispatch_unit: e.target.value }))}
+            >
+              <MenuItem value="">None</MenuItem>
+              <MenuItem value="A">Unit A</MenuItem>
+              <MenuItem value="B">Unit B</MenuItem>
+              <MenuItem value="C">Unit C</MenuItem>
+            </Select>
+          </FormControl>
+          <Box sx={{ mt: 2, mb: 1 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>Fabric Photo</Typography>
+            <Button variant="outlined" component="label" size="small">
+              {fabricPhotoFile ? 'Change Photo' : 'Upload Photo'}
+              <input
+                type="file"
+                hidden
+                accept="image/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) {
+                    setFabricPhotoFile(file)
+                    setFabricPhotoPreview(URL.createObjectURL(file))
+                  }
+                }}
+              />
+            </Button>
+            {fabricPhotoPreview && (
+              <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box component="img" src={fabricPhotoPreview} sx={{ width: 80, height: 80, borderRadius: 1, objectFit: 'cover' }} />
+                <Typography variant="caption" color="text.secondary">{fabricPhotoFile?.name}</Typography>
+              </Box>
+            )}
+          </Box>
+          <TextField
+            fullWidth margin="normal" label="Notes (optional)" multiline rows={2}
+            value={fabricForm.notes}
+            onChange={(e) => setFabricForm(prev => ({ ...prev, notes: e.target.value }))}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenFabricDialog(false)}>Cancel</Button>
+          <Button variant="contained" onClick={() => void handleCreateFabric()}>Create Fabric</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Reject Fabric Dialog */}
+      <Dialog open={openRejectDialog} onClose={() => setOpenRejectDialog(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Reject Fabric</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Please provide a reason for rejecting this fabric:
+          </Typography>
+          <TextField
+            fullWidth multiline rows={3} label="Rejection Reason"
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenRejectDialog(false)}>Cancel</Button>
+          <Button variant="contained" color="error" onClick={() => void handleRejectFabric()}>Reject</Button>
         </DialogActions>
       </Dialog>
 

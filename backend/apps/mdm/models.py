@@ -472,3 +472,103 @@ class ChartOfAccounts(TenantAwareModel):
     
     def __str__(self):
         return f"{self.code} - {self.name}"
+
+
+class Fabric(TenantAwareModel):
+    """
+    Fabric master data.
+    Tracks fabric rolls with meters, photo, designer approval, and dispatch to units.
+    Each fabric auto-generates its own SKU on creation.
+    """
+
+    APPROVAL_PENDING = 'pending'
+    APPROVAL_APPROVED = 'approved'
+    APPROVAL_REJECTED = 'rejected'
+    APPROVAL_CHOICES = [
+        (APPROVAL_PENDING, 'Pending'),
+        (APPROVAL_APPROVED, 'Approved'),
+        (APPROVAL_REJECTED, 'Rejected'),
+    ]
+
+    code = models.CharField(max_length=100, unique=True, db_index=True,
+                            help_text='Auto-generated fabric SKU code')
+    name = models.CharField(max_length=255, help_text='Fabric name/description')
+    color = models.CharField(max_length=100, blank=True, help_text='Fabric color')
+    fabric_type = models.CharField(max_length=100, blank=True,
+                                   help_text='Type of fabric (e.g. Cotton, Silk, Polyester)')
+
+    # Meter tracking
+    total_meters = models.DecimalField(max_digits=10, decimal_places=2, default=0,
+                                       help_text='Total meters of fabric received')
+    used_meters = models.DecimalField(max_digits=10, decimal_places=2, default=0,
+                                      help_text='Meters already used/dispatched')
+    cost_per_meter = models.DecimalField(max_digits=10, decimal_places=2, default=0,
+                                         help_text='Cost per meter in INR')
+
+    # Photo upload
+    photo = models.ImageField(upload_to='fabrics/photos/', blank=True, null=True,
+                              help_text='Photo of the fabric')
+
+    # Designer approval
+    approval_status = models.CharField(
+        max_length=20,
+        choices=APPROVAL_CHOICES,
+        default=APPROVAL_PENDING,
+        db_index=True,
+    )
+    approved_by = models.ForeignKey(
+        'mdm.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='approved_fabrics',
+        help_text='Designer who approved/rejected'
+    )
+    approval_date = models.DateTimeField(null=True, blank=True)
+    rejection_reason = models.TextField(blank=True, help_text='Reason for rejection')
+
+    # Dispatch tracking
+    dispatch_unit = models.CharField(
+        max_length=10,
+        blank=True,
+        help_text='Dispatch unit (A, B, C, etc.)'
+    )
+
+    # Vendor/source
+    vendor = models.ForeignKey(
+        'mdm.Vendor',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='fabrics',
+    )
+
+    notes = models.TextField(blank=True)
+
+    # Link to auto-generated SKU
+    sku = models.ForeignKey(
+        'mdm.SKU',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='fabric_source',
+        help_text='Auto-generated SKU for this fabric'
+    )
+
+    objects = models.Manager()
+    active = ActiveManager()
+
+    class Meta:
+        db_table = 'mdm_fabric'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['company', 'approval_status']),
+            models.Index(fields=['company', 'dispatch_unit']),
+        ]
+
+    @property
+    def remaining_meters(self):
+        return self.total_meters - self.used_meters
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"

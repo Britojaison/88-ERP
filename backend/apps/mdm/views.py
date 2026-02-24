@@ -6,7 +6,7 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from .models import Company, BusinessUnit, Location, Customer, Vendor, Product, Style, SKU, SKUBarcode
+from .models import Company, BusinessUnit, Location, Customer, Vendor, Product, Style, SKU, SKUBarcode, Fabric
 from .serializers import (
     CompanySerializer,
     BusinessUnitSerializer,
@@ -17,6 +17,7 @@ from .serializers import (
     StyleSerializer,
     SKUSerializer,
     SKUBarcodeSerializer,
+    FabricSerializer,
 )
 from rest_framework.pagination import PageNumberPagination
 from .barcode_service import BarcodeService
@@ -328,3 +329,101 @@ class SKUBarcodeViewSet(TenantScopedViewSet):
         response = HttpResponse(content, content_type=content_type)
         response["Content-Disposition"] = f'attachment; filename="{filename}"'
         return response
+
+
+def _get_next_fabric_number():
+    """Get the next sequential number for fabric codes."""
+    last = Fabric.objects.order_by('-created_at').first()
+    if last and last.code:
+        match = re.search(r'FAB-(\d+)', last.code)
+        if match:
+            return int(match.group(1)) + 1
+    return 1
+
+
+class FabricViewSet(TenantScopedViewSet):
+    serializer_class = FabricSerializer
+    # Support multipart form data for photo upload
+    from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def get_serializer_context(self):
+        ctx = super().get_serializer_context()
+        ctx['request'] = self.request
+        return ctx
+
+    def get_queryset(self):
+        qs = Fabric.objects.select_related('vendor', 'approved_by', 'sku').all()
+        # Filter by approval status
+        approval = self.request.query_params.get('approval_status')
+        if approval:
+            qs = qs.filter(approval_status=approval)
+        # Filter by dispatch unit
+        unit = self.request.query_params.get('dispatch_unit')
+        if unit:
+            qs = qs.filter(dispatch_unit=unit)
+        return qs
+
+    def perform_create(self, serializer):
+        """Auto-generate fabric code and SKU on creation."""
+        company = Company.objects.first()
+        if not company:
+            raise Exception('No company found')
+
+        # Auto-generate fabric code
+        seq = _get_next_fabric_number()
+        fabric_name = serializer.validated_data.get('name', 'FABRIC')
+        fabric_type = serializer.validated_data.get('fabric_type', '')
+        type_abbr = fabric_type[:3].upper() if fabric_type else 'FAB'
+        code = f"FAB-{seq:04d}-{type_abbr}"
+
+        # Ensure a 'Raw Fabrics' Product exists to attach the SKU to
+        product, _ = Product.objects.get_or_create(
+            company=company,
+            code="RAW-FABRICS",
+            defaults={
+                "name": "Raw Fabrics",
+                "description": "Auto-generated product for all fabric SKUs"
+            }
+        )
+
+        # Create an SKU for this fabric
+        sku = SKU.objects.create(
+            company=company,
+            product=product,
+            code=code,
+            name=f"Fabric: {fabric_name}",
+            base_price=serializer.validated_data.get('cost_per_meter', 0),
+            cost_price=serializer.validated_data.get('cost_per_meter', 0),
+        )
+
+        serializer.save(
+            company=company,
+            code=code,
+            sku=sku,
+            created_by=self.request.user if self.request.user.is_authenticated else None,
+        )
+
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        """Designer approves this fabric."""
+        from django.utils import timezone
+        fabric = self.get_object()
+        fabric.approval_status = Fabric.APPROVAL_APPROVED
+        fabric.approved_by = request.user
+        fabric.approval_date = timezone.now()
+        fabric.rejection_reason = ''
+        fabric.save()
+        return Response(FabricSerializer(fabric, context={'request': request}).data)
+
+    @action(detail=True, methods=['post'])
+    def reject(self, request, pk=None):
+        """Designer rejects this fabric."""
+        from django.utils import timezone
+        fabric = self.get_object()
+        fabric.approval_status = Fabric.APPROVAL_REJECTED
+        fabric.approved_by = request.user
+        fabric.approval_date = timezone.now()
+        fabric.rejection_reason = request.data.get('reason', '')
+        fabric.save()
+        return Response(FabricSerializer(fabric, context={'request': request}).data)
