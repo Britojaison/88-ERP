@@ -211,8 +211,8 @@ export const shopifyService = {
     return response.data
   },
 
-  getProductDemand: async (storeId: string, params?: { days?: number; date_from?: string; date_to?: string }) => {
-    const response = await api.get(`/integrations/shopify/stores/${storeId}/product_demand/`, { params })
+  getProductDemand: async (storeId: string, params?: { days?: number; date_from?: string; date_to?: string }, signal?: AbortSignal) => {
+    const response = await api.get(`/integrations/shopify/stores/${storeId}/product_demand/`, { params, signal })
     return response.data
   },
 

@@ -97,7 +97,7 @@ export default function ShopifyIntegration() {
   const [discountPage, setDiscountPage] = useState(1)
   const [tabValue, setTabValue] = useState(0)
   const [demandSearch, setDemandSearch] = useState('')
-  const [demandPeriod, setDemandPeriod] = useState<string>('')  // '' = All Time, '30', '90', '365'
+  const [demandPeriod, setDemandPeriod] = useState<string>('7')  // '7', '14', '30'
   const demandPeriodRef = React.useRef(demandPeriod)
   const [searchQuery, setSearchQuery] = useState('')
   const [filterType, setFilterType] = useState('All')
@@ -107,6 +107,9 @@ export default function ShopifyIntegration() {
   const [openStoreDialog, setOpenStoreDialog] = useState(false)
   const [loading, setLoading] = useState(false)
   const [loadingStores, setLoadingStores] = useState(false)
+  const [loadingDemand, setLoadingDemand] = useState(false)
+  const demandAbortRef = React.useRef<AbortController | null>(null)
+  const demandRequestIdRef = React.useRef(0)
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: '',
@@ -229,15 +232,37 @@ export default function ShopifyIntegration() {
 
   const loadDemandData = async (storeId: string, period?: string) => {
     const p = period !== undefined ? period : demandPeriodRef.current
+
+    // Cancel any previous in-flight demand request
+    if (demandAbortRef.current) {
+      demandAbortRef.current.abort()
+    }
+    const abortController = new AbortController()
+    demandAbortRef.current = abortController
+
+    // Increment request ID to track latest request
+    const thisRequestId = ++demandRequestIdRef.current
+
+    setLoadingDemand(true)
     try {
       const res = await shopifyService.getProductDemand(
         storeId,
-        p ? { days: parseInt(p) } : undefined
+        p ? { days: parseInt(p) } : undefined,
+        abortController.signal
       )
-      setProductDemand(res)
-      setProductDemandPage(1)
-    } catch (e) {
-      console.error('Failed to load product demand:', e)
+      // Only update state if this is still the latest request
+      if (thisRequestId === demandRequestIdRef.current) {
+        setProductDemand(res)
+        setProductDemandPage(1)
+      }
+    } catch (e: any) {
+      if (e?.name !== 'CanceledError' && e?.code !== 'ERR_CANCELED') {
+        console.error('Failed to load product demand:', e)
+      }
+    } finally {
+      if (thisRequestId === demandRequestIdRef.current) {
+        setLoadingDemand(false)
+      }
     }
   }
 
@@ -1018,58 +1043,72 @@ export default function ShopifyIntegration() {
                         }
                       }}
                     >
-                      <MenuItem value="">All Time</MenuItem>
                       <MenuItem value="7">Last 7 Days</MenuItem>
                       <MenuItem value="14">Last 14 Days</MenuItem>
                       <MenuItem value="30">Last 30 Days</MenuItem>
-                      <MenuItem value="90">Last 90 Days</MenuItem>
-                      <MenuItem value="365">Last 1 Year</MenuItem>
                     </Select>
                   </FormControl>
                 </Box>
 
-                <Grid container spacing={2} sx={{ mb: 3 }}>
-                  <Grid item xs={6} md={3}>
-                    <Card variant="outlined" sx={{ textAlign: 'center', py: 1 }}>
-                      <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
-                        <Typography variant="overline" color="text.secondary">Total Orders</Typography>
-                        <Typography variant="h4" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                          {productDemand?.total_orders?.toLocaleString() || 0}
+                <Box sx={{ position: 'relative' }}>
+                  {loadingDemand && (
+                    <Box sx={{
+                      position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                      bgcolor: 'rgba(255,255,255,0.7)', zIndex: 10,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      borderRadius: 1,
+                    }}>
+                      <Box sx={{ textAlign: 'center' }}>
+                        <CircularProgress size={36} />
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                          Fetching live data from Shopify...
                         </Typography>
-                      </CardContent>
-                    </Card>
+                      </Box>
+                    </Box>
+                  )}
+                  <Grid container spacing={2} sx={{ mb: 3 }}>
+                    <Grid item xs={6} md={3}>
+                      <Card variant="outlined" sx={{ textAlign: 'center', py: 1 }}>
+                        <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
+                          <Typography variant="overline" color="text.secondary">Total Orders</Typography>
+                          <Typography variant="h4" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                            {productDemand?.total_orders?.toLocaleString() || 0}
+                          </Typography>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                    <Grid item xs={6} md={3}>
+                      <Card variant="outlined" sx={{ textAlign: 'center', py: 1 }}>
+                        <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
+                          <Typography variant="overline" color="text.secondary">Units Sold</Typography>
+                          <Typography variant="h4" sx={{ fontWeight: 700, color: 'success.main' }}>
+                            {productDemand?.total_units_sold?.toLocaleString() || 0}
+                          </Typography>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                    <Grid item xs={6} md={3}>
+                      <Card variant="outlined" sx={{ textAlign: 'center', py: 1 }}>
+                        <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
+                          <Typography variant="overline" color="text.secondary">Products Ordered</Typography>
+                          <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                            {productDemand?.total_products?.toLocaleString() || 0}
+                          </Typography>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                    <Grid item xs={6} md={3}>
+                      <Card variant="outlined" sx={{ textAlign: 'center', py: 1 }}>
+                        <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
+                          <Typography variant="overline" color="text.secondary">Total Revenue</Typography>
+                          <Typography variant="h4" sx={{ fontWeight: 700, color: 'secondary.main' }}>
+                            INR {(productDemand?.total_revenue || 0).toLocaleString('en-IN', { minimumFractionDigits: 0 })}
+                          </Typography>
+                        </CardContent>
+                      </Card>
+                    </Grid>
                   </Grid>
-                  <Grid item xs={6} md={3}>
-                    <Card variant="outlined" sx={{ textAlign: 'center', py: 1 }}>
-                      <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
-                        <Typography variant="overline" color="text.secondary">Units Sold</Typography>
-                        <Typography variant="h4" sx={{ fontWeight: 700, color: 'success.main' }}>
-                          {productDemand?.total_units_sold?.toLocaleString() || 0}
-                        </Typography>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                  <Grid item xs={6} md={3}>
-                    <Card variant="outlined" sx={{ textAlign: 'center', py: 1 }}>
-                      <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
-                        <Typography variant="overline" color="text.secondary">Products Ordered</Typography>
-                        <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                          {productDemand?.total_products?.toLocaleString() || 0}
-                        </Typography>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                  <Grid item xs={6} md={3}>
-                    <Card variant="outlined" sx={{ textAlign: 'center', py: 1 }}>
-                      <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
-                        <Typography variant="overline" color="text.secondary">Total Revenue</Typography>
-                        <Typography variant="h4" sx={{ fontWeight: 700, color: 'secondary.main' }}>
-                          INR {(productDemand?.total_revenue || 0).toLocaleString('en-IN', { minimumFractionDigits: 0 })}
-                        </Typography>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                </Grid>
+                </Box>
 
                 {/* Search */}
                 <Box sx={{ mb: 2 }}>

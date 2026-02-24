@@ -530,33 +530,106 @@ class ShopifyStoreViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'])
     def product_demand(self, request, pk=None):
         """
-        Aggregated product demand from all orders.
-        Shows what products were ordered and total quantities — for ERP inventory planning.
+        Aggregated product demand — fetches orders LIVE from Shopify API
+        with proper date filtering so numbers actually reflect the chosen period.
+        Results are cached for 5 minutes per store+period to avoid slow repeated fetches.
         """
         store = self.get_object()
-
-        # Support optional date range filtering
         from datetime import datetime, timedelta
         from django.utils import timezone as tz
-        days = request.query_params.get('days')  # e.g. 30, 90, 365
+        from django.core.cache import cache
+        import time as _time
+
+        days = request.query_params.get('days')  # e.g. 7, 14, 30
         date_from = request.query_params.get('date_from')
         date_to = request.query_params.get('date_to')
 
-        orders = ShopifyOrder.objects.filter(store=store)
-        period_label = 'All Time'
+        print(f"\n{'='*60}")
+        print(f"PRODUCT_DEMAND called: days={days}, date_from={date_from}, date_to={date_to}")
+        print(f"Full query params: {dict(request.query_params)}")
+
+        # Build cache key
+        cache_key = f"product_demand_{store.id}_{days or 'all'}_{date_from or ''}_{date_to or ''}"
+        print(f"Cache key: {cache_key}")
+        cached = cache.get(cache_key)
+        if cached:
+            print(f"CACHE HIT! Returning cached data: orders={cached.get('total_orders')}, revenue={cached.get('total_revenue')}")
+            print(f"{'='*60}\n")
+            return Response(cached)
+
+        # Build Shopify API query params
+        now = tz.now()
+        params = {
+            'status': 'any',
+            'limit': 250,
+        }
 
         if days:
-            cutoff = tz.now() - timedelta(days=int(days))
-            orders = orders.filter(processed_at__gte=cutoff)
-            period_label = f'Last {days} days'
+            cutoff = now - timedelta(days=int(days))
+            params['created_at_min'] = cutoff.isoformat()
         elif date_from:
-            orders = orders.filter(processed_at__gte=date_from)
-            period_label = f'From {date_from}'
+            params['created_at_min'] = date_from
             if date_to:
-                orders = orders.filter(processed_at__lte=date_to)
-                period_label = f'{date_from} to {date_to}'
+                params['created_at_max'] = date_to
 
-        # Aggregate line items across all orders by product title + variant + SKU
+        # Fetch orders from Shopify API with cursor-based pagination
+        # NOTE: since_id pagination does NOT work with created_at_min/max on Shopify.
+        # We must use Link-header cursor pagination (page_info) instead.
+        try:
+            import requests as http_requests
+            import re
+
+            client = ShopifyAPIClient(store)
+            all_orders = []
+            url = f"{client.base_url}/orders.json"
+            current_params = dict(params)
+
+            while True:
+                resp = http_requests.get(
+                    url, headers=client.headers, params=current_params, timeout=30
+                )
+                if resp.status_code == 429:
+                    retry_after = float(resp.headers.get('Retry-After', '2.0'))
+                    _time.sleep(retry_after)
+                    resp = http_requests.get(
+                        url, headers=client.headers, params=current_params, timeout=30
+                    )
+                resp.raise_for_status()
+                data = resp.json()
+                orders_page = data.get('orders', [])
+                all_orders.extend(orders_page)
+
+                if len(orders_page) < 250:
+                    break
+
+                # Parse Link header for next page cursor
+                link_header = resp.headers.get('Link', '')
+                next_match = re.search(r'<([^>]+)>;\s*rel="next"', link_header)
+                if not next_match:
+                    break
+
+                # The next URL contains page_info param — use it directly
+                next_url = next_match.group(1)
+                # Extract page_info from the next URL
+                from urllib.parse import urlparse, parse_qs
+                parsed = urlparse(next_url)
+                qs = parse_qs(parsed.query)
+                page_info = qs.get('page_info', [None])[0]
+                if not page_info:
+                    break
+
+                # For subsequent pages, only pass page_info and limit (Shopify requirement)
+                current_params = {'page_info': page_info, 'limit': 250}
+                _time.sleep(0.5)
+        except Exception as e:
+            logger.error(f"Failed to fetch orders from Shopify: {e}")
+            return Response(
+                {'error': f'Failed to fetch orders from Shopify: {str(e)}'},
+                status=status.HTTP_502_BAD_GATEWAY
+            )
+
+        print(f"LIVE FETCH complete: {len(all_orders)} orders fetched from Shopify for days={days}")
+        # Aggregate line items across all orders
         demand = defaultdict(lambda: {
             'title': '',
             'variant_title': '',
@@ -567,10 +640,27 @@ class ShopifyStoreViewSet(viewsets.ModelViewSet):
             'shopify_product_id': None,
         })
 
-        for order in orders:
-            if not order.shopify_data:
-                continue
-            for item in order.shopify_data.get('line_items', []):
+        total_revenue = 0.0
+        earliest_date = None
+        latest_date = None
+
+        for order in all_orders:
+            order_total = float(order.get('total_price', 0))
+            total_revenue += order_total
+
+            order_date_str = order.get('created_at', '')
+            if order_date_str:
+                try:
+                    from dateutil.parser import parse as parse_date
+                    order_dt = parse_date(order_date_str)
+                    if earliest_date is None or order_dt < earliest_date:
+                        earliest_date = order_dt
+                    if latest_date is None or order_dt > latest_date:
+                        latest_date = order_dt
+                except Exception:
+                    pass
+
+            for item in order.get('line_items', []):
                 sku = item.get('sku', '')
                 title = item.get('title', 'Unknown')
                 variant = item.get('variant_title', '')
@@ -614,25 +704,29 @@ class ShopifyStoreViewSet(viewsets.ModelViewSet):
         # Sort by total quantity sold descending
         result.sort(key=lambda x: x['total_quantity_sold'], reverse=True)
 
-        # Compute actual date range of orders used
-        from django.db.models import Min, Max
-        date_stats = orders.aggregate(Min('processed_at'), Max('processed_at'))
-        order_date_from = date_stats['processed_at__min']
-        order_date_to = date_stats['processed_at__max']
+        # Build period label from actual dates
+        if earliest_date and latest_date:
+            period_label = f"{earliest_date.strftime('%b %d, %Y')} – {latest_date.strftime('%b %d, %Y')}"
+        else:
+            period_label = "No Data"
 
-        if period_label == 'All Time' and order_date_from and order_date_to:
-            period_label = f"{order_date_from.strftime('%b %d, %Y')} \u2013 {order_date_to.strftime('%b %d, %Y')}"
-
-        return Response({
+        response_data = {
             'total_products': len(result),
             'total_units_sold': sum(r['total_quantity_sold'] for r in result),
-            'total_revenue': round(sum(r['total_revenue'] for r in result), 2),
-            'total_orders': orders.count(),
+            'total_revenue': round(total_revenue, 2),
+            'total_orders': len(all_orders),
             'period': period_label,
-            'order_date_from': order_date_from.isoformat() if order_date_from else None,
-            'order_date_to': order_date_to.isoformat() if order_date_to else None,
+            'order_date_from': earliest_date.isoformat() if earliest_date else None,
+            'order_date_to': latest_date.isoformat() if latest_date else None,
             'items': result,
-        })
+        }
+        print(f"RESPONSE: days={days}, orders={len(all_orders)}, revenue={round(total_revenue, 2)}, period={period_label}")
+        print(f"{'='*60}\n")
+
+        # Cache for 5 minutes (300 seconds)
+        cache.set(cache_key, response_data, 300)
+
+        return Response(response_data)
 
     @action(detail=True, methods=['get'])
     def shop_info(self, request, pk=None):
