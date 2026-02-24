@@ -88,6 +88,35 @@ export interface SKUBarcode {
   updated_at: string
 }
 
+export interface Fabric {
+  id: string
+  company: string
+  code: string
+  name: string
+  color: string
+  fabric_type: string
+  total_meters: string
+  used_meters: string
+  remaining_meters: number
+  cost_per_meter: string
+  photo: string | null
+  photo_url: string | null
+  approval_status: 'pending' | 'approved' | 'rejected'
+  approved_by: string | null
+  approved_by_name: string | null
+  approval_date: string | null
+  rejection_reason: string
+  dispatch_unit: string
+  vendor: string | null
+  vendor_name: string | null
+  notes: string
+  sku: string | null
+  sku_code: string | null
+  status: string
+  created_at: string
+  updated_at: string
+}
+
 export interface PaginatedResponse<T> {
   count: number
   next: string | null
@@ -206,5 +235,42 @@ export const mdmService = {
   createLocation: async (data: Partial<Location> & { code: string; name: string; location_type: Location['location_type']; business_unit: string }) => {
     const response = await api.post('/mdm/locations/', data)
     return response.data as Location
+  },
+
+  // Fabrics
+  getFabrics: async (params?: any) => {
+    const response = await api.get('/mdm/fabrics/', { params })
+    return extractListData<Fabric>(response.data)
+  },
+
+  createFabric: async (data: Partial<Fabric>, photoFile?: File) => {
+    const formData = new FormData()
+    if (data.name) formData.append('name', data.name)
+    if (data.color) formData.append('color', data.color)
+    if (data.fabric_type) formData.append('fabric_type', data.fabric_type)
+    if (data.total_meters) formData.append('total_meters', data.total_meters)
+    if (data.cost_per_meter) formData.append('cost_per_meter', data.cost_per_meter)
+    if (data.dispatch_unit) formData.append('dispatch_unit', data.dispatch_unit)
+    if (data.notes) formData.append('notes', data.notes)
+    if (photoFile) formData.append('photo', photoFile)
+    const response = await api.post('/mdm/fabrics/', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return response.data as Fabric
+  },
+
+  updateFabric: async (id: string, data: Partial<Fabric>) => {
+    const response = await api.patch(`/mdm/fabrics/${id}/`, data)
+    return response.data as Fabric
+  },
+
+  approveFabric: async (id: string) => {
+    const response = await api.post(`/mdm/fabrics/${id}/approve/`)
+    return response.data as Fabric
+  },
+
+  rejectFabric: async (id: string, reason: string) => {
+    const response = await api.post(`/mdm/fabrics/${id}/reject/`, { reason })
+    return response.data as Fabric
   },
 }

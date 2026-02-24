@@ -3,6 +3,8 @@ URL configuration for ERP platform.
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
 from rest_framework_simplejwt.views import TokenRefreshView
 from apps.mdm.serializers import CustomTokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -40,3 +42,7 @@ urlpatterns = [
     path('api/search/', include('apps.search.urls')),
     path('api/integrations/', include('apps.integrations.urls')),
 ]
+
+# Serve media files in development
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

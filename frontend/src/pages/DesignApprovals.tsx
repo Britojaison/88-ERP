@@ -160,6 +160,14 @@ export default function DesignApprovals() {
                                             </Typography>
                                         </Stack>
 
+                                        {item.fabric_photo_url && (
+                                            <Box
+                                                component="img"
+                                                src={item.fabric_photo_url}
+                                                sx={{ width: '100%', height: 140, borderRadius: 1, objectFit: 'cover', mb: 2 }}
+                                            />
+                                        )}
+
                                         <Typography variant="h6" gutterBottom noWrap title={item.name}>
                                             {item.name}
                                         </Typography>
@@ -234,10 +242,19 @@ export default function DesignApprovals() {
             >
                 <DialogTitle>Approve Design to Production</DialogTitle>
                 <DialogContent dividers>
-                    <Box mb={3}>
-                        <Typography variant="subtitle2" color="text.secondary">Approving SKU:</Typography>
-                        <Typography variant="h6">{selectedItem?.name}</Typography>
-                        <Typography variant="body2" color="text.secondary">{selectedItem?.code}</Typography>
+                    <Box mb={3} display="flex" gap={2} alignItems="flex-start">
+                        {selectedItem?.fabric_photo_url && (
+                            <Box
+                                component="img"
+                                src={selectedItem.fabric_photo_url}
+                                sx={{ width: 80, height: 80, borderRadius: 1, objectFit: 'cover' }}
+                            />
+                        )}
+                        <Box>
+                            <Typography variant="subtitle2" color="text.secondary">Approving SKU:</Typography>
+                            <Typography variant="h6">{selectedItem?.name}</Typography>
+                            <Typography variant="body2" color="text.secondary">{selectedItem?.code}</Typography>
+                        </Box>
                     </Box>
 
                     <Alert severity="success" sx={{ mb: 3 }}>

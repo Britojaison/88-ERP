@@ -10,6 +10,7 @@ from .views import (
     StyleViewSet,
     SKUViewSet,
     SKUBarcodeViewSet,
+    FabricViewSet,
 )
 
 router = DefaultRouter()
@@ -22,6 +23,7 @@ router.register(r'products', ProductViewSet, basename='product')
 router.register(r'styles', StyleViewSet, basename='style')
 router.register(r'skus', SKUViewSet, basename='sku')
 router.register(r'sku-barcodes', SKUBarcodeViewSet, basename='sku-barcode')
+router.register(r'fabrics', FabricViewSet, basename='fabric')
 
 urlpatterns = [
     path('', include(router.urls)),

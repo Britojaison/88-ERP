@@ -108,6 +108,7 @@ export interface DesignApprovalItem {
   product_name: string
   lifecycle_status: string
   created_at?: string
+  fabric_photo_url?: string
 }
 
 export interface DesignApprovalResponse {

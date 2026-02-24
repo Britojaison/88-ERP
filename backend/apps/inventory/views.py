@@ -595,22 +595,24 @@ class DesignerWorkbenchViewSet(viewsets.ViewSet):
             company_id=request.user.company_id,
             lifecycle_status=SKU.LIFECYCLE_PROTO,
             status='active'
-        ).select_related('product').order_by('-created_at')
+        ).select_related('product').prefetch_related('fabric_source').order_by('-created_at')
         
         total_count = queryset.count()
         skus = queryset[offset:offset+limit]
         
-        data = [
-            {
+        data = []
+        for sku in skus:
+            fabric = sku.fabric_source.first()
+            photo_url = request.build_absolute_uri(fabric.photo.url) if (fabric and getattr(fabric, 'photo', None)) else None
+            data.append({
                 "id": str(sku.id),
                 "code": sku.code,
                 "name": sku.name,
                 "product_name": sku.product.name if sku.product else "",
                 "lifecycle_status": sku.lifecycle_status,
                 "created_at": sku.created_at.isoformat(),
-            }
-            for sku in skus
-        ]
+                "fabric_photo_url": photo_url,
+            })
         return Response({
             "results": data,
             "count": total_count,
@@ -642,6 +644,15 @@ class DesignerWorkbenchViewSet(viewsets.ViewSet):
             # 1. Update SKU lifecycle status
             sku.lifecycle_status = SKU.LIFECYCLE_IN_PRODUCTION
             sku.save(update_fields=['lifecycle_status', 'updated_at'])
+
+            # 1.5 Update associated Fabric if exists
+            fabric_qs = getattr(sku, 'fabric_source', None)
+            if fabric_qs and fabric_qs.exists():
+                fabric = fabric_qs.first()
+                fabric.approval_status = 'approved'
+                fabric.approved_by = request.user
+                fabric.approval_date = timezone.now()
+                fabric.save(update_fields=['approval_status', 'approved_by', 'approval_date', 'updated_at'])
 
             # 2. Complete the "Design Approved" checkpoint
             ProductJourneyCheckpoint.objects.create(
@@ -692,6 +703,16 @@ class DesignerWorkbenchViewSet(viewsets.ViewSet):
             # We'll set it inactive so it's maintained but out of the working queue
             sku.status = 'inactive'
             sku.save(update_fields=['status', 'updated_at'])
+
+            # Update associated Fabric if exists
+            fabric_qs = getattr(sku, 'fabric_source', None)
+            if fabric_qs and fabric_qs.exists():
+                fabric = fabric_qs.first()
+                fabric.approval_status = 'rejected'
+                fabric.approved_by = request.user
+                fabric.approval_date = timezone.now()
+                fabric.rejection_reason = notes
+                fabric.save(update_fields=['approval_status', 'approved_by', 'approval_date', 'rejection_reason', 'updated_at'])
 
             # Log rejection checkpoint
             ProductJourneyCheckpoint.objects.create(

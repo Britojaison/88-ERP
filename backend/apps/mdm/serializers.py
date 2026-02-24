@@ -14,6 +14,7 @@ from .models import (
     Style,
     SKU,
     SKUBarcode,
+    Fabric,
 )
 
 
@@ -204,3 +205,57 @@ class SKUBarcodeSerializer(serializers.ModelSerializer):
             })
         
         return attrs
+
+
+class FabricSerializer(serializers.ModelSerializer):
+    remaining_meters = serializers.SerializerMethodField()
+    vendor_name = serializers.SerializerMethodField()
+    approved_by_name = serializers.SerializerMethodField()
+    sku_code = serializers.SerializerMethodField()
+    photo_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Fabric
+        fields = [
+            'id', 'company', 'code', 'name', 'color', 'fabric_type',
+            'total_meters', 'used_meters', 'remaining_meters', 'cost_per_meter',
+            'photo', 'photo_url',
+            'approval_status', 'approved_by', 'approved_by_name', 'approval_date',
+            'rejection_reason',
+            'dispatch_unit', 'vendor', 'vendor_name', 'notes',
+            'sku', 'sku_code',
+            'status', 'created_at', 'updated_at',
+        ]
+        extra_kwargs = {
+            'company': {'required': False},
+            'photo': {'required': False},
+            'code': {'required': False},
+            'sku': {'required': False},
+        }
+        validators = []
+
+    def get_remaining_meters(self, obj):
+        return float(obj.total_meters) - float(obj.used_meters)
+
+    def get_photo_url(self, obj):
+        if obj.photo:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.photo.url)
+            return obj.photo.url
+        return None
+
+    def get_vendor_name(self, obj):
+        if obj.vendor:
+            return obj.vendor.name
+        return None
+
+    def get_approved_by_name(self, obj):
+        if obj.approved_by:
+            return obj.approved_by.get_full_name() or obj.approved_by.username
+        return None
+
+    def get_sku_code(self, obj):
+        if obj.sku:
+            return obj.sku.code
+        return None
