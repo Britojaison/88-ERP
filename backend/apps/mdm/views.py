@@ -1,6 +1,7 @@
 """
 API Views for Master Data Management.
 """
+import re
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -19,6 +20,43 @@ from .serializers import (
 )
 from rest_framework.pagination import PageNumberPagination
 from .barcode_service import BarcodeService
+
+
+def _get_next_mmw_number():
+    """Get the next available MMW sequence number."""
+    existing = SKU.objects.filter(code__startswith='MMW-').values_list('code', flat=True)
+    max_num = 0
+    for code in existing:
+        match = re.match(r'MMW-(\d+)-', code)
+        if match:
+            num = int(match.group(1))
+            if num > max_num:
+                max_num = num
+    return max_num + 1
+
+
+def _extract_product_type(product_name):
+    """Extract short product type from product name (last meaningful word)."""
+    if not product_name:
+        return 'SKU'
+    # Clean the name and get words
+    words = re.sub(r'[^A-Za-z0-9\s]', ' ', product_name).strip().split()
+    if not words:
+        return 'SKU'
+    # Use the last word as the product type
+    return words[-1].upper()
+
+
+def generate_mmw_sku_code(product_name, size=None):
+    """Generate a SKU code in the MMW-{seq}-{SIZE}-{TYPE} format."""
+    next_num = _get_next_mmw_number()
+    product_type = _extract_product_type(product_name)
+    size_part = str(size).upper().strip() if size else ''
+    
+    if size_part:
+        return f"MMW-{next_num}-{size_part}-{product_type}"
+    else:
+        return f"MMW-{next_num}-{product_type}"
 
 
 class MDMPagination(PageNumberPagination):
@@ -41,7 +79,13 @@ class TenantScopedViewSet(viewsets.ModelViewSet):
     pagination_class = MDMPagination
 
     def perform_create(self, serializer):
-        serializer.save(company_id=self.request.user.company_id)
+        print(f"[{self.__class__.__name__}] Performing CREATE. Data: {self.request.data}")
+        try:
+            serializer.save(company_id=self.request.user.company_id)
+            print(f"[{self.__class__.__name__}] Create successful.")
+        except Exception as e:
+            print(f"[{self.__class__.__name__}] Create FAILED: {str(e)}")
+            raise e
 
 
 class BusinessUnitViewSet(TenantScopedViewSet):
@@ -50,7 +94,7 @@ class BusinessUnitViewSet(TenantScopedViewSet):
     def get_queryset(self):
         return BusinessUnit.objects.filter(
             company_id=self.request.user.company_id, status="active"
-        ).order_by("code")
+        ).order_by("-created_at")
 
 
 class LocationViewSet(TenantScopedViewSet):
@@ -65,7 +109,7 @@ class LocationViewSet(TenantScopedViewSet):
         if location_type:
             queryset = queryset.filter(location_type=location_type)
 
-        return queryset.order_by("code")
+        return queryset.order_by("-created_at")
 
 
 class CustomerViewSet(TenantScopedViewSet):
@@ -74,7 +118,7 @@ class CustomerViewSet(TenantScopedViewSet):
     def get_queryset(self):
         return Customer.objects.filter(
             company_id=self.request.user.company_id, status="active"
-        ).order_by("code")
+        ).order_by("-created_at")
 
 
 class VendorViewSet(TenantScopedViewSet):
@@ -83,7 +127,7 @@ class VendorViewSet(TenantScopedViewSet):
     def get_queryset(self):
         return Vendor.objects.filter(
             company_id=self.request.user.company_id, status="active"
-        ).order_by("code")
+        ).order_by("-created_at")
 
 
 class ProductViewSet(TenantScopedViewSet):
@@ -92,7 +136,19 @@ class ProductViewSet(TenantScopedViewSet):
     def get_queryset(self):
         return Product.objects.filter(
             company_id=self.request.user.company_id, status="active"
-        ).order_by("code")
+        ).order_by("-created_at")
+    
+    @action(detail=False, methods=["get"], url_path="next-sku-code")
+    def next_sku_code(self, request):
+        """
+        Get the next auto-generated SKU code in MMW format.
+        Query params: product_name, size (optional)
+        """
+        product_name = request.query_params.get('product_name', '')
+        size = request.query_params.get('size', '')
+        
+        code = generate_mmw_sku_code(product_name, size if size else None)
+        return Response({'sku_code': code})
     
     @action(detail=True, methods=["post"], url_path="create-variants")
     def create_variants(self, request, pk=None):
@@ -141,15 +197,8 @@ class ProductViewSet(TenantScopedViewSet):
         skipped_sizes = []
         
         for size in sizes:
-            # Generate SKU code: product-code-size
-            size_suffix = str(size).upper().replace(" ", "").replace("-", "")
-            
-            # If product code uses dashes, try to insert the size before the last part
-            parts = product.code.rsplit("-", 1)
-            if len(parts) == 2:
-                sku_code = f"{parts[0]}-{size_suffix}-{parts[1]}"
-            else:
-                sku_code = f"{product.code}-{size_suffix}"
+            # Generate SKU code in MMW format
+            sku_code = generate_mmw_sku_code(product.name, size)
             
             # Check if SKU already exists
             if SKU.objects.filter(code=sku_code).exists():
@@ -186,7 +235,7 @@ class StyleViewSet(TenantScopedViewSet):
     def get_queryset(self):
         return Style.objects.filter(
             company_id=self.request.user.company_id, status="active"
-        ).select_related("product").order_by("code")
+        ).select_related("product").order_by("-created_at")
 
 
 class SKUViewSet(TenantScopedViewSet):
@@ -201,7 +250,7 @@ class SKUViewSet(TenantScopedViewSet):
         if product_id:
             queryset = queryset.filter(product_id=product_id)
 
-        return queryset.order_by("code")
+        return queryset.order_by("-created_at")
 
 
 class SKUBarcodeViewSet(TenantScopedViewSet):

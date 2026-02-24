@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
   Alert,
-  Autocomplete,
   Box,
   Typography,
   Paper,
@@ -77,6 +76,7 @@ export default function MasterData() {
     base_price: '',
     cost_price: '',
     weight: '',
+    size: '',
     is_serialized: false,
     is_batch_tracked: false,
   })
@@ -109,6 +109,7 @@ export default function MasterData() {
         mdmService.getBusinessUnits(),
         mdmService.getLocations(),
       ])
+      // Use functional updates to ensure latest state is reflected
       setProducts(productData)
       setSkus(skuData)
       setCompanies(companyData)
@@ -126,6 +127,18 @@ export default function MasterData() {
   const handleAddNew = () => {
     if (tabValue === 0) {
       setProductForm({ code: '', name: '', description: '' })
+      setVariantForm({ sizes: [], selling_price: '', mrp: '' })
+      setSkuForm({
+        code: '',
+        name: '',
+        product: '',
+        base_price: '',
+        cost_price: '',
+        weight: '',
+        size: '',
+        is_serialized: false,
+        is_batch_tracked: false,
+      })
       setOpenProductDialog(true)
       return
     }
@@ -145,6 +158,7 @@ export default function MasterData() {
         base_price: '',
         cost_price: '',
         weight: '',
+        size: '',
         is_serialized: false,
         is_batch_tracked: false,
       })
@@ -185,14 +199,66 @@ export default function MasterData() {
       setSnackbar({ open: true, message: 'Code and name are required.', severity: 'error' })
       return
     }
+
+    const hasPricing = !!(variantForm.selling_price || variantForm.mrp);
+    if (hasPricing && (!variantForm.selling_price || !variantForm.mrp)) {
+      setSnackbar({ open: true, message: 'Both Selling price and MRP are required if pricing is provided.', severity: 'error' })
+      return
+    }
+
     try {
-      await mdmService.createProduct(productForm)
+      const product = await mdmService.createProduct(productForm)
+
+      if (variantForm.sizes.length === 0 && variantForm.selling_price && variantForm.mrp) {
+        let finalSkuCode = skuForm.code;
+        if (!finalSkuCode) {
+          const result = await mdmService.getNextSkuCode(product.name);
+          finalSkuCode = result.sku_code;
+        }
+        const payload = {
+          ...skuForm,
+          product: product.id,
+          size: undefined,
+          code: finalSkuCode,
+          name: product.name,
+          base_price: variantForm.selling_price.toString(),
+          cost_price: variantForm.mrp.toString(),
+        }
+        console.log('Sending Initial SKU Payload:', payload);
+        await mdmService.createSKU(payload)
+      } else if (variantForm.sizes.length > 0 && variantForm.selling_price && variantForm.mrp) {
+        await mdmService.createProductVariants(product.id, variantForm)
+      }
+
       setOpenProductDialog(false)
       setProductForm({ code: '', name: '', description: '' })
-      await loadData()
-      setSnackbar({ open: true, message: 'Product created.', severity: 'success' })
-    } catch (error) {
-      setSnackbar({ open: true, message: 'Failed to create product.', severity: 'error' })
+      setVariantForm({ sizes: [], selling_price: '', mrp: '' })
+      setSkuForm({
+        code: '',
+        name: '',
+        product: '',
+        base_price: '',
+        cost_price: '',
+        weight: '',
+        size: '',
+        is_serialized: false,
+        is_batch_tracked: false,
+      })
+
+      setSnackbar({ open: true, message: 'Product created successfully.', severity: 'success' })
+
+      // Small delay to ensure database transactions are committed before fetching
+      setTimeout(() => {
+        void loadData();
+      }, 500);
+
+    } catch (error: any) {
+      console.error('Create product error:', error)
+      if (error.response?.data) {
+        console.error('Error Response Data:', JSON.stringify(error.response.data, null, 2));
+      }
+      const errorMsg = error?.response?.data?.error || error?.response?.data?.detail || JSON.stringify(error?.response?.data) || 'Unknown error'
+      setSnackbar({ open: true, message: `Failed to create product/SKU: ${errorMsg}`, severity: 'error' })
     }
   }
 
@@ -214,7 +280,12 @@ export default function MasterData() {
       setOpenVariantsDialog(false)
       setVariantForm({ sizes: [], selling_price: '', mrp: '' })
       setSelectedProduct(null)
-      await loadData()
+
+      // Small delay to ensure database transactions are committed before fetching
+      setTimeout(() => {
+        void loadData();
+      }, 500);
+
       setSnackbar({
         open: true,
         message: `Created ${result.created} SKUs. ${result.skipped > 0 ? `Skipped ${result.skipped} existing sizes.` : ''}`,
@@ -231,9 +302,11 @@ export default function MasterData() {
         title="Master Data Management"
         subtitle="Manage products, SKUs, and business entities."
         actions={
-          <Button variant="contained" startIcon={<Add />} onClick={handleAddNew}>
-            Add New
-          </Button>
+          tabValue !== 1 ? (
+            <Button variant="contained" startIcon={<Add />} onClick={handleAddNew}>
+              Add New
+            </Button>
+          ) : null
         }
       />
 
@@ -305,6 +378,7 @@ export default function MasterData() {
                   <TableCell>Attributes</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell>Stock</TableCell>
+                  <TableCell>Created</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -324,6 +398,7 @@ export default function MasterData() {
                       <TableCell>{sku.style_code || '-'}</TableCell>
                       <TableCell>{sku.status}</TableCell>
                       <TableCell>{sku.base_price}</TableCell>
+                      <TableCell>{new Date(sku.created_at).toLocaleDateString()}</TableCell>
                     </TableRow>
                   ))
                 )}
@@ -421,12 +496,12 @@ export default function MasterData() {
                   .replace(/[^A-Z0-9\s]/g, '')
                   .trim()
                   .split(/\s+/)
-                  .slice(0, 1)
-                  .join('');
+                  .slice(0, 2)
+                  .join('-');
 
                 // Add a random 3-digit number for uniqueness
-                const randomSuffix = Math.floor(1 + Math.random() * 999).toString().padStart(3, '0');
-                const suggestedCode = baseCode ? `MMW-${randomSuffix}-${baseCode}` : '';
+                const randomSuffix = Math.floor(100 + Math.random() * 900);
+                const suggestedCode = baseCode ? `${baseCode}-${randomSuffix}` : '';
 
                 return {
                   ...prev,
@@ -437,6 +512,17 @@ export default function MasterData() {
                     : prev.code
                 };
               });
+
+              if (name.trim()) {
+                mdmService.getNextSkuCode(name, skuForm.size || undefined).then((result) => {
+                  setSkuForm((prev) => {
+                    if (prev.code === '' || prev.code.startsWith('MMW-')) {
+                      return { ...prev, code: result.sku_code };
+                    }
+                    return prev;
+                  });
+                }).catch(() => { });
+              }
             }}
           />
           <TextField
@@ -455,6 +541,86 @@ export default function MasterData() {
             multiline
             rows={2}
           />
+
+          <Box sx={{ mt: 3, pt: 2, borderTop: 1, borderColor: 'divider' }}>
+            <Typography variant="subtitle1" sx={{ mb: 2 }}>
+              SKU Details (Optional)
+            </Typography>
+            <Grid container spacing={2} sx={{ mb: 3 }}>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="SKU Code"
+                  value={skuForm.code}
+                  onChange={(e) => setSkuForm((prev) => ({ ...prev, code: e.target.value }))}
+                  helperText="Auto-generated (editable)"
+                  size="small"
+                />
+              </Grid>
+            </Grid>
+
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                Create Variants (Select Sizes):
+              </Typography>
+              <Grid container spacing={1}>
+                {['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'XXXXL', 'Free Size'].map((size) => (
+                  <Grid item key={size}>
+                    <Chip
+                      label={size}
+                      onClick={() => {
+                        setVariantForm(prev => {
+                          const isSelected = prev.sizes.includes(size);
+                          return {
+                            ...prev,
+                            sizes: isSelected
+                              ? prev.sizes.filter(s => s !== size)
+                              : [...prev.sizes, size]
+                          };
+                        });
+                      }}
+                      color={variantForm.sizes.includes(size) ? "primary" : "default"}
+                      variant={variantForm.sizes.includes(size) ? "filled" : "outlined"}
+                      sx={{
+                        borderRadius: 1,
+                        minWidth: '60px',
+                        height: '40px',
+                        cursor: 'pointer',
+                        '&:hover': {
+                          backgroundColor: variantForm.sizes.includes(size) ? 'primary.dark' : 'action.hover'
+                        }
+                      }}
+                    />
+                  </Grid>
+                ))}
+              </Grid>
+            </Box>
+
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Selling Price"
+                  value={variantForm.selling_price}
+                  onChange={(e) => setVariantForm((prev) => ({ ...prev, selling_price: e.target.value }))}
+                  type="number"
+                  size="small"
+                  required={variantForm.sizes.length > 0}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="MRP"
+                  value={variantForm.mrp}
+                  onChange={(e) => setVariantForm((prev) => ({ ...prev, mrp: e.target.value }))}
+                  type="number"
+                  size="small"
+                  required={variantForm.sizes.length > 0}
+                />
+              </Grid>
+            </Grid>
+          </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpenProductDialog(false)}>Cancel</Button>
@@ -471,21 +637,42 @@ export default function MasterData() {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Product: {selectedProduct?.name}
           </Typography>
-          <Autocomplete
-            multiple
-            options={['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'Free Size']}
-            value={variantForm.sizes}
-            onChange={(_, newValue) => setVariantForm((prev) => ({ ...prev, sizes: newValue }))}
-            renderInput={(params) => (
-              <TextField {...params} label="Sizes" placeholder="Select sizes..." />
-            )}
-            renderTags={(value, getTagProps) =>
-              value.map((option, index) => (
-                <Chip variant="outlined" label={option} {...getTagProps({ index })} key={option} />
-              ))
-            }
-            sx={{ mb: 2 }}
-          />
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              Select Sizes:
+            </Typography>
+            <Grid container spacing={1}>
+              {['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'XXXXL', 'Free Size'].map((size) => (
+                <Grid item key={size}>
+                  <Chip
+                    label={size}
+                    onClick={() => {
+                      setVariantForm(prev => {
+                        const isSelected = prev.sizes.includes(size);
+                        return {
+                          ...prev,
+                          sizes: isSelected
+                            ? prev.sizes.filter(s => s !== size)
+                            : [...prev.sizes, size]
+                        };
+                      });
+                    }}
+                    color={variantForm.sizes.includes(size) ? "primary" : "default"}
+                    variant={variantForm.sizes.includes(size) ? "filled" : "outlined"}
+                    sx={{
+                      borderRadius: 1,
+                      minWidth: '60px',
+                      height: '40px',
+                      cursor: 'pointer',
+                      '&:hover': {
+                        backgroundColor: variantForm.sizes.includes(size) ? 'primary.dark' : 'action.hover'
+                      }
+                    }}
+                  />
+                </Grid>
+              ))}
+            </Grid>
+          </Box>
           <Grid container spacing={2}>
             <Grid item xs={6}>
               <TextField
