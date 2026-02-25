@@ -250,6 +250,10 @@ class SKUViewSet(TenantScopedViewSet):
         product_id = self.request.query_params.get("product")
         if product_id:
             queryset = queryset.filter(product_id=product_id)
+            
+        exclude_fabrics = self.request.query_params.get("exclude_fabrics")
+        if exclude_fabrics and exclude_fabrics.lower() == 'true':
+            queryset = queryset.exclude(product__code='RAW-FABRICS')
 
         return queryset.order_by("-created_at")
 

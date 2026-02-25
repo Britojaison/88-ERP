@@ -17,6 +17,10 @@ import Reports from './pages/Reports'
 import Settings from './pages/Settings'
 import MetadataManagement from './pages/MetadataManagement'
 import ShopifyIntegration from './pages/ShopifyIntegration'
+import DailySalesReport from './pages/DailySalesReport'
+import WeeklyStockReport from './pages/WeeklyStockReport'
+import MonthlyMarginReport from './pages/MonthlyMarginReport'
+import ChannelComparisonReport from './pages/ChannelComparisonReport'
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const location = useLocation()
@@ -69,6 +73,10 @@ function App() {
           <Route path="inventory/design-approvals" element={<DesignApprovals />} />
           <Route path="inventory/production-kanban" element={<ProductionKanban />} />
           <Route path="reports" element={<Reports />} />
+          <Route path="reports/daily" element={<DailySalesReport />} />
+          <Route path="reports/weekly-stock" element={<WeeklyStockReport />} />
+          <Route path="reports/monthly-margin" element={<MonthlyMarginReport />} />
+          <Route path="reports/channel-comparison" element={<ChannelComparisonReport />} />
           <Route path="settings" element={<Settings />} />
           <Route path="metadata" element={<MetadataManagement />} />
           <Route path="shopify" element={<ShopifyIntegration />} />

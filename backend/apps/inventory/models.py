@@ -425,3 +425,65 @@ class ProductJourneyCheckpoint(TenantAwareModel):
     def __str__(self):
         return f"{self.sku.code} - {self.stage} ({self.status})"
 
+
+class DailyStockSnapshot(TenantAwareModel):
+    """
+    Daily stock snapshot per SKU per location.
+    Records opening stock (start of day) and closing stock (end of day).
+    Used for Opening & Closing Stock reports.
+    """
+    snapshot_date = models.DateField(db_index=True)
+
+    sku = models.ForeignKey(
+        'mdm.SKU',
+        on_delete=models.PROTECT,
+        related_name='daily_snapshots'
+    )
+
+    location = models.ForeignKey(
+        'mdm.Location',
+        on_delete=models.PROTECT,
+        related_name='daily_snapshots'
+    )
+
+    opening_stock = models.DecimalField(
+        max_digits=15, decimal_places=3, default=0,
+        help_text='Stock at start of day'
+    )
+    closing_stock = models.DecimalField(
+        max_digits=15, decimal_places=3, default=0,
+        help_text='Stock at end of day'
+    )
+    units_sold = models.DecimalField(
+        max_digits=15, decimal_places=3, default=0,
+        help_text='Total sold during the day'
+    )
+    units_received = models.DecimalField(
+        max_digits=15, decimal_places=3, default=0,
+        help_text='Total received during the day'
+    )
+    units_transferred_in = models.DecimalField(
+        max_digits=15, decimal_places=3, default=0
+    )
+    units_transferred_out = models.DecimalField(
+        max_digits=15, decimal_places=3, default=0
+    )
+    units_adjusted = models.DecimalField(
+        max_digits=15, decimal_places=3, default=0,
+        help_text='Manual adjustments (positive or negative)'
+    )
+
+    objects = models.Manager()
+    active = ActiveManager()
+
+    class Meta:
+        db_table = 'inv_daily_stock_snapshot'
+        unique_together = [['company', 'snapshot_date', 'sku', 'location']]
+        ordering = ['-snapshot_date']
+        indexes = [
+            models.Index(fields=['company', 'location', '-snapshot_date']),
+            models.Index(fields=['sku', '-snapshot_date']),
+        ]
+
+    def __str__(self):
+        return f"{self.sku.code} @ {self.location.code} on {self.snapshot_date}: {self.opening_stock} → {self.closing_stock}"

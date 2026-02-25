@@ -32,6 +32,10 @@ import {
   LocalOffer as BarcodeIcon,
   People as PeopleIcon,
   Storefront as StoreIcon,
+  Speed as VelocityIcon,
+  TrendingUp as MarginIcon,
+  CompareArrows as CompareIcon,
+  PointOfSale as DailySalesIcon,
 } from '@mui/icons-material'
 import { logout } from '../store/slices/authSlice'
 import { authService } from '../services/auth.service'
@@ -49,7 +53,16 @@ const navSections = [
       { text: 'Barcodes', icon: <BarcodeIcon />, path: '/inventory/barcodes' },
       { text: 'Receiving', icon: <ReceivingIcon />, path: '/inventory/receiving' },
       { text: 'Store POS', icon: <StoreIcon />, path: '/pos' },
-      { text: 'Reports', icon: <ReportIcon />, path: '/reports' },
+    ],
+  },
+  {
+    heading: 'Reports',
+    items: [
+      { text: 'All Reports', icon: <ReportIcon />, path: '/reports' },
+      { text: 'Daily Sales', icon: <DailySalesIcon />, path: '/reports/daily' },
+      { text: 'Stock Velocity', icon: <VelocityIcon />, path: '/reports/weekly-stock' },
+      { text: 'Margin Analysis', icon: <MarginIcon />, path: '/reports/monthly-margin' },
+      { text: 'Store vs Online', icon: <CompareIcon />, path: '/reports/channel-comparison' },
     ],
   },
   {

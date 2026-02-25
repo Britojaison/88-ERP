@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { useReactToPrint } from 'react-to-print'
 import {
     Box,
     Typography,
@@ -21,17 +22,21 @@ import { Storefront, DeleteOutline, PointOfSale, Search } from '@mui/icons-mater
 import PageHeader from '../components/ui/PageHeader'
 import { mdmService, Location, SKU } from '../services/mdm.service'
 import { salesService } from '../services/sales.service'
+import { StoreInvoice } from '../components/pos/StoreInvoice'
 
 interface CartItem {
     sku: SKU
     quantity: number
+    discountPercent: number
 }
 
 export default function POSCheckout() {
     const [stores, setStores] = useState<Location[]>([])
     const [selectedStore, setSelectedStore] = useState<string>('')
     const [customerMobile, setCustomerMobile] = useState('')
+    const [customerEmail, setCustomerEmail] = useState('')
     const [paymentMethod, setPaymentMethod] = useState('cash')
+    const [billDiscount, setBillDiscount] = useState('')
 
     const [skus, setSkus] = useState<SKU[]>([])
     const [searchQuery, setSearchQuery] = useState('')
@@ -40,6 +45,16 @@ export default function POSCheckout() {
     const [cart, setCart] = useState<CartItem[]>([])
     const [checkingOut, setCheckingOut] = useState(false)
     const [feedback, setFeedback] = useState<{ type: 'success' | 'error', msg: string } | null>(null)
+
+    // Receipt Printing State
+    const [lastSale, setLastSale] = useState<any>(null)
+    const [lastCart, setLastCart] = useState<CartItem[]>([])
+    const invoiceRef = useRef<HTMLDivElement>(null)
+
+    const handlePrint = useReactToPrint({
+        contentRef: invoiceRef,
+        documentTitle: `Receipt-${new Date().getTime()}`,
+    })
 
     useEffect(() => {
         fetchStores()
@@ -61,7 +76,7 @@ export default function POSCheckout() {
     const fetchSKUs = async () => {
         setLoading(true)
         try {
-            const data = await mdmService.getSKUs()
+            const data = await mdmService.getSKUs({ exclude_fabrics: true })
             // Unwrap pagination if applicable
             const skuList = Array.isArray(data) ? data : (data as any).results || []
             setSkus(skuList)
@@ -73,8 +88,10 @@ export default function POSCheckout() {
     }
 
     const filteredSKUs = skus.filter(s =>
-        s.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        s.name.toLowerCase().includes(searchQuery.toLowerCase())
+        !s.code.startsWith('FAB-') && (
+            s.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            s.name.toLowerCase().includes(searchQuery.toLowerCase())
+        )
     ).slice(0, 50) // Limit display
 
     const addToCart = (sku: SKU) => {
@@ -83,7 +100,7 @@ export default function POSCheckout() {
             if (existing) {
                 return prev.map(item => item.sku.id === sku.id ? { ...item, quantity: item.quantity + 1 } : item)
             }
-            return [...prev, { sku, quantity: 1 }]
+            return [...prev, { sku, quantity: 1, discountPercent: 0 }]
         })
     }
 
@@ -91,7 +108,22 @@ export default function POSCheckout() {
         setCart(prev => prev.filter(item => item.sku.id !== skuId))
     }
 
-    const subtotal = cart.reduce((acc, item) => acc + (parseFloat(item.sku.base_price || '0') * item.quantity), 0)
+    const updateItemDiscount = (skuId: string, discount: number) => {
+        setCart(prev => prev.map(item =>
+            item.sku.id === skuId ? { ...item, discountPercent: Math.max(0, Math.min(100, discount)) } : item
+        ))
+    }
+
+    const grossSubtotal = cart.reduce((acc, item) => acc + (parseFloat(item.sku.base_price || '0') * item.quantity), 0)
+    const itemDiscountTotal = cart.reduce((acc, item) => {
+        const lineGross = parseFloat(item.sku.base_price || '0') * item.quantity
+        return acc + (lineGross * item.discountPercent / 100)
+    }, 0)
+    const afterItemDiscounts = grossSubtotal - itemDiscountTotal
+    const billDiscountPct = parseFloat(billDiscount || '0')
+    const billDiscountAmt = afterItemDiscounts * billDiscountPct / 100
+    const finalTotal = afterItemDiscounts - billDiscountAmt
+    const totalDiscount = itemDiscountTotal + billDiscountAmt
 
     const handleCheckout = async () => {
         if (!selectedStore) {
@@ -107,20 +139,38 @@ export default function POSCheckout() {
         setFeedback(null)
 
         try {
-            await salesService.posCheckout({
+            const saleData = await salesService.posCheckout({
                 store_id: selectedStore,
                 payment_method: paymentMethod,
                 customer_mobile: customerMobile,
+                customer_email: customerEmail,
+                bill_discount_percent: billDiscountPct,
                 items: cart.map(item => ({
                     sku_id: item.sku.id,
                     quantity: item.quantity,
-                    unit_price: parseFloat(item.sku.base_price || '0')
+                    unit_price: parseFloat(item.sku.base_price || '0'),
+                    discount_percent: item.discountPercent,
                 }))
             })
 
-            setFeedback({ type: 'success', msg: 'Sale completed successfully!' })
-            setCart([]) // Clear cart
+            // Save details for printing
+            setLastSale(saleData)
+            setLastCart([...cart])
+
+            // Show print prompt
+            setFeedback({ type: 'success', msg: 'Sale recorded! Preparing receipt...' })
+
+            // Clear current cart immediately for next customer
+            setCart([])
             setCustomerMobile('')
+            setCustomerEmail('')
+            setBillDiscount('')
+
+            // Automatically prompt for print after react renders the new state
+            setTimeout(() => {
+                if (handlePrint) handlePrint()
+            }, 300)
+
         } catch (err: any) {
             setFeedback({ type: 'error', msg: err?.response?.data?.error || err.message || 'Checkout failed' })
         } finally {
@@ -135,11 +185,31 @@ export default function POSCheckout() {
                 subtitle="Quickly ring up customers, log sales, and deduct store inventory automatically."
             />
 
-            {feedback && (
+            {feedback && !lastSale && (
                 <Alert severity={feedback.type} sx={{ mb: 3 }} onClose={() => setFeedback(null)}>
                     {feedback.msg}
                 </Alert>
             )}
+
+            {lastSale && (
+                <Alert
+                    severity="success"
+                    sx={{ mb: 3 }}
+                    action={
+                        <Button color="inherit" size="small" onClick={handlePrint} startIcon={<PointOfSale />}>
+                            Print / Download PDF
+                        </Button>
+                    }
+                    onClose={() => setLastSale(null)}
+                >
+                    Sale completed! An invoice has been generated for {lastSale.receipt_number || 'the customer'}.
+                </Alert>
+            )}
+
+            {/* Hidden printable receipt area */}
+            <div style={{ display: 'none' }}>
+                <StoreInvoice ref={invoiceRef} saleData={lastSale} cart={lastCart} />
+            </div>
 
             <Grid container spacing={3}>
 
@@ -165,14 +235,28 @@ export default function POSCheckout() {
                                 ))}
                             </TextField>
 
-                            <TextField
-                                fullWidth
-                                label="Customer Phone (Optional)"
-                                value={customerMobile}
-                                onChange={(e) => setCustomerMobile(e.target.value)}
-                                sx={{ mb: 2 }}
-                                placeholder="+1 555-1234"
-                            />
+                            <Grid container spacing={2} sx={{ mb: 2 }}>
+                                <Grid item xs={6}>
+                                    <TextField
+                                        fullWidth
+                                        label="Phone (Optional)"
+                                        value={customerMobile}
+                                        onChange={(e) => setCustomerMobile(e.target.value)}
+                                        placeholder="+91 9876543210"
+                                        size="small"
+                                    />
+                                </Grid>
+                                <Grid item xs={6}>
+                                    <TextField
+                                        fullWidth
+                                        label="Email (Optional)"
+                                        value={customerEmail}
+                                        onChange={(e) => setCustomerEmail(e.target.value)}
+                                        placeholder="customer@email.com"
+                                        size="small"
+                                    />
+                                </Grid>
+                            </Grid>
 
                             <TextField
                                 select
@@ -197,20 +281,30 @@ export default function POSCheckout() {
                                         <ListItem
                                             key={item.sku.id}
                                             disablePadding
-                                            secondaryAction={
-                                                <IconButton edge="end" color="error" onClick={() => removeFromCart(item.sku.id)}>
-                                                    <DeleteOutline />
-                                                </IconButton>
-                                            }
-                                            sx={{ mb: 1 }}
+                                            sx={{ mb: 1, display: 'flex', alignItems: 'center' }}
                                         >
                                             <ListItemText
                                                 primary={item.sku.name}
-                                                secondary={`${item.quantity}x @ ₹${parseFloat(item.sku.base_price || '0').toFixed(2)}`}
+                                                secondary={`${item.quantity}x @ ₹${parseFloat(item.sku.base_price || '0').toFixed(2)}${item.discountPercent > 0 ? ` (-${item.discountPercent}%)` : ''}`}
+                                                sx={{ flexGrow: 1, mr: 1 }}
                                             />
-                                            <Typography variant="body1" fontWeight="bold" mr={2}>
-                                                ₹{(parseFloat(item.sku.base_price || '0') * item.quantity).toFixed(2)}
-                                            </Typography>
+                                            <TextField
+                                                size="small"
+                                                label="Disc%"
+                                                type="number"
+                                                value={item.discountPercent || ''}
+                                                onChange={(e) => updateItemDiscount(item.sku.id, parseFloat(e.target.value) || 0)}
+                                                sx={{ width: 70, mr: 1 }}
+                                                inputProps={{ min: 0, max: 100, step: 5 }}
+                                            />
+                                            <Box display="flex" alignItems="center" gap={1}>
+                                                <Typography variant="body1" fontWeight="bold">
+                                                    ₹{((parseFloat(item.sku.base_price || '0') * item.quantity) * (1 - item.discountPercent / 100)).toFixed(2)}
+                                                </Typography>
+                                                <IconButton edge="end" color="error" onClick={() => removeFromCart(item.sku.id)}>
+                                                    <DeleteOutline />
+                                                </IconButton>
+                                            </Box>
                                         </ListItem>
                                     ))}
                                 </List>
@@ -219,9 +313,30 @@ export default function POSCheckout() {
                         </CardContent>
 
                         <Box sx={{ mt: 'auto', p: 2, bgcolor: 'background.default', borderTop: '1px solid', borderColor: 'divider' }}>
+                            <Box display="flex" justifyContent="space-between" mb={1}>
+                                <Typography variant="body2" color="text.secondary">Subtotal:</Typography>
+                                <Typography variant="body2">₹{grossSubtotal.toFixed(2)}</Typography>
+                            </Box>
+                            {totalDiscount > 0 && (
+                                <Box display="flex" justifyContent="space-between" mb={1}>
+                                    <Typography variant="body2" color="error.main">Discount:</Typography>
+                                    <Typography variant="body2" color="error.main">-₹{totalDiscount.toFixed(2)}</Typography>
+                                </Box>
+                            )}
+                            <TextField
+                                fullWidth
+                                size="small"
+                                label="Bill Discount %"
+                                type="number"
+                                value={billDiscount}
+                                onChange={(e) => setBillDiscount(e.target.value)}
+                                sx={{ mb: 2 }}
+                                inputProps={{ min: 0, max: 100, step: 5 }}
+                                placeholder="0"
+                            />
                             <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
                                 <Typography variant="h5">Total Due:</Typography>
-                                <Typography variant="h4" fontWeight="bold" color="primary">₹{subtotal.toFixed(2)}</Typography>
+                                <Typography variant="h4" fontWeight="bold" color="primary">₹{finalTotal.toFixed(2)}</Typography>
                             </Box>
                             <Button
                                 fullWidth

@@ -2,8 +2,8 @@
 API Views for Inventory Management.
 """
 from decimal import Decimal
-from django.db import transaction
-from django.db.models import Sum
+from django.db import models, transaction
+from django.db.models import Sum, Avg, Count
 from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -1071,5 +1071,543 @@ class ProductJourneyViewSet(viewsets.ViewSet):
             'sku_name': sku.name,
             'total_photos': len(photos),
             'photos': photos,
+        })
+
+
+class DailyStockReportViewSet(viewsets.ViewSet):
+    """
+    Opening/Closing Stock & Daily Sales Reports.
+    Designed for 5000+ SKU scale with pagination & filters.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @action(detail=False, methods=['get'], url_path='stock-report')
+    def stock_report(self, request):
+        """
+        Opening/Closing stock report for a given date and location.
+        Query params: date (YYYY-MM-DD), location (id), page, page_size
+        """
+        from .models import DailyStockSnapshot
+        from datetime import date as date_type
+
+        target_date = request.query_params.get('date', str(timezone.now().date()))
+        location_id = request.query_params.get('location')
+        page = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 50))
+
+        snapshots = DailyStockSnapshot.objects.filter(
+            company_id=request.user.company_id,
+            snapshot_date=target_date,
+        ).select_related('sku', 'sku__product', 'location')
+
+        if location_id:
+            snapshots = snapshots.filter(location_id=location_id)
+
+        total = snapshots.count()
+        offset = (page - 1) * page_size
+        items = snapshots[offset:offset + page_size]
+
+        results = []
+        for s in items:
+            results.append({
+                'sku_id': str(s.sku_id),
+                'sku_code': s.sku.code,
+                'sku_name': s.sku.name,
+                'product_name': s.sku.product.name if s.sku.product else '',
+                'location_id': str(s.location_id),
+                'location_code': s.location.code,
+                'location_name': s.location.name,
+                'opening_stock': float(s.opening_stock),
+                'closing_stock': float(s.closing_stock),
+                'units_sold': float(s.units_sold),
+                'units_received': float(s.units_received),
+                'units_transferred_in': float(s.units_transferred_in),
+                'units_transferred_out': float(s.units_transferred_out),
+                'units_adjusted': float(s.units_adjusted),
+                'difference': float(s.closing_stock - s.opening_stock),
+            })
+
+        return Response({
+            'date': target_date,
+            'total': total,
+            'page': page,
+            'page_size': page_size,
+            'results': results,
+        })
+
+    @action(detail=False, methods=['get'], url_path='stock-summary')
+    def stock_summary(self, request):
+        """
+        Aggregate stock summary for a date — total opening, closing, sold across all locations.
+        """
+        from .models import DailyStockSnapshot
+
+        target_date = request.query_params.get('date', str(timezone.now().date()))
+        location_id = request.query_params.get('location')
+
+        qs = DailyStockSnapshot.objects.filter(
+            company_id=request.user.company_id,
+            snapshot_date=target_date,
+        )
+        if location_id:
+            qs = qs.filter(location_id=location_id)
+
+        summary = qs.aggregate(
+            total_opening=Sum('opening_stock'),
+            total_closing=Sum('closing_stock'),
+            total_sold=Sum('units_sold'),
+            total_received=Sum('units_received'),
+            total_transferred_in=Sum('units_transferred_in'),
+            total_transferred_out=Sum('units_transferred_out'),
+            total_adjusted=Sum('units_adjusted'),
+        )
+
+        return Response({
+            'date': target_date,
+            'total_skus': qs.count(),
+            'total_opening': float(summary['total_opening'] or 0),
+            'total_closing': float(summary['total_closing'] or 0),
+            'total_sold': float(summary['total_sold'] or 0),
+            'total_received': float(summary['total_received'] or 0),
+            'total_transferred_in': float(summary['total_transferred_in'] or 0),
+            'total_transferred_out': float(summary['total_transferred_out'] or 0),
+            'total_adjusted': float(summary['total_adjusted'] or 0),
+        })
+
+    @action(detail=False, methods=['post'], url_path='take-snapshot')
+    def take_snapshot(self, request):
+        """
+        Manually trigger a stock snapshot for today (or a given date).
+        """
+        from django.core.management import call_command
+        target_date = request.data.get('date', str(timezone.now().date()))
+        try:
+            call_command('snapshot_daily_stock', date=target_date)
+            return Response({'message': f'Snapshot taken for {target_date}'})
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['get'], url_path='daily-sales-report')
+    def daily_sales_report(self, request):
+        """
+        Comprehensive daily sales report with top products, payment breakdown, discount totals.
+        Query params: date (YYYY-MM-DD), store (location_id)
+        """
+        from apps.sales.models import SalesTransaction, SalesTransactionLine
+        from django.db.models.functions import TruncDate
+
+        target_date = request.query_params.get('date', str(timezone.now().date()))
+        store_id = request.query_params.get('store')
+
+        txn_qs = SalesTransaction.objects.filter(
+            company_id=request.user.company_id,
+            transaction_date__date=target_date,
+            status='active',
+        )
+        if store_id:
+            txn_qs = txn_qs.filter(store_id=store_id)
+
+        # Overview
+        overview = txn_qs.aggregate(
+            total_revenue=Sum('total_amount'),
+            total_transactions=Count('id'),
+            total_items=Sum('item_count'),
+            total_discount=Sum('discount_amount'),
+            avg_transaction=Avg('total_amount'),
+        )
+
+        # Payment breakdown
+        payment_breakdown = list(txn_qs.values('payment_method').annotate(
+            count=Count('id'),
+            total=Sum('total_amount'),
+        ).order_by('-total'))
+
+        # Channel breakdown
+        channel_breakdown = list(txn_qs.values('sales_channel').annotate(
+            count=Count('id'),
+            total=Sum('total_amount'),
+        ).order_by('-total'))
+
+        # Top 10 products sold
+        line_qs = SalesTransactionLine.objects.filter(
+            transaction__in=txn_qs,
+        ).values(
+            'sku__code', 'sku__name'
+        ).annotate(
+            qty_sold=Sum('quantity'),
+            revenue=Sum('line_total'),
+            discount_given=Sum('discount_amount'),
+        ).order_by('-revenue')[:10]
+
+        # Customer type breakdown
+        customer_breakdown = list(txn_qs.values('customer_type').annotate(
+            count=Count('id'),
+            total=Sum('total_amount'),
+        ).order_by('-total'))
+
+        return Response({
+            'date': target_date,
+            'overview': {
+                'total_revenue': float(overview['total_revenue'] or 0),
+                'total_transactions': overview['total_transactions'] or 0,
+                'total_items': overview['total_items'] or 0,
+                'total_discount': float(overview['total_discount'] or 0),
+                'avg_transaction': float(overview['avg_transaction'] or 0),
+            },
+            'payment_breakdown': payment_breakdown,
+            'channel_breakdown': channel_breakdown,
+            'top_products': list(line_qs),
+            'customer_breakdown': customer_breakdown,
+        })
+
+    @action(detail=False, methods=['get'], url_path='weekly-stock-velocity')
+    def weekly_stock_velocity(self, request):
+        """
+        Weekly Fast/Slow/Dead Stock Report.
+        Query params: period (7/14/30, default 7), location (id)
+        Returns categorised SKU list with days-of-stock and velocity.
+        """
+        from apps.sales.models import SalesTransactionLine
+        from datetime import timedelta
+
+        period = int(request.query_params.get('period', 7))
+        location_id = request.query_params.get('location')
+
+        cutoff = timezone.now() - timedelta(days=period)
+
+        # Current balances
+        balance_qs = InventoryBalance.objects.filter(
+            company_id=request.user.company_id,
+            status='active',
+        )
+        if location_id:
+            balance_qs = balance_qs.filter(location_id=location_id)
+
+        balances = balance_qs.values(
+            'sku__id', 'sku__code', 'sku__name', 'sku__product__name'
+        ).annotate(
+            total_stock=Sum('quantity_on_hand'),
+            total_value=Sum('quantity_on_hand') * Avg('average_cost'),
+        )
+
+        # Sales in the period
+        sale_filter = {
+            'sku__company_id': request.user.company_id,
+            'transaction__transaction_date__gte': cutoff,
+            'transaction__status': 'active',
+        }
+        if location_id:
+            sale_filter['transaction__store_id'] = location_id
+
+        sales = SalesTransactionLine.objects.filter(
+            **sale_filter
+        ).values('sku__id').annotate(
+            sold=Sum('quantity'),
+            revenue=Sum('line_total'),
+            cost=Sum('unit_cost'),
+        )
+        sales_dict = {s['sku__id']: s for s in sales}
+
+        # If no location filtered, add Shopify online sales to give a complete picture
+        if not location_id:
+            from apps.integrations.models import ShopifyOrder
+            shopify_orders = ShopifyOrder.objects.filter(
+                processed_at__gte=cutoff
+            ).values_list('shopify_data', flat=True)
+            
+            # Create a lookup map for SKU code -> SKU ID based on what we have in balances
+            sku_lookup = {bal['sku__code']: bal['sku__id'] for bal in balances if bal.get('sku__code')}
+            
+            for shopify_data in shopify_orders:
+                if not shopify_data or 'line_items' not in shopify_data:
+                    continue
+                for item in shopify_data['line_items']:
+                    code = item.get('sku')
+                    if not code or code not in sku_lookup:
+                        continue
+                    sid = sku_lookup[code]
+                    
+                    if sid not in sales_dict:
+                        sales_dict[sid] = {'sku__id': sid, 'sold': 0, 'revenue': 0, 'cost': 0}
+                    
+                    qty_sold = int(item.get('quantity', 0))
+                    price = float(item.get('price', 0))
+                    sales_dict[sid]['sold'] += qty_sold
+                    sales_dict[sid]['revenue'] += (qty_sold * price)
+
+        fast, slow, dead = [], [], []
+        fast_threshold = max(5, period // 2)
+        slow_threshold = 0
+
+        for bal in balances:
+            sku_id = bal['sku__id']
+            stock = float(bal['total_stock'] or 0)
+            sold_data = sales_dict.get(sku_id, {})
+            sold = float(sold_data.get('sold', 0))
+            revenue = float(sold_data.get('revenue', 0))
+
+            daily_rate = sold / period if period > 0 else 0
+            
+            # Prevent negative stock from creating negative days_of_stock or negative locked capital
+            is_negative_stock = stock < 0
+            calc_stock = max(0, stock)
+            days_of_stock = calc_stock / daily_rate if daily_rate > 0 else 999
+
+            item = {
+                'sku_id': str(sku_id),
+                'sku_code': bal['sku__code'],
+                'sku_name': bal['sku__name'],
+                'product_name': bal['sku__product__name'] or '',
+                'current_stock': stock,
+                'sold_in_period': sold,
+                'revenue': revenue,
+                'daily_rate': round(daily_rate, 2),
+                'days_of_stock': round(days_of_stock, 1) if days_of_stock < 999 else None,
+                'stock_value': float(bal['total_value'] or 0) if not is_negative_stock else 0,
+            }
+
+            if sold >= fast_threshold:
+                fast.append(item)
+            elif sold > slow_threshold:
+                slow.append(item)
+            else:
+                dead.append(item)
+
+        fast.sort(key=lambda x: x['sold_in_period'], reverse=True)
+        slow.sort(key=lambda x: x['sold_in_period'], reverse=True)
+        dead.sort(key=lambda x: x['current_stock'], reverse=True)
+
+        return Response({
+            'period_days': period,
+            'fast_threshold': fast_threshold,
+            'summary': {
+                'fast_count': len(fast),
+                'slow_count': len(slow),
+                'dead_count': len(dead),
+                'total_skus': len(fast) + len(slow) + len(dead),
+                'dead_stock_value': sum(i['stock_value'] for i in dead),
+            },
+            'fast_moving': fast[:50],
+            'slow_moving': slow[:50],
+            'dead_stock': dead[:50],
+        })
+
+    @action(detail=False, methods=['get'], url_path='monthly-turnover-margin')
+    def monthly_turnover_margin(self, request):
+        """
+        Monthly Stock Turnover & Margin Analysis.
+        Query params: month (YYYY-MM), location (id)
+        Returns per-SKU and aggregate turnover ratio, margin %, COGS, revenue.
+        """
+        from apps.sales.models import SalesTransactionLine, SalesTransaction
+        from datetime import date
+        import calendar
+
+        month_str = request.query_params.get('month')
+        location_id = request.query_params.get('location')
+
+        if month_str:
+            year, month = [int(x) for x in month_str.split('-')]
+        else:
+            today = timezone.now().date()
+            year, month = today.year, today.month
+
+        _, last_day = calendar.monthrange(year, month)
+        start_date = date(year, month, 1)
+        end_date = date(year, month, last_day)
+
+        # Sales lines in this month
+        sale_filter = {
+            'transaction__company_id': request.user.company_id,
+            'transaction__transaction_date__date__gte': start_date,
+            'transaction__transaction_date__date__lte': end_date,
+            'transaction__status': 'active',
+        }
+        if location_id:
+            sale_filter['transaction__store_id'] = location_id
+
+        lines = SalesTransactionLine.objects.filter(
+            **sale_filter
+        ).values(
+            'sku__id', 'sku__code', 'sku__name', 'sku__product__name',
+            'sku__product__product_type'
+        ).annotate(
+            qty_sold=Sum('quantity'),
+            revenue=Sum('line_total'),
+            cogs=Sum(models.F('unit_cost') * models.F('quantity')),
+            total_discount=Sum('discount_amount'),
+        ).order_by('-revenue')
+
+        # Average inventory for turnover
+        balance_filter = {
+            'company_id': request.user.company_id,
+            'status': 'active',
+        }
+        if location_id:
+            balance_filter['location_id'] = location_id
+
+        avg_inventory = InventoryBalance.objects.filter(
+            **balance_filter
+        ).values('sku__id').annotate(
+            avg_stock=Avg('quantity_on_hand'),
+            avg_cost=Avg('average_cost'),
+        )
+        inv_dict = {i['sku__id']: i for i in avg_inventory}
+
+        results = []
+        total_revenue = Decimal('0')
+        total_cogs = Decimal('0')
+        total_discount = Decimal('0')
+
+        for line in lines:
+            sku_id = line['sku__id']
+            revenue = Decimal(str(line['revenue'] or 0))
+            cogs = Decimal(str(line['cogs'] or 0))
+            discount = Decimal(str(line['total_discount'] or 0))
+            gross_profit = revenue - cogs
+            margin_pct = float((gross_profit / revenue * 100)) if revenue > 0 else 0
+
+            inv = inv_dict.get(sku_id, {})
+            avg_stock = float(inv.get('avg_stock', 0) or 0)
+            avg_cost_per_unit = float(inv.get('avg_cost', 0) or 0)
+            avg_inv_value = avg_stock * avg_cost_per_unit
+            turnover = float(cogs / Decimal(str(avg_inv_value))) if avg_inv_value > 0 else 0
+
+            total_revenue += revenue
+            total_cogs += cogs
+            total_discount += discount
+
+            results.append({
+                'sku_id': str(sku_id),
+                'sku_code': line['sku__code'],
+                'sku_name': line['sku__name'],
+                'product_name': line['sku__product__name'] or '',
+                'category': line['sku__product__product_type'] or 'Uncategorized',
+                'qty_sold': float(line['qty_sold'] or 0),
+                'revenue': float(revenue),
+                'cogs': float(cogs),
+                'gross_profit': float(gross_profit),
+                'margin_pct': round(margin_pct, 1),
+                'discount_given': float(discount),
+                'avg_inventory': round(avg_stock, 1),
+                'turnover_ratio': round(turnover, 2),
+            })
+
+        # Category-level aggregation
+        category_map = {}
+        for r in results:
+            cat = r['category']
+            if cat not in category_map:
+                category_map[cat] = {'category': cat, 'revenue': 0, 'cogs': 0, 'items': 0}
+            category_map[cat]['revenue'] += r['revenue']
+            category_map[cat]['cogs'] += r['cogs']
+            category_map[cat]['items'] += 1
+        categories = []
+        for c in category_map.values():
+            gp = c['revenue'] - c['cogs']
+            c['gross_profit'] = gp
+            c['margin_pct'] = round((gp / c['revenue'] * 100), 1) if c['revenue'] > 0 else 0
+            categories.append(c)
+        categories.sort(key=lambda x: x['revenue'], reverse=True)
+
+        overall_profit = total_revenue - total_cogs
+        overall_margin = float((overall_profit / total_revenue * 100)) if total_revenue > 0 else 0
+
+        return Response({
+            'month': f'{year}-{month:02d}',
+            'overview': {
+                'total_revenue': float(total_revenue),
+                'total_cogs': float(total_cogs),
+                'gross_profit': float(overall_profit),
+                'overall_margin_pct': round(overall_margin, 1),
+                'total_discount': float(total_discount),
+                'total_skus_sold': len(results),
+            },
+            'by_category': categories,
+            'by_sku': results[:100],
+        })
+
+    @action(detail=False, methods=['get'], url_path='channel-comparison')
+    def channel_comparison(self, request):
+        """
+        Store vs Shopify/Online sales comparison with flexible date range.
+        Query params: start_date, end_date (YYYY-MM-DD), defaults to last 30 days
+        """
+        from apps.sales.models import SalesTransaction
+        from django.db.models.functions import TruncDate
+        from datetime import timedelta, date as date_type
+
+        end_date_str = request.query_params.get('end_date')
+        start_date_str = request.query_params.get('start_date')
+
+        if end_date_str:
+            end_date = date_type.fromisoformat(end_date_str)
+        else:
+            end_date = timezone.now().date()
+
+        if start_date_str:
+            start_date = date_type.fromisoformat(start_date_str)
+        else:
+            start_date = end_date - timedelta(days=30)
+
+        txns = SalesTransaction.objects.filter(
+            company_id=request.user.company_id,
+            transaction_date__date__gte=start_date,
+            transaction_date__date__lte=end_date,
+            status='active',
+        )
+
+        daily = txns.annotate(
+            date=TruncDate('transaction_date')
+        ).values('date', 'sales_channel').annotate(
+            revenue=Sum('total_amount'),
+            orders=Count('id'),
+            items=Sum('item_count'),
+        ).order_by('date')
+
+        # Build daily map
+        day_count = (end_date - start_date).days + 1
+        date_map = {}
+        for d in range(day_count):
+            ds = (start_date + timedelta(days=d)).strftime('%Y-%m-%d')
+            date_map[ds] = {'date': ds, 'store_revenue': 0, 'store_orders': 0,
+                           'online_revenue': 0, 'online_orders': 0}
+
+        for row in daily:
+            if not row['date']:
+                continue
+            ds = row['date'].strftime('%Y-%m-%d')
+            if ds not in date_map:
+                continue
+            channel = row['sales_channel']
+            if channel == 'store':
+                date_map[ds]['store_revenue'] += float(row['revenue'] or 0)
+                date_map[ds]['store_orders'] += row['orders'] or 0
+            else:
+                date_map[ds]['online_revenue'] += float(row['revenue'] or 0)
+                date_map[ds]['online_orders'] += row['orders'] or 0
+
+        daily_data = sorted(date_map.values(), key=lambda x: x['date'])
+
+        # Totals
+        total_store_rev = sum(d['store_revenue'] for d in daily_data)
+        total_online_rev = sum(d['online_revenue'] for d in daily_data)
+        total_store_orders = sum(d['store_orders'] for d in daily_data)
+        total_online_orders = sum(d['online_orders'] for d in daily_data)
+        grand_total = total_store_rev + total_online_rev
+
+        return Response({
+            'start_date': start_date.strftime('%Y-%m-%d'),
+            'end_date': end_date.strftime('%Y-%m-%d'),
+            'totals': {
+                'store_revenue': total_store_rev,
+                'online_revenue': total_online_rev,
+                'store_orders': total_store_orders,
+                'online_orders': total_online_orders,
+                'grand_total': grand_total,
+                'store_pct': round(total_store_rev / grand_total * 100, 1) if grand_total > 0 else 0,
+                'online_pct': round(total_online_rev / grand_total * 100, 1) if grand_total > 0 else 0,
+            },
+            'daily': daily_data,
         })
 

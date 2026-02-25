@@ -100,7 +100,7 @@
 <div id="summary">
   <h1>FieldError
        at /api/integrations/shopify/orders/sales_summary/</h1>
-  <pre class="exception_value">Field ShopifyOrder.store cannot be both deferred and traversed using select_related at the same time.</pre>
+  <pre class="exception_value">Cannot resolve keyword &#x27;code&#x27; into field. Choices are: access_token, api_key, api_secret, api_version, auto_sync_inventory, auto_sync_orders, auto_sync_products, company, company_id, connection_error, created_at, created_by, created_by_id, discounts, draft_orders, gift_cards, id, inventory_levels, is_connected, last_connection_test, last_inventory_sync, last_order_sync, last_product_sync, name, orders, products, shop_domain, status, sync_interval_minutes, sync_jobs, updated_at, updated_by, updated_by_id, version, webhook_logs, webhook_secret, webhooks</pre>
   <table class="meta">
 
     <tr>
@@ -125,13 +125,13 @@
 
     <tr>
       <th>Exception Value:</th>
-      <td><pre>Field ShopifyOrder.store cannot be both deferred and traversed using select_related at the same time.</pre></td>
+      <td><pre>Cannot resolve keyword &#x27;code&#x27; into field. Choices are: access_token, api_key, api_secret, api_version, auto_sync_inventory, auto_sync_orders, auto_sync_products, company, company_id, connection_error, created_at, created_by, created_by_id, discounts, draft_orders, gift_cards, id, inventory_levels, is_connected, last_connection_test, last_inventory_sync, last_order_sync, last_product_sync, name, orders, products, shop_domain, status, sync_interval_minutes, sync_jobs, updated_at, updated_by, updated_by_id, version, webhook_logs, webhook_secret, webhooks</pre></td>
     </tr>
 
 
     <tr>
       <th>Exception Location:</th>
-      <td><span class="fname">C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\query_utils.py</span>, line 347, in select_related_descend</td>
+      <td><span class="fname">C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\sql\query.py</span>, line 1725, in names_to_path</td>
     </tr>
 
 
@@ -163,7 +163,7 @@
     </tr>
     <tr>
       <th>Server time:</th>
-      <td>Wed, 25 Feb 2026 10:25:29 +0000</td>
+      <td>Wed, 25 Feb 2026 10:29:01 +0000</td>
     </tr>
   </table>
 </div>
@@ -181,48 +181,48 @@
         
         <li class="frame django">
           
-            <code class="fname">C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\core\handlers\exception.py</code>, line 55, in inner
+            <code class="fname">C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\sql\query.py</code>, line 1847, in transform
           
 
           
-            <div class="context" id="c1706731767872">
+            <div class="context" id="c1783820014848">
               
-                <ol start="48" class="pre-context" id="pre1706731767872">
+                <ol start="1840" class="pre-context" id="pre1783820014848">
                 
-                  <li onclick="toggle('pre1706731767872', 'post1706731767872')"><pre></pre></li>
+                  <li onclick="toggle('pre1783820014848', 'post1783820014848')"><pre>                transforms = names[pivot:]</pre></li>
                 
-                  <li onclick="toggle('pre1706731767872', 'post1706731767872')"><pre>        return inner</pre></li>
+                  <li onclick="toggle('pre1783820014848', 'post1783820014848')"><pre>                break</pre></li>
                 
-                  <li onclick="toggle('pre1706731767872', 'post1706731767872')"><pre>    else:</pre></li>
+                  <li onclick="toggle('pre1783820014848', 'post1783820014848')"><pre>        for name in transforms:</pre></li>
                 
-                  <li onclick="toggle('pre1706731767872', 'post1706731767872')"><pre></pre></li>
+                  <li onclick="toggle('pre1783820014848', 'post1783820014848')"><pre></pre></li>
                 
-                  <li onclick="toggle('pre1706731767872', 'post1706731767872')"><pre>        @wraps(get_response)</pre></li>
+                  <li onclick="toggle('pre1783820014848', 'post1783820014848')"><pre>            def transform(field, alias, *, name, previous):</pre></li>
                 
-                  <li onclick="toggle('pre1706731767872', 'post1706731767872')"><pre>        def inner(request):</pre></li>
+                  <li onclick="toggle('pre1783820014848', 'post1783820014848')"><pre>                try:</pre></li>
                 
-                  <li onclick="toggle('pre1706731767872', 'post1706731767872')"><pre>            try:</pre></li>
+                  <li onclick="toggle('pre1783820014848', 'post1783820014848')"><pre>                    wrapped = previous(field, alias)</pre></li>
                 
                 </ol>
               
-              <ol start="55" class="context-line">
-                <li onclick="toggle('pre1706731767872', 'post1706731767872')"><pre>                response = get_response(request)
-                               ^^^^^^^^^^^^^^^^^^^^^</pre> <span>…</span></li>
+              <ol start="1847" class="context-line">
+                <li onclick="toggle('pre1783820014848', 'post1783820014848')"><pre>                    return self.try_transform(wrapped, name)
+                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^</pre> <span>…</span></li>
               </ol>
               
-                <ol start='56' class="post-context" id="post1706731767872">
+                <ol start='1848' class="post-context" id="post1783820014848">
                   
-                  <li onclick="toggle('pre1706731767872', 'post1706731767872')"><pre>            except Exception as exc:</pre></li>
+                  <li onclick="toggle('pre1783820014848', 'post1783820014848')"><pre>                except FieldError:</pre></li>
                   
-                  <li onclick="toggle('pre1706731767872', 'post1706731767872')"><pre>                response = response_for_exception(request, exc)</pre></li>
+                  <li onclick="toggle('pre1783820014848', 'post1783820014848')"><pre>                    # FieldError is raised if the transform doesn&#x27;t exist.</pre></li>
                   
-                  <li onclick="toggle('pre1706731767872', 'post1706731767872')"><pre>            return response</pre></li>
+                  <li onclick="toggle('pre1783820014848', 'post1783820014848')"><pre>                    if isinstance(final_field, Field) and last_field_exception:</pre></li>
                   
-                  <li onclick="toggle('pre1706731767872', 'post1706731767872')"><pre></pre></li>
+                  <li onclick="toggle('pre1783820014848', 'post1783820014848')"><pre>                        raise last_field_exception</pre></li>
                   
-                  <li onclick="toggle('pre1706731767872', 'post1706731767872')"><pre>        return inner</pre></li>
+                  <li onclick="toggle('pre1783820014848', 'post1783820014848')"><pre>                    else:</pre></li>
                   
-                  <li onclick="toggle('pre1706731767872', 'post1706731767872')"><pre></pre></li>
+                  <li onclick="toggle('pre1783820014848', 'post1783820014848')"><pre>                        raise</pre></li>
                   
               </ol>
               
@@ -234,7 +234,230 @@
               <details>
                 <summary class="commands">Local vars</summary>
             
-            <table class="vars" id="v1706731767872">
+            <table class="vars" id="v1783820014848">
+              <thead>
+                <tr>
+                  <th>Variable</th>
+                  <th>Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                
+                  <tr>
+                    <td>alias</td>
+                    <td class="code"><pre>&#x27;shopify_order&#x27;</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>field</td>
+                    <td class="code"><pre>&lt;django.db.models.fields.related.ForeignKey: store&gt;</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>final_field</td>
+                    <td class="code"><pre>&lt;django.db.models.fields.related.ForeignKey: store&gt;</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>last_field_exception</td>
+                    <td class="code"><pre>FieldError(&quot;Cannot resolve keyword &#x27;code&#x27; into field. Choices are: access_token, api_key, api_secret, api_version, auto_sync_inventory, auto_sync_orders, auto_sync_products, company, company_id, connection_error, created_at, created_by, created_by_id, discounts, draft_orders, gift_cards, id, inventory_levels, is_connected, last_connection_test, last_inventory_sync, last_order_sync, last_product_sync, name, orders, products, shop_domain, status, sync_interval_minutes, sync_jobs, updated_at, updated_by, updated_by_id, version, webhook_logs, webhook_secret, webhooks&quot;)</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>name</td>
+                    <td class="code"><pre>&#x27;code&#x27;</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>previous</td>
+                    <td class="code"><pre>&lt;function Query.setup_joins.&lt;locals&gt;.final_transformer at 0x0000019F53F2E200&gt;</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>self</td>
+                    <td class="code"><pre>&lt;django.db.models.sql.query.Query object at 0x0000019F571BF500&gt;</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>wrapped</td>
+                    <td class="code"><pre>Col(shopify_order, integrations.ShopifyOrder.store)</pre></td>
+                  </tr>
+                
+              </tbody>
+            </table>
+            </details>
+          
+        </li>
+      
+        
+        <li class="frame django">
+          
+            <code class="fname">C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\sql\query.py</code>, line 1357, in try_transform
+          
+
+          
+            <div class="context" id="c1783820018816">
+              
+                <ol start="1350" class="pre-context" id="pre1783820018816">
+                
+                  <li onclick="toggle('pre1783820018816', 'post1783820018816')"><pre>            suggested_lookups = difflib.get_close_matches(</pre></li>
+                
+                  <li onclick="toggle('pre1783820018816', 'post1783820018816')"><pre>                name, lhs.output_field.get_lookups()</pre></li>
+                
+                  <li onclick="toggle('pre1783820018816', 'post1783820018816')"><pre>            )</pre></li>
+                
+                  <li onclick="toggle('pre1783820018816', 'post1783820018816')"><pre>            if suggested_lookups:</pre></li>
+                
+                  <li onclick="toggle('pre1783820018816', 'post1783820018816')"><pre>                suggestion = &quot;, perhaps you meant %s?&quot; % &quot; or &quot;.join(suggested_lookups)</pre></li>
+                
+                  <li onclick="toggle('pre1783820018816', 'post1783820018816')"><pre>            else:</pre></li>
+                
+                  <li onclick="toggle('pre1783820018816', 'post1783820018816')"><pre>                suggestion = &quot;.&quot;</pre></li>
+                
+                </ol>
+              
+              <ol start="1357" class="context-line">
+                <li onclick="toggle('pre1783820018816', 'post1783820018816')"><pre>            raise FieldError(
+                  ^</pre> <span>…</span></li>
+              </ol>
+              
+                <ol start='1358' class="post-context" id="post1783820018816">
+                  
+                  <li onclick="toggle('pre1783820018816', 'post1783820018816')"><pre>                &quot;Unsupported lookup &#x27;%s&#x27; for %s or join on the field not &quot;</pre></li>
+                  
+                  <li onclick="toggle('pre1783820018816', 'post1783820018816')"><pre>                &quot;permitted%s&quot; % (name, output_field.__name__, suggestion)</pre></li>
+                  
+                  <li onclick="toggle('pre1783820018816', 'post1783820018816')"><pre>            )</pre></li>
+                  
+                  <li onclick="toggle('pre1783820018816', 'post1783820018816')"><pre></pre></li>
+                  
+                  <li onclick="toggle('pre1783820018816', 'post1783820018816')"><pre>    def build_filter(</pre></li>
+                  
+                  <li onclick="toggle('pre1783820018816', 'post1783820018816')"><pre>        self,</pre></li>
+                  
+              </ol>
+              
+            </div>
+          
+
+          
+            
+              <details>
+                <summary class="commands">Local vars</summary>
+            
+            <table class="vars" id="v1783820018816">
+              <thead>
+                <tr>
+                  <th>Variable</th>
+                  <th>Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                
+                  <tr>
+                    <td>lhs</td>
+                    <td class="code"><pre>Col(shopify_order, integrations.ShopifyOrder.store)</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>name</td>
+                    <td class="code"><pre>&#x27;code&#x27;</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>output_field</td>
+                    <td class="code"><pre>&lt;class &#x27;django.db.models.fields.UUIDField&#x27;&gt;</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>self</td>
+                    <td class="code"><pre>&lt;django.db.models.sql.query.Query object at 0x0000019F571BF500&gt;</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>suggested_lookups</td>
+                    <td class="code"><pre>[]</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>suggestion</td>
+                    <td class="code"><pre>&#x27;.&#x27;</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>transform_class</td>
+                    <td class="code"><pre>None</pre></td>
+                  </tr>
+                
+              </tbody>
+            </table>
+            </details>
+          
+        </li>
+      
+        
+          <li class="cause"><h3>
+          
+            During handling of the above exception (Unsupported lookup &#x27;code&#x27; for UUIDField or join on the field not permitted.), another exception occurred:
+          
+        </h3></li>
+        
+        <li class="frame django">
+          
+            <code class="fname">C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\core\handlers\exception.py</code>, line 55, in inner
+          
+
+          
+            <div class="context" id="c1783820014208">
+              
+                <ol start="48" class="pre-context" id="pre1783820014208">
+                
+                  <li onclick="toggle('pre1783820014208', 'post1783820014208')"><pre></pre></li>
+                
+                  <li onclick="toggle('pre1783820014208', 'post1783820014208')"><pre>        return inner</pre></li>
+                
+                  <li onclick="toggle('pre1783820014208', 'post1783820014208')"><pre>    else:</pre></li>
+                
+                  <li onclick="toggle('pre1783820014208', 'post1783820014208')"><pre></pre></li>
+                
+                  <li onclick="toggle('pre1783820014208', 'post1783820014208')"><pre>        @wraps(get_response)</pre></li>
+                
+                  <li onclick="toggle('pre1783820014208', 'post1783820014208')"><pre>        def inner(request):</pre></li>
+                
+                  <li onclick="toggle('pre1783820014208', 'post1783820014208')"><pre>            try:</pre></li>
+                
+                </ol>
+              
+              <ol start="55" class="context-line">
+                <li onclick="toggle('pre1783820014208', 'post1783820014208')"><pre>                response = get_response(request)
+                               ^^^^^^^^^^^^^^^^^^^^^</pre> <span>…</span></li>
+              </ol>
+              
+                <ol start='56' class="post-context" id="post1783820014208">
+                  
+                  <li onclick="toggle('pre1783820014208', 'post1783820014208')"><pre>            except Exception as exc:</pre></li>
+                  
+                  <li onclick="toggle('pre1783820014208', 'post1783820014208')"><pre>                response = response_for_exception(request, exc)</pre></li>
+                  
+                  <li onclick="toggle('pre1783820014208', 'post1783820014208')"><pre>            return response</pre></li>
+                  
+                  <li onclick="toggle('pre1783820014208', 'post1783820014208')"><pre></pre></li>
+                  
+                  <li onclick="toggle('pre1783820014208', 'post1783820014208')"><pre>        return inner</pre></li>
+                  
+                  <li onclick="toggle('pre1783820014208', 'post1783820014208')"><pre></pre></li>
+                  
+              </ol>
+              
+            </div>
+          
+
+          
+            
+              <details>
+                <summary class="commands">Local vars</summary>
+            
+            <table class="vars" id="v1783820014208">
               <thead>
                 <tr>
                   <th>Variable</th>
@@ -245,12 +468,12 @@
                 
                   <tr>
                     <td>exc</td>
-                    <td class="code"><pre>FieldError(&#x27;Field ShopifyOrder.store cannot be both deferred and traversed using select_related at the same time.&#x27;)</pre></td>
+                    <td class="code"><pre>FieldError(&quot;Cannot resolve keyword &#x27;code&#x27; into field. Choices are: access_token, api_key, api_secret, api_version, auto_sync_inventory, auto_sync_orders, auto_sync_products, company, company_id, connection_error, created_at, created_by, created_by_id, discounts, draft_orders, gift_cards, id, inventory_levels, is_connected, last_connection_test, last_inventory_sync, last_order_sync, last_product_sync, name, orders, products, shop_domain, status, sync_interval_minutes, sync_jobs, updated_at, updated_by, updated_by_id, version, webhook_logs, webhook_secret, webhooks&quot;)</pre></td>
                   </tr>
                 
                   <tr>
                     <td>get_response</td>
-                    <td class="code"><pre>&lt;bound method BaseHandler._get_response of &lt;django.core.handlers.wsgi.WSGIHandler object at 0x0000018D5ACD5130&gt;&gt;</pre></td>
+                    <td class="code"><pre>&lt;bound method BaseHandler._get_response of &lt;django.core.handlers.wsgi.WSGIHandler object at 0x0000019F4E5F5130&gt;&gt;</pre></td>
                   </tr>
                 
                   <tr>
@@ -271,44 +494,44 @@
           
 
           
-            <div class="context" id="c1706731779840">
+            <div class="context" id="c1783820023104">
               
-                <ol start="190" class="pre-context" id="pre1706731779840">
+                <ol start="190" class="pre-context" id="pre1783820023104">
                 
-                  <li onclick="toggle('pre1706731779840', 'post1706731779840')"><pre></pre></li>
+                  <li onclick="toggle('pre1783820023104', 'post1783820023104')"><pre></pre></li>
                 
-                  <li onclick="toggle('pre1706731779840', 'post1706731779840')"><pre>        if response is None:</pre></li>
+                  <li onclick="toggle('pre1783820023104', 'post1783820023104')"><pre>        if response is None:</pre></li>
                 
-                  <li onclick="toggle('pre1706731779840', 'post1706731779840')"><pre>            wrapped_callback = self.make_view_atomic(callback)</pre></li>
+                  <li onclick="toggle('pre1783820023104', 'post1783820023104')"><pre>            wrapped_callback = self.make_view_atomic(callback)</pre></li>
                 
-                  <li onclick="toggle('pre1706731779840', 'post1706731779840')"><pre>            # If it is an asynchronous view, run it in a subthread.</pre></li>
+                  <li onclick="toggle('pre1783820023104', 'post1783820023104')"><pre>            # If it is an asynchronous view, run it in a subthread.</pre></li>
                 
-                  <li onclick="toggle('pre1706731779840', 'post1706731779840')"><pre>            if iscoroutinefunction(wrapped_callback):</pre></li>
+                  <li onclick="toggle('pre1783820023104', 'post1783820023104')"><pre>            if iscoroutinefunction(wrapped_callback):</pre></li>
                 
-                  <li onclick="toggle('pre1706731779840', 'post1706731779840')"><pre>                wrapped_callback = async_to_sync(wrapped_callback)</pre></li>
+                  <li onclick="toggle('pre1783820023104', 'post1783820023104')"><pre>                wrapped_callback = async_to_sync(wrapped_callback)</pre></li>
                 
-                  <li onclick="toggle('pre1706731779840', 'post1706731779840')"><pre>            try:</pre></li>
+                  <li onclick="toggle('pre1783820023104', 'post1783820023104')"><pre>            try:</pre></li>
                 
                 </ol>
               
               <ol start="197" class="context-line">
-                <li onclick="toggle('pre1706731779840', 'post1706731779840')"><pre>                response = wrapped_callback(request, *callback_args, **callback_kwargs)
+                <li onclick="toggle('pre1783820023104', 'post1783820023104')"><pre>                response = wrapped_callback(request, *callback_args, **callback_kwargs)
                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^</pre> <span>…</span></li>
               </ol>
               
-                <ol start='198' class="post-context" id="post1706731779840">
+                <ol start='198' class="post-context" id="post1783820023104">
                   
-                  <li onclick="toggle('pre1706731779840', 'post1706731779840')"><pre>            except Exception as e:</pre></li>
+                  <li onclick="toggle('pre1783820023104', 'post1783820023104')"><pre>            except Exception as e:</pre></li>
                   
-                  <li onclick="toggle('pre1706731779840', 'post1706731779840')"><pre>                response = self.process_exception_by_middleware(e, request)</pre></li>
+                  <li onclick="toggle('pre1783820023104', 'post1783820023104')"><pre>                response = self.process_exception_by_middleware(e, request)</pre></li>
                   
-                  <li onclick="toggle('pre1706731779840', 'post1706731779840')"><pre>                if response is None:</pre></li>
+                  <li onclick="toggle('pre1783820023104', 'post1783820023104')"><pre>                if response is None:</pre></li>
                   
-                  <li onclick="toggle('pre1706731779840', 'post1706731779840')"><pre>                    raise</pre></li>
+                  <li onclick="toggle('pre1783820023104', 'post1783820023104')"><pre>                    raise</pre></li>
                   
-                  <li onclick="toggle('pre1706731779840', 'post1706731779840')"><pre></pre></li>
+                  <li onclick="toggle('pre1783820023104', 'post1783820023104')"><pre></pre></li>
                   
-                  <li onclick="toggle('pre1706731779840', 'post1706731779840')"><pre>        # Complain if the view returned None (a common error).</pre></li>
+                  <li onclick="toggle('pre1783820023104', 'post1783820023104')"><pre>        # Complain if the view returned None (a common error).</pre></li>
                   
               </ol>
               
@@ -320,7 +543,7 @@
               <details>
                 <summary class="commands">Local vars</summary>
             
-            <table class="vars" id="v1706731779840">
+            <table class="vars" id="v1783820023104">
               <thead>
                 <tr>
                   <th>Variable</th>
@@ -331,7 +554,7 @@
                 
                   <tr>
                     <td>callback</td>
-                    <td class="code"><pre>&lt;function ShopifyOrderViewSet at 0x0000018D5FEA0720&gt;</pre></td>
+                    <td class="code"><pre>&lt;function ShopifyOrderViewSet at 0x0000019F537AC7C0&gt;</pre></td>
                   </tr>
                 
                   <tr>
@@ -361,12 +584,12 @@
                 
                   <tr>
                     <td>self</td>
-                    <td class="code"><pre>&lt;django.core.handlers.wsgi.WSGIHandler object at 0x0000018D5ACD5130&gt;</pre></td>
+                    <td class="code"><pre>&lt;django.core.handlers.wsgi.WSGIHandler object at 0x0000019F4E5F5130&gt;</pre></td>
                   </tr>
                 
                   <tr>
                     <td>wrapped_callback</td>
-                    <td class="code"><pre>&lt;function ShopifyOrderViewSet at 0x0000018D5FEA0720&gt;</pre></td>
+                    <td class="code"><pre>&lt;function ShopifyOrderViewSet at 0x0000019F537AC7C0&gt;</pre></td>
                   </tr>
                 
               </tbody>
@@ -382,38 +605,38 @@
           
 
           
-            <div class="context" id="c1706731767104">
+            <div class="context" id="c1783820021440">
               
-                <ol start="49" class="pre-context" id="pre1706731767104">
+                <ol start="49" class="pre-context" id="pre1783820021440">
                 
-                  <li onclick="toggle('pre1706731767104', 'post1706731767104')"><pre>def csrf_exempt(view_func):</pre></li>
+                  <li onclick="toggle('pre1783820021440', 'post1783820021440')"><pre>def csrf_exempt(view_func):</pre></li>
                 
-                  <li onclick="toggle('pre1706731767104', 'post1706731767104')"><pre>    &quot;&quot;&quot;Mark a view function as being exempt from the CSRF view protection.&quot;&quot;&quot;</pre></li>
+                  <li onclick="toggle('pre1783820021440', 'post1783820021440')"><pre>    &quot;&quot;&quot;Mark a view function as being exempt from the CSRF view protection.&quot;&quot;&quot;</pre></li>
                 
-                  <li onclick="toggle('pre1706731767104', 'post1706731767104')"><pre></pre></li>
+                  <li onclick="toggle('pre1783820021440', 'post1783820021440')"><pre></pre></li>
                 
-                  <li onclick="toggle('pre1706731767104', 'post1706731767104')"><pre>    # view_func.csrf_exempt = True would also work, but decorators are nicer</pre></li>
+                  <li onclick="toggle('pre1783820021440', 'post1783820021440')"><pre>    # view_func.csrf_exempt = True would also work, but decorators are nicer</pre></li>
                 
-                  <li onclick="toggle('pre1706731767104', 'post1706731767104')"><pre>    # if they don&#x27;t have side effects, so return a new function.</pre></li>
+                  <li onclick="toggle('pre1783820021440', 'post1783820021440')"><pre>    # if they don&#x27;t have side effects, so return a new function.</pre></li>
                 
-                  <li onclick="toggle('pre1706731767104', 'post1706731767104')"><pre>    @wraps(view_func)</pre></li>
+                  <li onclick="toggle('pre1783820021440', 'post1783820021440')"><pre>    @wraps(view_func)</pre></li>
                 
-                  <li onclick="toggle('pre1706731767104', 'post1706731767104')"><pre>    def wrapper_view(*args, **kwargs):</pre></li>
+                  <li onclick="toggle('pre1783820021440', 'post1783820021440')"><pre>    def wrapper_view(*args, **kwargs):</pre></li>
                 
                 </ol>
               
               <ol start="56" class="context-line">
-                <li onclick="toggle('pre1706731767104', 'post1706731767104')"><pre>        return view_func(*args, **kwargs)
+                <li onclick="toggle('pre1783820021440', 'post1783820021440')"><pre>        return view_func(*args, **kwargs)
                    ^^^^^^^^^^^^^^^^^^^^^^^^^^</pre> <span>…</span></li>
               </ol>
               
-                <ol start='57' class="post-context" id="post1706731767104">
+                <ol start='57' class="post-context" id="post1783820021440">
                   
-                  <li onclick="toggle('pre1706731767104', 'post1706731767104')"><pre></pre></li>
+                  <li onclick="toggle('pre1783820021440', 'post1783820021440')"><pre></pre></li>
                   
-                  <li onclick="toggle('pre1706731767104', 'post1706731767104')"><pre>    wrapper_view.csrf_exempt = True</pre></li>
+                  <li onclick="toggle('pre1783820021440', 'post1783820021440')"><pre>    wrapper_view.csrf_exempt = True</pre></li>
                   
-                  <li onclick="toggle('pre1706731767104', 'post1706731767104')"><pre>    return wrapper_view</pre></li>
+                  <li onclick="toggle('pre1783820021440', 'post1783820021440')"><pre>    return wrapper_view</pre></li>
                   
               </ol>
               
@@ -425,7 +648,7 @@
               <details>
                 <summary class="commands">Local vars</summary>
             
-            <table class="vars" id="v1706731767104">
+            <table class="vars" id="v1783820021440">
               <thead>
                 <tr>
                   <th>Variable</th>
@@ -446,7 +669,7 @@
                 
                   <tr>
                     <td>view_func</td>
-                    <td class="code"><pre>&lt;function ShopifyOrderViewSet at 0x0000018D5FEA0680&gt;</pre></td>
+                    <td class="code"><pre>&lt;function ShopifyOrderViewSet at 0x0000019F537AC720&gt;</pre></td>
                   </tr>
                 
               </tbody>
@@ -462,44 +685,44 @@
           
 
           
-            <div class="context" id="c1706782059520">
+            <div class="context" id="c1783820021248">
               
-                <ol start="118" class="pre-context" id="pre1706782059520">
+                <ol start="118" class="pre-context" id="pre1783820021248">
                 
-                  <li onclick="toggle('pre1706782059520', 'post1706782059520')"><pre>                setattr(self, method, handler)</pre></li>
+                  <li onclick="toggle('pre1783820021248', 'post1783820021248')"><pre>                setattr(self, method, handler)</pre></li>
                 
-                  <li onclick="toggle('pre1706782059520', 'post1706782059520')"><pre></pre></li>
+                  <li onclick="toggle('pre1783820021248', 'post1783820021248')"><pre></pre></li>
                 
-                  <li onclick="toggle('pre1706782059520', 'post1706782059520')"><pre>            self.request = request</pre></li>
+                  <li onclick="toggle('pre1783820021248', 'post1783820021248')"><pre>            self.request = request</pre></li>
                 
-                  <li onclick="toggle('pre1706782059520', 'post1706782059520')"><pre>            self.args = args</pre></li>
+                  <li onclick="toggle('pre1783820021248', 'post1783820021248')"><pre>            self.args = args</pre></li>
                 
-                  <li onclick="toggle('pre1706782059520', 'post1706782059520')"><pre>            self.kwargs = kwargs</pre></li>
+                  <li onclick="toggle('pre1783820021248', 'post1783820021248')"><pre>            self.kwargs = kwargs</pre></li>
                 
-                  <li onclick="toggle('pre1706782059520', 'post1706782059520')"><pre></pre></li>
+                  <li onclick="toggle('pre1783820021248', 'post1783820021248')"><pre></pre></li>
                 
-                  <li onclick="toggle('pre1706782059520', 'post1706782059520')"><pre>            # And continue as usual</pre></li>
+                  <li onclick="toggle('pre1783820021248', 'post1783820021248')"><pre>            # And continue as usual</pre></li>
                 
                 </ol>
               
               <ol start="125" class="context-line">
-                <li onclick="toggle('pre1706782059520', 'post1706782059520')"><pre>            return self.dispatch(request, *args, **kwargs)
+                <li onclick="toggle('pre1783820021248', 'post1783820021248')"><pre>            return self.dispatch(request, *args, **kwargs)
                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^</pre> <span>…</span></li>
               </ol>
               
-                <ol start='126' class="post-context" id="post1706782059520">
+                <ol start='126' class="post-context" id="post1783820021248">
                   
-                  <li onclick="toggle('pre1706782059520', 'post1706782059520')"><pre></pre></li>
+                  <li onclick="toggle('pre1783820021248', 'post1783820021248')"><pre></pre></li>
                   
-                  <li onclick="toggle('pre1706782059520', 'post1706782059520')"><pre>        # take name and docstring from class</pre></li>
+                  <li onclick="toggle('pre1783820021248', 'post1783820021248')"><pre>        # take name and docstring from class</pre></li>
                   
-                  <li onclick="toggle('pre1706782059520', 'post1706782059520')"><pre>        update_wrapper(view, cls, updated=())</pre></li>
+                  <li onclick="toggle('pre1783820021248', 'post1783820021248')"><pre>        update_wrapper(view, cls, updated=())</pre></li>
                   
-                  <li onclick="toggle('pre1706782059520', 'post1706782059520')"><pre></pre></li>
+                  <li onclick="toggle('pre1783820021248', 'post1783820021248')"><pre></pre></li>
                   
-                  <li onclick="toggle('pre1706782059520', 'post1706782059520')"><pre>        # and possible attributes set by decorators</pre></li>
+                  <li onclick="toggle('pre1783820021248', 'post1783820021248')"><pre>        # and possible attributes set by decorators</pre></li>
                   
-                  <li onclick="toggle('pre1706782059520', 'post1706782059520')"><pre>        # like csrf_exempt from dispatch</pre></li>
+                  <li onclick="toggle('pre1783820021248', 'post1783820021248')"><pre>        # like csrf_exempt from dispatch</pre></li>
                   
               </ol>
               
@@ -511,7 +734,7 @@
               <details>
                 <summary class="commands">Local vars</summary>
             
-            <table class="vars" id="v1706782059520">
+            <table class="vars" id="v1783820021248">
               <thead>
                 <tr>
                   <th>Variable</th>
@@ -542,7 +765,7 @@
                 
                   <tr>
                     <td>handler</td>
-                    <td class="code"><pre>&lt;bound method ShopifyOrderViewSet.sales_summary of &lt;apps.integrations.shopify_views.ShopifyOrderViewSet object at 0x0000018D6121A4B0&gt;&gt;</pre></td>
+                    <td class="code"><pre>&lt;bound method ShopifyOrderViewSet.sales_summary of &lt;apps.integrations.shopify_views.ShopifyOrderViewSet object at 0x0000019F53DEE390&gt;&gt;</pre></td>
                   </tr>
                 
                   <tr>
@@ -575,7 +798,7 @@
                 
                   <tr>
                     <td>self</td>
-                    <td class="code"><pre>&lt;apps.integrations.shopify_views.ShopifyOrderViewSet object at 0x0000018D6121A4B0&gt;</pre></td>
+                    <td class="code"><pre>&lt;apps.integrations.shopify_views.ShopifyOrderViewSet object at 0x0000019F53DEE390&gt;</pre></td>
                   </tr>
                 
               </tbody>
@@ -591,44 +814,44 @@
           
 
           
-            <div class="context" id="c1706782512960">
+            <div class="context" id="c1783820015296">
               
-                <ol start="502" class="pre-context" id="pre1706782512960">
+                <ol start="502" class="pre-context" id="pre1783820015296">
                 
-                  <li onclick="toggle('pre1706782512960', 'post1706782512960')"><pre>                                  self.http_method_not_allowed)</pre></li>
+                  <li onclick="toggle('pre1783820015296', 'post1783820015296')"><pre>                                  self.http_method_not_allowed)</pre></li>
                 
-                  <li onclick="toggle('pre1706782512960', 'post1706782512960')"><pre>            else:</pre></li>
+                  <li onclick="toggle('pre1783820015296', 'post1783820015296')"><pre>            else:</pre></li>
                 
-                  <li onclick="toggle('pre1706782512960', 'post1706782512960')"><pre>                handler = self.http_method_not_allowed</pre></li>
+                  <li onclick="toggle('pre1783820015296', 'post1783820015296')"><pre>                handler = self.http_method_not_allowed</pre></li>
                 
-                  <li onclick="toggle('pre1706782512960', 'post1706782512960')"><pre></pre></li>
+                  <li onclick="toggle('pre1783820015296', 'post1783820015296')"><pre></pre></li>
                 
-                  <li onclick="toggle('pre1706782512960', 'post1706782512960')"><pre>            response = handler(request, *args, **kwargs)</pre></li>
+                  <li onclick="toggle('pre1783820015296', 'post1783820015296')"><pre>            response = handler(request, *args, **kwargs)</pre></li>
                 
-                  <li onclick="toggle('pre1706782512960', 'post1706782512960')"><pre></pre></li>
+                  <li onclick="toggle('pre1783820015296', 'post1783820015296')"><pre></pre></li>
                 
-                  <li onclick="toggle('pre1706782512960', 'post1706782512960')"><pre>        except Exception as exc:</pre></li>
+                  <li onclick="toggle('pre1783820015296', 'post1783820015296')"><pre>        except Exception as exc:</pre></li>
                 
                 </ol>
               
               <ol start="509" class="context-line">
-                <li onclick="toggle('pre1706782512960', 'post1706782512960')"><pre>            response = self.handle_exception(exc)
+                <li onclick="toggle('pre1783820015296', 'post1783820015296')"><pre>            response = self.handle_exception(exc)
                             ^^^^^^^^^^^^^^^^^^^^^^^^^^</pre> <span>…</span></li>
               </ol>
               
-                <ol start='510' class="post-context" id="post1706782512960">
+                <ol start='510' class="post-context" id="post1783820015296">
                   
-                  <li onclick="toggle('pre1706782512960', 'post1706782512960')"><pre></pre></li>
+                  <li onclick="toggle('pre1783820015296', 'post1783820015296')"><pre></pre></li>
                   
-                  <li onclick="toggle('pre1706782512960', 'post1706782512960')"><pre>        self.response = self.finalize_response(request, response, *args, **kwargs)</pre></li>
+                  <li onclick="toggle('pre1783820015296', 'post1783820015296')"><pre>        self.response = self.finalize_response(request, response, *args, **kwargs)</pre></li>
                   
-                  <li onclick="toggle('pre1706782512960', 'post1706782512960')"><pre>        return self.response</pre></li>
+                  <li onclick="toggle('pre1783820015296', 'post1783820015296')"><pre>        return self.response</pre></li>
                   
-                  <li onclick="toggle('pre1706782512960', 'post1706782512960')"><pre></pre></li>
+                  <li onclick="toggle('pre1783820015296', 'post1783820015296')"><pre></pre></li>
                   
-                  <li onclick="toggle('pre1706782512960', 'post1706782512960')"><pre>    def options(self, request, *args, **kwargs):</pre></li>
+                  <li onclick="toggle('pre1783820015296', 'post1783820015296')"><pre>    def options(self, request, *args, **kwargs):</pre></li>
                   
-                  <li onclick="toggle('pre1706782512960', 'post1706782512960')"><pre>        &quot;&quot;&quot;</pre></li>
+                  <li onclick="toggle('pre1783820015296', 'post1783820015296')"><pre>        &quot;&quot;&quot;</pre></li>
                   
               </ol>
               
@@ -640,7 +863,7 @@
               <details>
                 <summary class="commands">Local vars</summary>
             
-            <table class="vars" id="v1706782512960">
+            <table class="vars" id="v1783820015296">
               <thead>
                 <tr>
                   <th>Variable</th>
@@ -656,7 +879,7 @@
                 
                   <tr>
                     <td>handler</td>
-                    <td class="code"><pre>&lt;bound method ShopifyOrderViewSet.sales_summary of &lt;apps.integrations.shopify_views.ShopifyOrderViewSet object at 0x0000018D6121A4B0&gt;&gt;</pre></td>
+                    <td class="code"><pre>&lt;bound method ShopifyOrderViewSet.sales_summary of &lt;apps.integrations.shopify_views.ShopifyOrderViewSet object at 0x0000019F53DEE390&gt;&gt;</pre></td>
                   </tr>
                 
                   <tr>
@@ -671,7 +894,7 @@
                 
                   <tr>
                     <td>self</td>
-                    <td class="code"><pre>&lt;apps.integrations.shopify_views.ShopifyOrderViewSet object at 0x0000018D6121A4B0&gt;</pre></td>
+                    <td class="code"><pre>&lt;apps.integrations.shopify_views.ShopifyOrderViewSet object at 0x0000019F53DEE390&gt;</pre></td>
                   </tr>
                 
               </tbody>
@@ -687,44 +910,44 @@
           
 
           
-            <div class="context" id="c1706773048384">
+            <div class="context" id="c1783820018240">
               
-                <ol start="462" class="pre-context" id="pre1706773048384">
+                <ol start="462" class="pre-context" id="pre1783820018240">
                 
-                  <li onclick="toggle('pre1706773048384', 'post1706773048384')"><pre></pre></li>
+                  <li onclick="toggle('pre1783820018240', 'post1783820018240')"><pre></pre></li>
                 
-                  <li onclick="toggle('pre1706773048384', 'post1706773048384')"><pre>        exception_handler = self.get_exception_handler()</pre></li>
+                  <li onclick="toggle('pre1783820018240', 'post1783820018240')"><pre>        exception_handler = self.get_exception_handler()</pre></li>
                 
-                  <li onclick="toggle('pre1706773048384', 'post1706773048384')"><pre></pre></li>
+                  <li onclick="toggle('pre1783820018240', 'post1783820018240')"><pre></pre></li>
                 
-                  <li onclick="toggle('pre1706773048384', 'post1706773048384')"><pre>        context = self.get_exception_handler_context()</pre></li>
+                  <li onclick="toggle('pre1783820018240', 'post1783820018240')"><pre>        context = self.get_exception_handler_context()</pre></li>
                 
-                  <li onclick="toggle('pre1706773048384', 'post1706773048384')"><pre>        response = exception_handler(exc, context)</pre></li>
+                  <li onclick="toggle('pre1783820018240', 'post1783820018240')"><pre>        response = exception_handler(exc, context)</pre></li>
                 
-                  <li onclick="toggle('pre1706773048384', 'post1706773048384')"><pre></pre></li>
+                  <li onclick="toggle('pre1783820018240', 'post1783820018240')"><pre></pre></li>
                 
-                  <li onclick="toggle('pre1706773048384', 'post1706773048384')"><pre>        if response is None:</pre></li>
+                  <li onclick="toggle('pre1783820018240', 'post1783820018240')"><pre>        if response is None:</pre></li>
                 
                 </ol>
               
               <ol start="469" class="context-line">
-                <li onclick="toggle('pre1706773048384', 'post1706773048384')"><pre>            self.raise_uncaught_exception(exc)
+                <li onclick="toggle('pre1783820018240', 'post1783820018240')"><pre>            self.raise_uncaught_exception(exc)
                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^</pre> <span>…</span></li>
               </ol>
               
-                <ol start='470' class="post-context" id="post1706773048384">
+                <ol start='470' class="post-context" id="post1783820018240">
                   
-                  <li onclick="toggle('pre1706773048384', 'post1706773048384')"><pre></pre></li>
+                  <li onclick="toggle('pre1783820018240', 'post1783820018240')"><pre></pre></li>
                   
-                  <li onclick="toggle('pre1706773048384', 'post1706773048384')"><pre>        response.exception = True</pre></li>
+                  <li onclick="toggle('pre1783820018240', 'post1783820018240')"><pre>        response.exception = True</pre></li>
                   
-                  <li onclick="toggle('pre1706773048384', 'post1706773048384')"><pre>        return response</pre></li>
+                  <li onclick="toggle('pre1783820018240', 'post1783820018240')"><pre>        return response</pre></li>
                   
-                  <li onclick="toggle('pre1706773048384', 'post1706773048384')"><pre></pre></li>
+                  <li onclick="toggle('pre1783820018240', 'post1783820018240')"><pre></pre></li>
                   
-                  <li onclick="toggle('pre1706773048384', 'post1706773048384')"><pre>    def raise_uncaught_exception(self, exc):</pre></li>
+                  <li onclick="toggle('pre1783820018240', 'post1783820018240')"><pre>    def raise_uncaught_exception(self, exc):</pre></li>
                   
-                  <li onclick="toggle('pre1706773048384', 'post1706773048384')"><pre>        if settings.DEBUG:</pre></li>
+                  <li onclick="toggle('pre1783820018240', 'post1783820018240')"><pre>        if settings.DEBUG:</pre></li>
                   
               </ol>
               
@@ -736,7 +959,7 @@
               <details>
                 <summary class="commands">Local vars</summary>
             
-            <table class="vars" id="v1706773048384">
+            <table class="vars" id="v1783820018240">
               <thead>
                 <tr>
                   <th>Variable</th>
@@ -750,17 +973,17 @@
                     <td class="code"><pre>{&#x27;args&#x27;: (),
  &#x27;kwargs&#x27;: {},
  &#x27;request&#x27;: &lt;rest_framework.request.Request: GET &#x27;/api/integrations/shopify/orders/sales_summary/?days=30&#x27;&gt;,
- &#x27;view&#x27;: &lt;apps.integrations.shopify_views.ShopifyOrderViewSet object at 0x0000018D6121A4B0&gt;}</pre></td>
+ &#x27;view&#x27;: &lt;apps.integrations.shopify_views.ShopifyOrderViewSet object at 0x0000019F53DEE390&gt;}</pre></td>
                   </tr>
                 
                   <tr>
                     <td>exc</td>
-                    <td class="code"><pre>FieldError(&#x27;Field ShopifyOrder.store cannot be both deferred and traversed using select_related at the same time.&#x27;)</pre></td>
+                    <td class="code"><pre>FieldError(&quot;Cannot resolve keyword &#x27;code&#x27; into field. Choices are: access_token, api_key, api_secret, api_version, auto_sync_inventory, auto_sync_orders, auto_sync_products, company, company_id, connection_error, created_at, created_by, created_by_id, discounts, draft_orders, gift_cards, id, inventory_levels, is_connected, last_connection_test, last_inventory_sync, last_order_sync, last_product_sync, name, orders, products, shop_domain, status, sync_interval_minutes, sync_jobs, updated_at, updated_by, updated_by_id, version, webhook_logs, webhook_secret, webhooks&quot;)</pre></td>
                   </tr>
                 
                   <tr>
                     <td>exception_handler</td>
-                    <td class="code"><pre>&lt;function custom_exception_handler at 0x0000018D5FCBF600&gt;</pre></td>
+                    <td class="code"><pre>&lt;function custom_exception_handler at 0x0000019F5362F600&gt;</pre></td>
                   </tr>
                 
                   <tr>
@@ -770,7 +993,7 @@
                 
                   <tr>
                     <td>self</td>
-                    <td class="code"><pre>&lt;apps.integrations.shopify_views.ShopifyOrderViewSet object at 0x0000018D6121A4B0&gt;</pre></td>
+                    <td class="code"><pre>&lt;apps.integrations.shopify_views.ShopifyOrderViewSet object at 0x0000019F53DEE390&gt;</pre></td>
                   </tr>
                 
               </tbody>
@@ -786,44 +1009,44 @@
           
 
           
-            <div class="context" id="c1706776092544">
+            <div class="context" id="c1783820018048">
               
-                <ol start="473" class="pre-context" id="pre1706776092544">
+                <ol start="473" class="pre-context" id="pre1783820018048">
                 
-                  <li onclick="toggle('pre1706776092544', 'post1706776092544')"><pre></pre></li>
+                  <li onclick="toggle('pre1783820018048', 'post1783820018048')"><pre></pre></li>
                 
-                  <li onclick="toggle('pre1706776092544', 'post1706776092544')"><pre>    def raise_uncaught_exception(self, exc):</pre></li>
+                  <li onclick="toggle('pre1783820018048', 'post1783820018048')"><pre>    def raise_uncaught_exception(self, exc):</pre></li>
                 
-                  <li onclick="toggle('pre1706776092544', 'post1706776092544')"><pre>        if settings.DEBUG:</pre></li>
+                  <li onclick="toggle('pre1783820018048', 'post1783820018048')"><pre>        if settings.DEBUG:</pre></li>
                 
-                  <li onclick="toggle('pre1706776092544', 'post1706776092544')"><pre>            request = self.request</pre></li>
+                  <li onclick="toggle('pre1783820018048', 'post1783820018048')"><pre>            request = self.request</pre></li>
                 
-                  <li onclick="toggle('pre1706776092544', 'post1706776092544')"><pre>            renderer_format = getattr(request.accepted_renderer, &#x27;format&#x27;)</pre></li>
+                  <li onclick="toggle('pre1783820018048', 'post1783820018048')"><pre>            renderer_format = getattr(request.accepted_renderer, &#x27;format&#x27;)</pre></li>
                 
-                  <li onclick="toggle('pre1706776092544', 'post1706776092544')"><pre>            use_plaintext_traceback = renderer_format not in (&#x27;html&#x27;, &#x27;api&#x27;, &#x27;admin&#x27;)</pre></li>
+                  <li onclick="toggle('pre1783820018048', 'post1783820018048')"><pre>            use_plaintext_traceback = renderer_format not in (&#x27;html&#x27;, &#x27;api&#x27;, &#x27;admin&#x27;)</pre></li>
                 
-                  <li onclick="toggle('pre1706776092544', 'post1706776092544')"><pre>            request.force_plaintext_errors(use_plaintext_traceback)</pre></li>
+                  <li onclick="toggle('pre1783820018048', 'post1783820018048')"><pre>            request.force_plaintext_errors(use_plaintext_traceback)</pre></li>
                 
                 </ol>
               
               <ol start="480" class="context-line">
-                <li onclick="toggle('pre1706776092544', 'post1706776092544')"><pre>        raise exc
+                <li onclick="toggle('pre1783820018048', 'post1783820018048')"><pre>        raise exc
              ^^^^^^^^^</pre> <span>…</span></li>
               </ol>
               
-                <ol start='481' class="post-context" id="post1706776092544">
+                <ol start='481' class="post-context" id="post1783820018048">
                   
-                  <li onclick="toggle('pre1706776092544', 'post1706776092544')"><pre></pre></li>
+                  <li onclick="toggle('pre1783820018048', 'post1783820018048')"><pre></pre></li>
                   
-                  <li onclick="toggle('pre1706776092544', 'post1706776092544')"><pre>    # Note: Views are made CSRF exempt from within `as_view` as to prevent</pre></li>
+                  <li onclick="toggle('pre1783820018048', 'post1783820018048')"><pre>    # Note: Views are made CSRF exempt from within `as_view` as to prevent</pre></li>
                   
-                  <li onclick="toggle('pre1706776092544', 'post1706776092544')"><pre>    # accidental removal of this exemption in cases where `dispatch` needs to</pre></li>
+                  <li onclick="toggle('pre1783820018048', 'post1783820018048')"><pre>    # accidental removal of this exemption in cases where `dispatch` needs to</pre></li>
                   
-                  <li onclick="toggle('pre1706776092544', 'post1706776092544')"><pre>    # be overridden.</pre></li>
+                  <li onclick="toggle('pre1783820018048', 'post1783820018048')"><pre>    # be overridden.</pre></li>
                   
-                  <li onclick="toggle('pre1706776092544', 'post1706776092544')"><pre>    def dispatch(self, request, *args, **kwargs):</pre></li>
+                  <li onclick="toggle('pre1783820018048', 'post1783820018048')"><pre>    def dispatch(self, request, *args, **kwargs):</pre></li>
                   
-                  <li onclick="toggle('pre1706776092544', 'post1706776092544')"><pre>        &quot;&quot;&quot;</pre></li>
+                  <li onclick="toggle('pre1783820018048', 'post1783820018048')"><pre>        &quot;&quot;&quot;</pre></li>
                   
               </ol>
               
@@ -835,7 +1058,7 @@
               <details>
                 <summary class="commands">Local vars</summary>
             
-            <table class="vars" id="v1706776092544">
+            <table class="vars" id="v1783820018048">
               <thead>
                 <tr>
                   <th>Variable</th>
@@ -846,7 +1069,7 @@
                 
                   <tr>
                     <td>exc</td>
-                    <td class="code"><pre>FieldError(&#x27;Field ShopifyOrder.store cannot be both deferred and traversed using select_related at the same time.&#x27;)</pre></td>
+                    <td class="code"><pre>FieldError(&quot;Cannot resolve keyword &#x27;code&#x27; into field. Choices are: access_token, api_key, api_secret, api_version, auto_sync_inventory, auto_sync_orders, auto_sync_products, company, company_id, connection_error, created_at, created_by, created_by_id, discounts, draft_orders, gift_cards, id, inventory_levels, is_connected, last_connection_test, last_inventory_sync, last_order_sync, last_product_sync, name, orders, products, shop_domain, status, sync_interval_minutes, sync_jobs, updated_at, updated_by, updated_by_id, version, webhook_logs, webhook_secret, webhooks&quot;)</pre></td>
                   </tr>
                 
                   <tr>
@@ -861,7 +1084,7 @@
                 
                   <tr>
                     <td>self</td>
-                    <td class="code"><pre>&lt;apps.integrations.shopify_views.ShopifyOrderViewSet object at 0x0000018D6121A4B0&gt;</pre></td>
+                    <td class="code"><pre>&lt;apps.integrations.shopify_views.ShopifyOrderViewSet object at 0x0000019F53DEE390&gt;</pre></td>
                   </tr>
                 
                   <tr>
@@ -882,44 +1105,44 @@
           
 
           
-            <div class="context" id="c1706782510720">
+            <div class="context" id="c1783820010368">
               
-                <ol start="499" class="pre-context" id="pre1706782510720">
+                <ol start="499" class="pre-context" id="pre1783820010368">
                 
-                  <li onclick="toggle('pre1706782510720', 'post1706782510720')"><pre>            # Get the appropriate handler method</pre></li>
+                  <li onclick="toggle('pre1783820010368', 'post1783820010368')"><pre>            # Get the appropriate handler method</pre></li>
                 
-                  <li onclick="toggle('pre1706782510720', 'post1706782510720')"><pre>            if request.method.lower() in self.http_method_names:</pre></li>
+                  <li onclick="toggle('pre1783820010368', 'post1783820010368')"><pre>            if request.method.lower() in self.http_method_names:</pre></li>
                 
-                  <li onclick="toggle('pre1706782510720', 'post1706782510720')"><pre>                handler = getattr(self, request.method.lower(),</pre></li>
+                  <li onclick="toggle('pre1783820010368', 'post1783820010368')"><pre>                handler = getattr(self, request.method.lower(),</pre></li>
                 
-                  <li onclick="toggle('pre1706782510720', 'post1706782510720')"><pre>                                  self.http_method_not_allowed)</pre></li>
+                  <li onclick="toggle('pre1783820010368', 'post1783820010368')"><pre>                                  self.http_method_not_allowed)</pre></li>
                 
-                  <li onclick="toggle('pre1706782510720', 'post1706782510720')"><pre>            else:</pre></li>
+                  <li onclick="toggle('pre1783820010368', 'post1783820010368')"><pre>            else:</pre></li>
                 
-                  <li onclick="toggle('pre1706782510720', 'post1706782510720')"><pre>                handler = self.http_method_not_allowed</pre></li>
+                  <li onclick="toggle('pre1783820010368', 'post1783820010368')"><pre>                handler = self.http_method_not_allowed</pre></li>
                 
-                  <li onclick="toggle('pre1706782510720', 'post1706782510720')"><pre></pre></li>
+                  <li onclick="toggle('pre1783820010368', 'post1783820010368')"><pre></pre></li>
                 
                 </ol>
               
               <ol start="506" class="context-line">
-                <li onclick="toggle('pre1706782510720', 'post1706782510720')"><pre>            response = handler(request, *args, **kwargs)
+                <li onclick="toggle('pre1783820010368', 'post1783820010368')"><pre>            response = handler(request, *args, **kwargs)
                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^</pre> <span>…</span></li>
               </ol>
               
-                <ol start='507' class="post-context" id="post1706782510720">
+                <ol start='507' class="post-context" id="post1783820010368">
                   
-                  <li onclick="toggle('pre1706782510720', 'post1706782510720')"><pre></pre></li>
+                  <li onclick="toggle('pre1783820010368', 'post1783820010368')"><pre></pre></li>
                   
-                  <li onclick="toggle('pre1706782510720', 'post1706782510720')"><pre>        except Exception as exc:</pre></li>
+                  <li onclick="toggle('pre1783820010368', 'post1783820010368')"><pre>        except Exception as exc:</pre></li>
                   
-                  <li onclick="toggle('pre1706782510720', 'post1706782510720')"><pre>            response = self.handle_exception(exc)</pre></li>
+                  <li onclick="toggle('pre1783820010368', 'post1783820010368')"><pre>            response = self.handle_exception(exc)</pre></li>
                   
-                  <li onclick="toggle('pre1706782510720', 'post1706782510720')"><pre></pre></li>
+                  <li onclick="toggle('pre1783820010368', 'post1783820010368')"><pre></pre></li>
                   
-                  <li onclick="toggle('pre1706782510720', 'post1706782510720')"><pre>        self.response = self.finalize_response(request, response, *args, **kwargs)</pre></li>
+                  <li onclick="toggle('pre1783820010368', 'post1783820010368')"><pre>        self.response = self.finalize_response(request, response, *args, **kwargs)</pre></li>
                   
-                  <li onclick="toggle('pre1706782510720', 'post1706782510720')"><pre>        return self.response</pre></li>
+                  <li onclick="toggle('pre1783820010368', 'post1783820010368')"><pre>        return self.response</pre></li>
                   
               </ol>
               
@@ -931,7 +1154,7 @@
               <details>
                 <summary class="commands">Local vars</summary>
             
-            <table class="vars" id="v1706782510720">
+            <table class="vars" id="v1783820010368">
               <thead>
                 <tr>
                   <th>Variable</th>
@@ -947,7 +1170,7 @@
                 
                   <tr>
                     <td>handler</td>
-                    <td class="code"><pre>&lt;bound method ShopifyOrderViewSet.sales_summary of &lt;apps.integrations.shopify_views.ShopifyOrderViewSet object at 0x0000018D6121A4B0&gt;&gt;</pre></td>
+                    <td class="code"><pre>&lt;bound method ShopifyOrderViewSet.sales_summary of &lt;apps.integrations.shopify_views.ShopifyOrderViewSet object at 0x0000019F53DEE390&gt;&gt;</pre></td>
                   </tr>
                 
                   <tr>
@@ -962,7 +1185,7 @@
                 
                   <tr>
                     <td>self</td>
-                    <td class="code"><pre>&lt;apps.integrations.shopify_views.ShopifyOrderViewSet object at 0x0000018D6121A4B0&gt;</pre></td>
+                    <td class="code"><pre>&lt;apps.integrations.shopify_views.ShopifyOrderViewSet object at 0x0000019F53DEE390&gt;</pre></td>
                   </tr>
                 
               </tbody>
@@ -974,48 +1197,48 @@
         
         <li class="frame user">
           
-            <code class="fname">C:\Users\jeril\OneDrive\Desktop\88gb\erp\88-ERP\backend\apps\integrations\shopify_views.py</code>, line 993, in sales_summary
+            <code class="fname">C:\Users\jeril\OneDrive\Desktop\88gb\erp\88-ERP\backend\apps\integrations\shopify_views.py</code>, line 1012, in sales_summary
           
 
           
-            <div class="context" id="c1706782511040">
+            <div class="context" id="c1783820018944">
               
-                <ol start="986" class="pre-context" id="pre1706782511040">
+                <ol start="1005" class="pre-context" id="pre1783820018944">
                 
-                  <li onclick="toggle('pre1706782511040', 'post1706782511040')"><pre>            total_sales=Sum(&#x27;total_price&#x27;),</pre></li>
+                  <li onclick="toggle('pre1783820018944', 'post1783820018944')"><pre>                &#x27;sales_channel&#x27;: &#x27;online&#x27;,</pre></li>
                 
-                  <li onclick="toggle('pre1706782511040', 'post1706782511040')"><pre>            total_transactions=Count(&#x27;id&#x27;),</pre></li>
+                  <li onclick="toggle('pre1783820018944', 'post1783820018944')"><pre>                &#x27;total_sales&#x27;: total_sales_val,</pre></li>
                 
-                  <li onclick="toggle('pre1706782511040', 'post1706782511040')"><pre>            avg_transaction_value=Avg(&#x27;total_price&#x27;),</pre></li>
+                  <li onclick="toggle('pre1783820018944', 'post1783820018944')"><pre>                &#x27;transaction_count&#x27;: summary[&#x27;total_transactions&#x27;] or 0,</pre></li>
                 
-                  <li onclick="toggle('pre1706782511040', 'post1706782511040')"><pre>        )</pre></li>
+                  <li onclick="toggle('pre1783820018944', 'post1783820018944')"><pre>                &#x27;avg_value&#x27;: float(summary[&#x27;avg_transaction_value&#x27;] or 0),</pre></li>
                 
-                  <li onclick="toggle('pre1706782511040', 'post1706782511040')"><pre>        </pre></li>
+                  <li onclick="toggle('pre1783820018944', 'post1783820018944')"><pre>            })</pre></li>
                 
-                  <li onclick="toggle('pre1706782511040', 'post1706782511040')"><pre>        # Calculate total items from line_items in shopify_data</pre></li>
+                  <li onclick="toggle('pre1783820018944', 'post1783820018944')"><pre></pre></li>
                 
-                  <li onclick="toggle('pre1706782511040', 'post1706782511040')"><pre>        total_items = 0</pre></li>
+                  <li onclick="toggle('pre1783820018944', 'post1783820018944')"><pre>        # Sales by store (properly aggregated)</pre></li>
                 
                 </ol>
               
-              <ol start="993" class="context-line">
-                <li onclick="toggle('pre1706782511040', 'post1706782511040')"><pre>        for order in queryset.only(&#x27;shopify_data&#x27;):
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^</pre> <span>…</span></li>
+              <ol start="1012" class="context-line">
+                <li onclick="toggle('pre1783820018944', 'post1783820018944')"><pre>        by_store = queryset.values(
+                         </pre> <span>…</span></li>
               </ol>
               
-                <ol start='994' class="post-context" id="post1706782511040">
+                <ol start='1013' class="post-context" id="post1783820018944">
                   
-                  <li onclick="toggle('pre1706782511040', 'post1706782511040')"><pre>            if order.shopify_data and &#x27;line_items&#x27; in order.shopify_data:</pre></li>
+                  <li onclick="toggle('pre1783820018944', 'post1783820018944')"><pre>            &#x27;store__name&#x27;,</pre></li>
                   
-                  <li onclick="toggle('pre1706782511040', 'post1706782511040')"><pre>                total_items += sum(item.get(&#x27;quantity&#x27;, 0) for item in order.shopify_data[&#x27;line_items&#x27;])</pre></li>
+                  <li onclick="toggle('pre1783820018944', 'post1783820018944')"><pre>            &#x27;store__code&#x27;</pre></li>
                   
-                  <li onclick="toggle('pre1706782511040', 'post1706782511040')"><pre>        </pre></li>
+                  <li onclick="toggle('pre1783820018944', 'post1783820018944')"><pre>        ).annotate(</pre></li>
                   
-                  <li onclick="toggle('pre1706782511040', 'post1706782511040')"><pre>        summary[&#x27;total_items&#x27;] = total_items</pre></li>
+                  <li onclick="toggle('pre1783820018944', 'post1783820018944')"><pre>            total_sales=Sum(&#x27;total_price&#x27;),</pre></li>
                   
-                  <li onclick="toggle('pre1706782511040', 'post1706782511040')"><pre>        </pre></li>
+                  <li onclick="toggle('pre1783820018944', 'post1783820018944')"><pre>            transaction_count=Count(&#x27;id&#x27;),</pre></li>
                   
-                  <li onclick="toggle('pre1706782511040', 'post1706782511040')"><pre>        # Sales by channel</pre></li>
+                  <li onclick="toggle('pre1783820018944', 'post1783820018944')"><pre>            avg_value=Avg(&#x27;total_price&#x27;),</pre></li>
                   
               </ol>
               
@@ -1027,7 +1250,7 @@
               <details>
                 <summary class="commands">Local vars</summary>
             
-            <table class="vars" id="v1706782511040">
+            <table class="vars" id="v1783820018944">
               <thead>
                 <tr>
                   <th>Variable</th>
@@ -1062,6 +1285,14 @@
                   </tr>
                 
                   <tr>
+                    <td>by_channel</td>
+                    <td class="code"><pre>[{&#x27;avg_value&#x27;: 2173.3429669030734,
+  &#x27;sales_channel&#x27;: &#x27;online&#x27;,
+  &#x27;total_sales&#x27;: 1838648.15,
+  &#x27;transaction_count&#x27;: 846}]</pre></td>
+                  </tr>
+                
+                  <tr>
                     <td>queryset</td>
                     <td class="code"><pre>&lt;QuerySet [&lt;ShopifyOrder: ShopifyOrder object (2a518c49-6328-4330-9607-f92c19a6c513)&gt;, &lt;ShopifyOrder: ShopifyOrder object (d3b1e8b2-1af7-4211-b0f1-71df13439b4d)&gt;, &lt;ShopifyOrder: ShopifyOrder object (c07ee504-2b0e-41de-bb38-4ecf23f88200)&gt;, &lt;ShopifyOrder: ShopifyOrder object (19461bc7-a8f5-4a05-8f98-11a691942bd9)&gt;, &lt;ShopifyOrder: ShopifyOrder object (47f57847-7431-4dcf-9d0f-d1a285ba7a04)&gt;, &lt;ShopifyOrder: ShopifyOrder object (d1efffd1-63f9-4f5b-b4f2-56bd78459e23)&gt;, &lt;ShopifyOrder: ShopifyOrder object (fa2f0767-11f5-4516-bc82-43f4de1099b4)&gt;, &lt;ShopifyOrder: ShopifyOrder object (825f0c9a-e2a7-470b-9fd9-e73f6ad4856b)&gt;, &lt;ShopifyOrder: ShopifyOrder object (7762b310-5b75-41ae-9ef3-dacc96d15374)&gt;, &lt;ShopifyOrder: ShopifyOrder object (704a6ca4-29f6-4745-84fa-188ae31b3d74)&gt;, &lt;ShopifyOrder: ShopifyOrder object (e95b770c-96b5-4744-a890-9cb31b8c831b)&gt;, &lt;ShopifyOrder: ShopifyOrder object (e0786d22-5aef-4a85-b81c-5e9c89f3b7ea)&gt;, &lt;ShopifyOrder: ShopifyOrder object (b5aa3401-7167-48da-836b-16dec196d587)&gt;, &lt;ShopifyOrder: ShopifyOrder object (c255aeb3-77ee-4a98-bb03-bc24dce63050)&gt;, &lt;ShopifyOrder: ShopifyOrder object (c891b1e9-acd1-4bab-ad74-840cfba890e8)&gt;, &lt;ShopifyOrder: ShopifyOrder object (5817e8fc-f47a-4da5-adc8-21bf54fa8d7f)&gt;, &lt;ShopifyOrder: ShopifyOrder object (6ad2fc06-1059-49ce-aba3-ea9d91d6e780)&gt;, &lt;ShopifyOrder: ShopifyOrder object (b7f415ed-8769-41cd-bf0c-2f5d90a47643)&gt;, &lt;ShopifyOrder: ShopifyOrder object (5cc4ae46-deff-4e5f-b2b1-895ef39914e4)&gt;, &lt;ShopifyOrder: ShopifyOrder object (b6c590c7-2988-425b-b1e6-49eb313c08f9)&gt;, &#x27;...(remaining elements truncated)...&#x27;]&gt;</pre></td>
                   </tr>
@@ -1073,19 +1304,110 @@
                 
                   <tr>
                     <td>self</td>
-                    <td class="code"><pre>&lt;apps.integrations.shopify_views.ShopifyOrderViewSet object at 0x0000018D6121A4B0&gt;</pre></td>
+                    <td class="code"><pre>&lt;apps.integrations.shopify_views.ShopifyOrderViewSet object at 0x0000019F53DEE390&gt;</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>shopify_data</td>
+                    <td class="code"><pre>{&#x27;admin_graphql_api_id&#x27;: &#x27;gid://shopify/Order/7236237066404&#x27;,
+ &#x27;app_id&#x27;: 179555139585,
+ &#x27;billing_address&#x27;: {&#x27;address1&#x27;: &#x27;7-244/1, laxmi nagar colony, nagaram, kisar&#x27;,
+                     &#x27;address2&#x27;: None,
+                     &#x27;city&#x27;: &#x27;Hyderabad&#x27;,
+                     &#x27;company&#x27;: None,
+                     &#x27;country&#x27;: &#x27;India&#x27;,
+                     &#x27;country_code&#x27;: &#x27;IN&#x27;,
+                     &#x27;first_name&#x27;: &#x27;Gayathri&#x27;,
+                     &#x27;last_name&#x27;: &#x27;p&#x27;,
+                     &#x27;latitude&#x27;: 17.5579901,
+                     &#x27;longitude&#x27;: 78.4914187,
+                     &#x27;name&#x27;: &#x27;Gayathri p&#x27;,
+                     &#x27;phone&#x27;: &#x27;9491722513&#x27;,
+                     &#x27;province&#x27;: &#x27;Telangana&#x27;,
+                     &#x27;province_code&#x27;: &#x27;TS&#x27;,
+                     &#x27;zip&#x27;: &#x27;500083&#x27;},
+ &#x27;browser_ip&#x27;: None,
+ &#x27;buyer_accepts_marketing&#x27;: False,
+ &#x27;cancel_reason&#x27;: None,
+ &#x27;cancelled_at&#x27;: None,
+ &#x27;cart_token&#x27;: None,
+ &#x27;checkout_id&#x27;: None,
+ &#x27;checkout_token&#x27;: None,
+ &#x27;client_details&#x27;: None,
+ &#x27;closed_at&#x27;: None,
+ &#x27;confirmation_number&#x27;: &#x27;Q8N8T8FQZ&#x27;,
+ &#x27;confirmed&#x27;: True,
+ &#x27;contact_email&#x27;: &#x27;gayathri.p7333@gmail.com&#x27;,
+ &#x27;created_at&#x27;: &#x27;2026-02-14T15:02:42+05:30&#x27;,
+ &#x27;currency&#x27;: &#x27;INR&#x27;,
+ &#x27;current_subtotal_price&#x27;: &#x27;799.00&#x27;,
+ &#x27;current_subtotal_price_set&#x27;: {&#x27;presentment_money&#x27;: {&#x27;amount&#x27;: &#x27;799.00&#x27;,
+                                                      &#x27;currency_code&#x27;: &#x27;INR&#x27;},
+                                &#x27;shop_money&#x27;: {&#x27;amount&#x27;: &#x27;799.00&#x27;,
+                                               &#x27;currency_code&#x27;: &#x27;INR&#x27;}},
+ &#x27;current_total_additional_fees_set&#x27;: None,
+ &#x27;current_total_discounts&#x27;: &#x27;799.00&#x27;,
+ &#x27;current_total_discounts_set&#x27;: {&#x27;presentment_money&#x27;: {&#x27;amount&#x27;: &#x27;799.00&#x27;,
+                                                       &#x27;currency_code&#x27;: &#x27;INR&#x27;},
+                                 &#x27;shop_money&#x27;: {&#x27;amount&#x27;: &#x27;799.00&#x27;,
+                                                &#x27;currency_code&#x27;: &#x27;INR&#x27;}},
+ &#x27;current_total_duties_set&#x27;: None,
+ &#x27;current_total_price&#x27;: &#x27;869.00&#x27;,
+ &#x27;current_total_price_set&#x27;: {&#x27;presentment_money&#x27;: {&#x27;amount&#x27;: &#x27;869.00&#x27;,
+                                                   &#x27;currency_code&#x27;: &#x27;INR&#x27;},
+                             &#x27;shop_money&#x27;: {&#x27;amount&#x27;: &#x27;869.00&#x27;,
+                                            &#x27;currency_code&#x27;: &#x27;INR&#x27;}},
+ &#x27;current_total_tax&#x27;: &#x27;0.00&#x27;,
+ &#x27;current_total_tax_set&#x27;: {&#x27;presentment_money&#x27;: {&#x27;amount&#x27;: &#x27;0.00&#x27;,
+                                                 &#x27;currency_code&#x27;: &#x27;INR&#x27;},
+                           &#x27;shop_money&#x27;: {&#x27;amount&#x27;: &#x27;0.00&#x27;,
+                                          &#x27;currency_code&#x27;: &#x27;INR&#x27;}},
+ &#x27;customer&#x27;: {&#x27;admin_graphql_api_id&#x27;: &#x27;gid://shopify/Customer/9376854409380&#x27;,
+              &#x27;created_at&#x27;: &#x27;2026-02-14T15:02:42+05:30&#x27;,
+              &#x27;currency&#x27;: &#x27;INR&#x27;,
+              &#x27;default_address&#x27;: {&#x27;address1&#x27;: &#x27;7-244/1, laxmi nagar colony, &#x27;
+                                              &#x27;nagaram, kisar&#x27;,
+                                  &#x27;address2&#x27;: None,
+                                  &#x27;city&#x27;: &#x27;Hyderabad&#x27;,
+                                  &#x27;company&#x27;: None,
+                                  &#x27;country&#x27;: &#x27;India&#x27;,
+                                  &#x27;country_code&#x27;: &#x27;IN&#x27;,
+                                  &#x27;country_name&#x27;: &#x27;India&#x27;,
+                                  &#x27;customer_id&#x27;: 9376854409380,
+                                  &#x27;default&#x27;: True,
+                                  &#x27;first_name&#x27;: &#x27;Gayathri&#x27;,
+                                  &#x27;id&#x27;: 11465304834212,
+                                  &#x27;last_name&#x27;: &#x27;p&#x27;,
+                                  &#x27;name&#x27;: &#x27;Gayathri p&#x27;,
+                                  &#x27;phone&#x27;: &#x27;9491722513&#x27;,
+                                  &#x27;province&#x27;: &#x27;Telangana&#x27;,
+                                  &#x27;province_code&#x27;: &#x27;TS&#x27;,
+                                  &#x27;zip&#x27;: &#x27;500083&#x27;},
+              &#x27;email&#x27;: &#x27;gayathri.p7333@gmail.com&#x27;,
+              &#x27;email_marketing_consent&#x27;: {&#x27;consent_updated_at&#x27;: &#x27;2026-02-14T15:02:43+05:30&#x27;,
+                                          &#x27;opt_in_level&#x27;: &#x27;single_opt_in&#x27;,
+                                          &#x27;state&#x27;: &#x27;subscribed&#x27;},
+              &#x27;first_name&#x27;: &#x27;Gayathri&#x27;,
+              &#x27;id&#x27;: 9376854409380,
+              &#x27;last_name&#x27;: &#x27;p&#x27;,… &lt;trimmed 16579 bytes string&gt;</pre></td>
                   </tr>
                 
                   <tr>
                     <td>summary</td>
                     <td class="code"><pre>{&#x27;avg_transaction_value&#x27;: Decimal(&#x27;2173.3429669030732861&#x27;),
+ &#x27;total_items&#x27;: 1716,
  &#x27;total_sales&#x27;: Decimal(&#x27;1838648.15&#x27;),
  &#x27;total_transactions&#x27;: 846}</pre></td>
                   </tr>
                 
                   <tr>
                     <td>total_items</td>
-                    <td class="code"><pre>0</pre></td>
+                    <td class="code"><pre>1716</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>total_sales_val</td>
+                    <td class="code"><pre>1838648.15</pre></td>
                   </tr>
                 
               </tbody>
@@ -1097,48 +1419,48 @@
         
         <li class="frame django">
           
-            <code class="fname">C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\query.py</code>, line 398, in __iter__
+            <code class="fname">C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\query.py</code>, line 1313, in values
           
 
           
-            <div class="context" id="c1706782467072">
+            <div class="context" id="c1783820617664">
               
-                <ol start="391" class="pre-context" id="pre1706782467072">
+                <ol start="1306" class="pre-context" id="pre1783820617664">
                 
-                  <li onclick="toggle('pre1706782467072', 'post1706782467072')"><pre>            2. sql.compiler.results_iter()</pre></li>
+                  <li onclick="toggle('pre1783820617664', 'post1783820617664')"><pre>            clone = clone.annotate(**expressions)</pre></li>
                 
-                  <li onclick="toggle('pre1706782467072', 'post1706782467072')"><pre>               - Returns one row at time. At this point the rows are still just</pre></li>
+                  <li onclick="toggle('pre1783820617664', 'post1783820617664')"><pre>        clone._fields = fields</pre></li>
                 
-                  <li onclick="toggle('pre1706782467072', 'post1706782467072')"><pre>                 tuples. In some cases the return values are converted to</pre></li>
+                  <li onclick="toggle('pre1783820617664', 'post1783820617664')"><pre>        clone.query.set_values(fields)</pre></li>
                 
-                  <li onclick="toggle('pre1706782467072', 'post1706782467072')"><pre>                 Python values at this location.</pre></li>
+                  <li onclick="toggle('pre1783820617664', 'post1783820617664')"><pre>        return clone</pre></li>
                 
-                  <li onclick="toggle('pre1706782467072', 'post1706782467072')"><pre>            3. self.iterator()</pre></li>
+                  <li onclick="toggle('pre1783820617664', 'post1783820617664')"><pre></pre></li>
                 
-                  <li onclick="toggle('pre1706782467072', 'post1706782467072')"><pre>               - Responsible for turning the rows into model objects.</pre></li>
+                  <li onclick="toggle('pre1783820617664', 'post1783820617664')"><pre>    def values(self, *fields, **expressions):</pre></li>
                 
-                  <li onclick="toggle('pre1706782467072', 'post1706782467072')"><pre>        &quot;&quot;&quot;</pre></li>
+                  <li onclick="toggle('pre1783820617664', 'post1783820617664')"><pre>        fields += tuple(expressions)</pre></li>
                 
                 </ol>
               
-              <ol start="398" class="context-line">
-                <li onclick="toggle('pre1706782467072', 'post1706782467072')"><pre>        self._fetch_all()
-             ^^^^^^^^^^^^^^^^^</pre> <span>…</span></li>
+              <ol start="1313" class="context-line">
+                <li onclick="toggle('pre1783820617664', 'post1783820617664')"><pre>        clone = self._values(*fields, **expressions)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^</pre> <span>…</span></li>
               </ol>
               
-                <ol start='399' class="post-context" id="post1706782467072">
+                <ol start='1314' class="post-context" id="post1783820617664">
                   
-                  <li onclick="toggle('pre1706782467072', 'post1706782467072')"><pre>        return iter(self._result_cache)</pre></li>
+                  <li onclick="toggle('pre1783820617664', 'post1783820617664')"><pre>        clone._iterable_class = ValuesIterable</pre></li>
                   
-                  <li onclick="toggle('pre1706782467072', 'post1706782467072')"><pre></pre></li>
+                  <li onclick="toggle('pre1783820617664', 'post1783820617664')"><pre>        return clone</pre></li>
                   
-                  <li onclick="toggle('pre1706782467072', 'post1706782467072')"><pre>    def __aiter__(self):</pre></li>
+                  <li onclick="toggle('pre1783820617664', 'post1783820617664')"><pre></pre></li>
                   
-                  <li onclick="toggle('pre1706782467072', 'post1706782467072')"><pre>        # Remember, __aiter__ itself is synchronous, it&#x27;s the thing it returns</pre></li>
+                  <li onclick="toggle('pre1783820617664', 'post1783820617664')"><pre>    def values_list(self, *fields, flat=False, named=False):</pre></li>
                   
-                  <li onclick="toggle('pre1706782467072', 'post1706782467072')"><pre>        # that is async!</pre></li>
+                  <li onclick="toggle('pre1783820617664', 'post1783820617664')"><pre>        if flat and named:</pre></li>
                   
-                  <li onclick="toggle('pre1706782467072', 'post1706782467072')"><pre>        async def generator():</pre></li>
+                  <li onclick="toggle('pre1783820617664', 'post1783820617664')"><pre>            raise TypeError(&quot;&#x27;flat&#x27; and &#x27;named&#x27; can&#x27;t be used together.&quot;)</pre></li>
                   
               </ol>
               
@@ -1150,7 +1472,7 @@
               <details>
                 <summary class="commands">Local vars</summary>
             
-            <table class="vars" id="v1706782467072">
+            <table class="vars" id="v1783820617664">
               <thead>
                 <tr>
                   <th>Variable</th>
@@ -1160,757 +1482,321 @@
               <tbody>
                 
                   <tr>
-                    <td>self</td>
-                    <td class="code"><pre>Error in formatting: FieldError: Field ShopifyOrder.store cannot be both deferred and traversed using select_related at the same time.</pre></td>
-                  </tr>
-                
-              </tbody>
-            </table>
-            </details>
-          
-        </li>
-      
-        
-        <li class="frame django">
-          
-            <code class="fname">C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\query.py</code>, line 1881, in _fetch_all
-          
-
-          
-            <div class="context" id="c1706791631872">
-              
-                <ol start="1874" class="pre-context" id="pre1706791631872">
-                
-                  <li onclick="toggle('pre1706791631872', 'post1706791631872')"><pre>        c._known_related_objects = self._known_related_objects</pre></li>
-                
-                  <li onclick="toggle('pre1706791631872', 'post1706791631872')"><pre>        c._iterable_class = self._iterable_class</pre></li>
-                
-                  <li onclick="toggle('pre1706791631872', 'post1706791631872')"><pre>        c._fields = self._fields</pre></li>
-                
-                  <li onclick="toggle('pre1706791631872', 'post1706791631872')"><pre>        return c</pre></li>
-                
-                  <li onclick="toggle('pre1706791631872', 'post1706791631872')"><pre></pre></li>
-                
-                  <li onclick="toggle('pre1706791631872', 'post1706791631872')"><pre>    def _fetch_all(self):</pre></li>
-                
-                  <li onclick="toggle('pre1706791631872', 'post1706791631872')"><pre>        if self._result_cache is None:</pre></li>
-                
-                </ol>
-              
-              <ol start="1881" class="context-line">
-                <li onclick="toggle('pre1706791631872', 'post1706791631872')"><pre>            self._result_cache = list(self._iterable_class(self))
-                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^</pre> <span>…</span></li>
-              </ol>
-              
-                <ol start='1882' class="post-context" id="post1706791631872">
-                  
-                  <li onclick="toggle('pre1706791631872', 'post1706791631872')"><pre>        if self._prefetch_related_lookups and not self._prefetch_done:</pre></li>
-                  
-                  <li onclick="toggle('pre1706791631872', 'post1706791631872')"><pre>            self._prefetch_related_objects()</pre></li>
-                  
-                  <li onclick="toggle('pre1706791631872', 'post1706791631872')"><pre></pre></li>
-                  
-                  <li onclick="toggle('pre1706791631872', 'post1706791631872')"><pre>    def _next_is_sticky(self):</pre></li>
-                  
-                  <li onclick="toggle('pre1706791631872', 'post1706791631872')"><pre>        &quot;&quot;&quot;</pre></li>
-                  
-                  <li onclick="toggle('pre1706791631872', 'post1706791631872')"><pre>        Indicate that the next filter call and the one following that should</pre></li>
-                  
-              </ol>
-              
-            </div>
-          
-
-          
-            
-              <details>
-                <summary class="commands">Local vars</summary>
-            
-            <table class="vars" id="v1706791631872">
-              <thead>
-                <tr>
-                  <th>Variable</th>
-                  <th>Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                
-                  <tr>
-                    <td>self</td>
-                    <td class="code"><pre>Error in formatting: FieldError: Field ShopifyOrder.store cannot be both deferred and traversed using select_related at the same time.</pre></td>
-                  </tr>
-                
-              </tbody>
-            </table>
-            </details>
-          
-        </li>
-      
-        
-        <li class="frame django">
-          
-            <code class="fname">C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\query.py</code>, line 91, in __iter__
-          
-
-          
-            <div class="context" id="c1706782462080">
-              
-                <ol start="84" class="pre-context" id="pre1706782462080">
-                
-                  <li onclick="toggle('pre1706782462080', 'post1706782462080')"><pre></pre></li>
-                
-                  <li onclick="toggle('pre1706782462080', 'post1706782462080')"><pre>    def __iter__(self):</pre></li>
-                
-                  <li onclick="toggle('pre1706782462080', 'post1706782462080')"><pre>        queryset = self.queryset</pre></li>
-                
-                  <li onclick="toggle('pre1706782462080', 'post1706782462080')"><pre>        db = queryset.db</pre></li>
-                
-                  <li onclick="toggle('pre1706782462080', 'post1706782462080')"><pre>        compiler = queryset.query.get_compiler(using=db)</pre></li>
-                
-                  <li onclick="toggle('pre1706782462080', 'post1706782462080')"><pre>        # Execute the query. This will also fill compiler.select, klass_info,</pre></li>
-                
-                  <li onclick="toggle('pre1706782462080', 'post1706782462080')"><pre>        # and annotations.</pre></li>
-                
-                </ol>
-              
-              <ol start="91" class="context-line">
-                <li onclick="toggle('pre1706782462080', 'post1706782462080')"><pre>        results = compiler.execute_sql(
-                      </pre> <span>…</span></li>
-              </ol>
-              
-                <ol start='92' class="post-context" id="post1706782462080">
-                  
-                  <li onclick="toggle('pre1706782462080', 'post1706782462080')"><pre>            chunked_fetch=self.chunked_fetch, chunk_size=self.chunk_size</pre></li>
-                  
-                  <li onclick="toggle('pre1706782462080', 'post1706782462080')"><pre>        )</pre></li>
-                  
-                  <li onclick="toggle('pre1706782462080', 'post1706782462080')"><pre>        select, klass_info, annotation_col_map = (</pre></li>
-                  
-                  <li onclick="toggle('pre1706782462080', 'post1706782462080')"><pre>            compiler.select,</pre></li>
-                  
-                  <li onclick="toggle('pre1706782462080', 'post1706782462080')"><pre>            compiler.klass_info,</pre></li>
-                  
-                  <li onclick="toggle('pre1706782462080', 'post1706782462080')"><pre>            compiler.annotation_col_map,</pre></li>
-                  
-              </ol>
-              
-            </div>
-          
-
-          
-            
-              <details>
-                <summary class="commands">Local vars</summary>
-            
-            <table class="vars" id="v1706782462080">
-              <thead>
-                <tr>
-                  <th>Variable</th>
-                  <th>Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                
-                  <tr>
-                    <td>compiler</td>
-                    <td class="code"><pre>&lt;SQLCompiler model=ShopifyOrder connection=&lt;DatabaseWrapper vendor=&#x27;postgresql&#x27; alias=&#x27;default&#x27;&gt; using=&#x27;default&#x27;&gt;</pre></td>
-                  </tr>
-                
-                  <tr>
-                    <td>db</td>
-                    <td class="code"><pre>&#x27;default&#x27;</pre></td>
-                  </tr>
-                
-                  <tr>
-                    <td>queryset</td>
-                    <td class="code"><pre>Error in formatting: FieldError: Field ShopifyOrder.store cannot be both deferred and traversed using select_related at the same time.</pre></td>
-                  </tr>
-                
-                  <tr>
-                    <td>self</td>
-                    <td class="code"><pre>&lt;django.db.models.query.ModelIterable object at 0x0000018D641EA1E0&gt;</pre></td>
-                  </tr>
-                
-              </tbody>
-            </table>
-            </details>
-          
-        </li>
-      
-        
-        <li class="frame django">
-          
-            <code class="fname">C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\sql\compiler.py</code>, line 1549, in execute_sql
-          
-
-          
-            <div class="context" id="c1706777521664">
-              
-                <ol start="1542" class="pre-context" id="pre1706777521664">
-                
-                  <li onclick="toggle('pre1706777521664', 'post1706777521664')"><pre>        cursor is returned if any query is executed, since it&#x27;s used by</pre></li>
-                
-                  <li onclick="toggle('pre1706777521664', 'post1706777521664')"><pre>        subclasses such as InsertQuery). It&#x27;s possible, however, that no query</pre></li>
-                
-                  <li onclick="toggle('pre1706777521664', 'post1706777521664')"><pre>        is needed, as the filters describe an empty set. In that case, None is</pre></li>
-                
-                  <li onclick="toggle('pre1706777521664', 'post1706777521664')"><pre>        returned, to avoid any unnecessary database interaction.</pre></li>
-                
-                  <li onclick="toggle('pre1706777521664', 'post1706777521664')"><pre>        &quot;&quot;&quot;</pre></li>
-                
-                  <li onclick="toggle('pre1706777521664', 'post1706777521664')"><pre>        result_type = result_type or NO_RESULTS</pre></li>
-                
-                  <li onclick="toggle('pre1706777521664', 'post1706777521664')"><pre>        try:</pre></li>
-                
-                </ol>
-              
-              <ol start="1549" class="context-line">
-                <li onclick="toggle('pre1706777521664', 'post1706777521664')"><pre>            sql, params = self.as_sql()
-                                ^^^^^^^^^^^^^</pre> <span>…</span></li>
-              </ol>
-              
-                <ol start='1550' class="post-context" id="post1706777521664">
-                  
-                  <li onclick="toggle('pre1706777521664', 'post1706777521664')"><pre>            if not sql:</pre></li>
-                  
-                  <li onclick="toggle('pre1706777521664', 'post1706777521664')"><pre>                raise EmptyResultSet</pre></li>
-                  
-                  <li onclick="toggle('pre1706777521664', 'post1706777521664')"><pre>        except EmptyResultSet:</pre></li>
-                  
-                  <li onclick="toggle('pre1706777521664', 'post1706777521664')"><pre>            if result_type == MULTI:</pre></li>
-                  
-                  <li onclick="toggle('pre1706777521664', 'post1706777521664')"><pre>                return iter([])</pre></li>
-                  
-                  <li onclick="toggle('pre1706777521664', 'post1706777521664')"><pre>            else:</pre></li>
-                  
-              </ol>
-              
-            </div>
-          
-
-          
-            
-              <details>
-                <summary class="commands">Local vars</summary>
-            
-            <table class="vars" id="v1706777521664">
-              <thead>
-                <tr>
-                  <th>Variable</th>
-                  <th>Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                
-                  <tr>
-                    <td>chunk_size</td>
-                    <td class="code"><pre>100</pre></td>
-                  </tr>
-                
-                  <tr>
-                    <td>chunked_fetch</td>
-                    <td class="code"><pre>False</pre></td>
-                  </tr>
-                
-                  <tr>
-                    <td>result_type</td>
-                    <td class="code"><pre>&#x27;multi&#x27;</pre></td>
-                  </tr>
-                
-                  <tr>
-                    <td>self</td>
-                    <td class="code"><pre>&lt;SQLCompiler model=ShopifyOrder connection=&lt;DatabaseWrapper vendor=&#x27;postgresql&#x27; alias=&#x27;default&#x27;&gt; using=&#x27;default&#x27;&gt;</pre></td>
-                  </tr>
-                
-              </tbody>
-            </table>
-            </details>
-          
-        </li>
-      
-        
-        <li class="frame django">
-          
-            <code class="fname">C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\sql\compiler.py</code>, line 736, in as_sql
-          
-
-          
-            <div class="context" id="c1706742715904">
-              
-                <ol start="729" class="pre-context" id="pre1706742715904">
-                
-                  <li onclick="toggle('pre1706742715904', 'post1706742715904')"><pre></pre></li>
-                
-                  <li onclick="toggle('pre1706742715904', 'post1706742715904')"><pre>        If &#x27;with_limits&#x27; is False, any limit/offset information is not included</pre></li>
-                
-                  <li onclick="toggle('pre1706742715904', 'post1706742715904')"><pre>        in the query.</pre></li>
-                
-                  <li onclick="toggle('pre1706742715904', 'post1706742715904')"><pre>        &quot;&quot;&quot;</pre></li>
-                
-                  <li onclick="toggle('pre1706742715904', 'post1706742715904')"><pre>        refcounts_before = self.query.alias_refcount.copy()</pre></li>
-                
-                  <li onclick="toggle('pre1706742715904', 'post1706742715904')"><pre>        try:</pre></li>
-                
-                  <li onclick="toggle('pre1706742715904', 'post1706742715904')"><pre>            combinator = self.query.combinator</pre></li>
-                
-                </ol>
-              
-              <ol start="736" class="context-line">
-                <li onclick="toggle('pre1706742715904', 'post1706742715904')"><pre>            extra_select, order_by, group_by = self.pre_sql_setup(
-                                                    </pre> <span>…</span></li>
-              </ol>
-              
-                <ol start='737' class="post-context" id="post1706742715904">
-                  
-                  <li onclick="toggle('pre1706742715904', 'post1706742715904')"><pre>                with_col_aliases=with_col_aliases or bool(combinator),</pre></li>
-                  
-                  <li onclick="toggle('pre1706742715904', 'post1706742715904')"><pre>            )</pre></li>
-                  
-                  <li onclick="toggle('pre1706742715904', 'post1706742715904')"><pre>            for_update_part = None</pre></li>
-                  
-                  <li onclick="toggle('pre1706742715904', 'post1706742715904')"><pre>            # Is a LIMIT/OFFSET clause needed?</pre></li>
-                  
-                  <li onclick="toggle('pre1706742715904', 'post1706742715904')"><pre>            with_limit_offset = with_limits and self.query.is_sliced</pre></li>
-                  
-                  <li onclick="toggle('pre1706742715904', 'post1706742715904')"><pre>            combinator = self.query.combinator</pre></li>
-                  
-              </ol>
-              
-            </div>
-          
-
-          
-            
-              <details>
-                <summary class="commands">Local vars</summary>
-            
-            <table class="vars" id="v1706742715904">
-              <thead>
-                <tr>
-                  <th>Variable</th>
-                  <th>Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                
-                  <tr>
-                    <td>combinator</td>
-                    <td class="code"><pre>None</pre></td>
-                  </tr>
-                
-                  <tr>
-                    <td>refcounts_before</td>
-                    <td class="code"><pre>{&#x27;shopify_order&#x27;: 1}</pre></td>
-                  </tr>
-                
-                  <tr>
-                    <td>self</td>
-                    <td class="code"><pre>&lt;SQLCompiler model=ShopifyOrder connection=&lt;DatabaseWrapper vendor=&#x27;postgresql&#x27; alias=&#x27;default&#x27;&gt; using=&#x27;default&#x27;&gt;</pre></td>
-                  </tr>
-                
-                  <tr>
-                    <td>with_col_aliases</td>
-                    <td class="code"><pre>False</pre></td>
-                  </tr>
-                
-                  <tr>
-                    <td>with_limits</td>
-                    <td class="code"><pre>True</pre></td>
-                  </tr>
-                
-              </tbody>
-            </table>
-            </details>
-          
-        </li>
-      
-        
-        <li class="frame django">
-          
-            <code class="fname">C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\sql\compiler.py</code>, line 84, in pre_sql_setup
-          
-
-          
-            <div class="context" id="c1706742723840">
-              
-                <ol start="77" class="pre-context" id="pre1706742723840">
-                
-                  <li onclick="toggle('pre1706742723840', 'post1706742723840')"><pre></pre></li>
-                
-                  <li onclick="toggle('pre1706742723840', 'post1706742723840')"><pre>    def pre_sql_setup(self, with_col_aliases=False):</pre></li>
-                
-                  <li onclick="toggle('pre1706742723840', 'post1706742723840')"><pre>        &quot;&quot;&quot;</pre></li>
-                
-                  <li onclick="toggle('pre1706742723840', 'post1706742723840')"><pre>        Do any necessary class setup immediately prior to producing SQL. This</pre></li>
-                
-                  <li onclick="toggle('pre1706742723840', 'post1706742723840')"><pre>        is for things that can&#x27;t necessarily be done in __init__ because we</pre></li>
-                
-                  <li onclick="toggle('pre1706742723840', 'post1706742723840')"><pre>        might not have all the pieces in place at that time.</pre></li>
-                
-                  <li onclick="toggle('pre1706742723840', 'post1706742723840')"><pre>        &quot;&quot;&quot;</pre></li>
-                
-                </ol>
-              
-              <ol start="84" class="context-line">
-                <li onclick="toggle('pre1706742723840', 'post1706742723840')"><pre>        self.setup_query(with_col_aliases=with_col_aliases)
-            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^</pre> <span>…</span></li>
-              </ol>
-              
-                <ol start='85' class="post-context" id="post1706742723840">
-                  
-                  <li onclick="toggle('pre1706742723840', 'post1706742723840')"><pre>        order_by = self.get_order_by()</pre></li>
-                  
-                  <li onclick="toggle('pre1706742723840', 'post1706742723840')"><pre>        self.where, self.having, self.qualify = self.query.where.split_having_qualify(</pre></li>
-                  
-                  <li onclick="toggle('pre1706742723840', 'post1706742723840')"><pre>            must_group_by=self.query.group_by is not None</pre></li>
-                  
-                  <li onclick="toggle('pre1706742723840', 'post1706742723840')"><pre>        )</pre></li>
-                  
-                  <li onclick="toggle('pre1706742723840', 'post1706742723840')"><pre>        extra_select = self.get_extra_select(order_by, self.select)</pre></li>
-                  
-                  <li onclick="toggle('pre1706742723840', 'post1706742723840')"><pre>        self.has_extra_select = bool(extra_select)</pre></li>
-                  
-              </ol>
-              
-            </div>
-          
-
-          
-            
-              <details>
-                <summary class="commands">Local vars</summary>
-            
-            <table class="vars" id="v1706742723840">
-              <thead>
-                <tr>
-                  <th>Variable</th>
-                  <th>Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                
-                  <tr>
-                    <td>self</td>
-                    <td class="code"><pre>&lt;SQLCompiler model=ShopifyOrder connection=&lt;DatabaseWrapper vendor=&#x27;postgresql&#x27; alias=&#x27;default&#x27;&gt; using=&#x27;default&#x27;&gt;</pre></td>
-                  </tr>
-                
-                  <tr>
-                    <td>with_col_aliases</td>
-                    <td class="code"><pre>False</pre></td>
-                  </tr>
-                
-              </tbody>
-            </table>
-            </details>
-          
-        </li>
-      
-        
-        <li class="frame django">
-          
-            <code class="fname">C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\sql\compiler.py</code>, line 73, in setup_query
-          
-
-          
-            <div class="context" id="c1706773043328">
-              
-                <ol start="66" class="pre-context" id="pre1706773043328">
-                
-                  <li onclick="toggle('pre1706773043328', 'post1706773043328')"><pre>            f&quot;model={self.query.model.__qualname__} &quot;</pre></li>
-                
-                  <li onclick="toggle('pre1706773043328', 'post1706773043328')"><pre>            f&quot;connection={self.connection!r} using={self.using!r}&gt;&quot;</pre></li>
-                
-                  <li onclick="toggle('pre1706773043328', 'post1706773043328')"><pre>        )</pre></li>
-                
-                  <li onclick="toggle('pre1706773043328', 'post1706773043328')"><pre></pre></li>
-                
-                  <li onclick="toggle('pre1706773043328', 'post1706773043328')"><pre>    def setup_query(self, with_col_aliases=False):</pre></li>
-                
-                  <li onclick="toggle('pre1706773043328', 'post1706773043328')"><pre>        if all(self.query.alias_refcount[a] == 0 for a in self.query.alias_map):</pre></li>
-                
-                  <li onclick="toggle('pre1706773043328', 'post1706773043328')"><pre>            self.query.get_initial_alias()</pre></li>
-                
-                </ol>
-              
-              <ol start="73" class="context-line">
-                <li onclick="toggle('pre1706773043328', 'post1706773043328')"><pre>        self.select, self.klass_info, self.annotation_col_map = self.get_select(
-                                                                    </pre> <span>…</span></li>
-              </ol>
-              
-                <ol start='74' class="post-context" id="post1706773043328">
-                  
-                  <li onclick="toggle('pre1706773043328', 'post1706773043328')"><pre>            with_col_aliases=with_col_aliases,</pre></li>
-                  
-                  <li onclick="toggle('pre1706773043328', 'post1706773043328')"><pre>        )</pre></li>
-                  
-                  <li onclick="toggle('pre1706773043328', 'post1706773043328')"><pre>        self.col_count = len(self.select)</pre></li>
-                  
-                  <li onclick="toggle('pre1706773043328', 'post1706773043328')"><pre></pre></li>
-                  
-                  <li onclick="toggle('pre1706773043328', 'post1706773043328')"><pre>    def pre_sql_setup(self, with_col_aliases=False):</pre></li>
-                  
-                  <li onclick="toggle('pre1706773043328', 'post1706773043328')"><pre>        &quot;&quot;&quot;</pre></li>
-                  
-              </ol>
-              
-            </div>
-          
-
-          
-            
-              <details>
-                <summary class="commands">Local vars</summary>
-            
-            <table class="vars" id="v1706773043328">
-              <thead>
-                <tr>
-                  <th>Variable</th>
-                  <th>Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                
-                  <tr>
-                    <td>self</td>
-                    <td class="code"><pre>&lt;SQLCompiler model=ShopifyOrder connection=&lt;DatabaseWrapper vendor=&#x27;postgresql&#x27; alias=&#x27;default&#x27;&gt; using=&#x27;default&#x27;&gt;</pre></td>
-                  </tr>
-                
-                  <tr>
-                    <td>with_col_aliases</td>
-                    <td class="code"><pre>False</pre></td>
-                  </tr>
-                
-              </tbody>
-            </table>
-            </details>
-          
-        </li>
-      
-        
-        <li class="frame django">
-          
-            <code class="fname">C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\sql\compiler.py</code>, line 279, in get_select
-          
-
-          
-            <div class="context" id="c1706772072320">
-              
-                <ol start="272" class="pre-context" id="pre1706772072320">
-                
-                  <li onclick="toggle('pre1706772072320', 'post1706772072320')"><pre>            }</pre></li>
-                
-                  <li onclick="toggle('pre1706772072320', 'post1706772072320')"><pre>        for alias, annotation in self.query.annotation_select.items():</pre></li>
-                
-                  <li onclick="toggle('pre1706772072320', 'post1706772072320')"><pre>            annotations[alias] = select_idx</pre></li>
-                
-                  <li onclick="toggle('pre1706772072320', 'post1706772072320')"><pre>            select.append((annotation, alias))</pre></li>
-                
-                  <li onclick="toggle('pre1706772072320', 'post1706772072320')"><pre>            select_idx += 1</pre></li>
-                
-                  <li onclick="toggle('pre1706772072320', 'post1706772072320')"><pre></pre></li>
-                
-                  <li onclick="toggle('pre1706772072320', 'post1706772072320')"><pre>        if self.query.select_related:</pre></li>
-                
-                </ol>
-              
-              <ol start="279" class="context-line">
-                <li onclick="toggle('pre1706772072320', 'post1706772072320')"><pre>            related_klass_infos = self.get_related_selections(select, select_mask)
-                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^</pre> <span>…</span></li>
-              </ol>
-              
-                <ol start='280' class="post-context" id="post1706772072320">
-                  
-                  <li onclick="toggle('pre1706772072320', 'post1706772072320')"><pre>            klass_info[&quot;related_klass_infos&quot;] = related_klass_infos</pre></li>
-                  
-                  <li onclick="toggle('pre1706772072320', 'post1706772072320')"><pre></pre></li>
-                  
-                  <li onclick="toggle('pre1706772072320', 'post1706772072320')"><pre>            def get_select_from_parent(klass_info):</pre></li>
-                  
-                  <li onclick="toggle('pre1706772072320', 'post1706772072320')"><pre>                for ki in klass_info[&quot;related_klass_infos&quot;]:</pre></li>
-                  
-                  <li onclick="toggle('pre1706772072320', 'post1706772072320')"><pre>                    if ki[&quot;from_parent&quot;]:</pre></li>
-                  
-                  <li onclick="toggle('pre1706772072320', 'post1706772072320')"><pre>                        ki[&quot;select_fields&quot;] = (</pre></li>
-                  
-              </ol>
-              
-            </div>
-          
-
-          
-            
-              <details>
-                <summary class="commands">Local vars</summary>
-            
-            <table class="vars" id="v1706772072320">
-              <thead>
-                <tr>
-                  <th>Variable</th>
-                  <th>Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                
-                  <tr>
-                    <td>annotations</td>
+                    <td>expressions</td>
                     <td class="code"><pre>{}</pre></td>
                   </tr>
                 
                   <tr>
-                    <td>col</td>
-                    <td class="code"><pre>Col(shopify_order, integrations.ShopifyOrder.shopify_data)</pre></td>
+                    <td>fields</td>
+                    <td class="code"><pre>(&#x27;store__name&#x27;, &#x27;store__code&#x27;)</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>self</td>
+                    <td class="code"><pre>&lt;QuerySet [&lt;ShopifyOrder: ShopifyOrder object (2a518c49-6328-4330-9607-f92c19a6c513)&gt;, &lt;ShopifyOrder: ShopifyOrder object (d3b1e8b2-1af7-4211-b0f1-71df13439b4d)&gt;, &lt;ShopifyOrder: ShopifyOrder object (c07ee504-2b0e-41de-bb38-4ecf23f88200)&gt;, &lt;ShopifyOrder: ShopifyOrder object (19461bc7-a8f5-4a05-8f98-11a691942bd9)&gt;, &lt;ShopifyOrder: ShopifyOrder object (47f57847-7431-4dcf-9d0f-d1a285ba7a04)&gt;, &lt;ShopifyOrder: ShopifyOrder object (d1efffd1-63f9-4f5b-b4f2-56bd78459e23)&gt;, &lt;ShopifyOrder: ShopifyOrder object (fa2f0767-11f5-4516-bc82-43f4de1099b4)&gt;, &lt;ShopifyOrder: ShopifyOrder object (825f0c9a-e2a7-470b-9fd9-e73f6ad4856b)&gt;, &lt;ShopifyOrder: ShopifyOrder object (7762b310-5b75-41ae-9ef3-dacc96d15374)&gt;, &lt;ShopifyOrder: ShopifyOrder object (704a6ca4-29f6-4745-84fa-188ae31b3d74)&gt;, &lt;ShopifyOrder: ShopifyOrder object (e95b770c-96b5-4744-a890-9cb31b8c831b)&gt;, &lt;ShopifyOrder: ShopifyOrder object (e0786d22-5aef-4a85-b81c-5e9c89f3b7ea)&gt;, &lt;ShopifyOrder: ShopifyOrder object (b5aa3401-7167-48da-836b-16dec196d587)&gt;, &lt;ShopifyOrder: ShopifyOrder object (c255aeb3-77ee-4a98-bb03-bc24dce63050)&gt;, &lt;ShopifyOrder: ShopifyOrder object (c891b1e9-acd1-4bab-ad74-840cfba890e8)&gt;, &lt;ShopifyOrder: ShopifyOrder object (5817e8fc-f47a-4da5-adc8-21bf54fa8d7f)&gt;, &lt;ShopifyOrder: ShopifyOrder object (6ad2fc06-1059-49ce-aba3-ea9d91d6e780)&gt;, &lt;ShopifyOrder: ShopifyOrder object (b7f415ed-8769-41cd-bf0c-2f5d90a47643)&gt;, &lt;ShopifyOrder: ShopifyOrder object (5cc4ae46-deff-4e5f-b2b1-895ef39914e4)&gt;, &lt;ShopifyOrder: ShopifyOrder object (b6c590c7-2988-425b-b1e6-49eb313c08f9)&gt;, &#x27;...(remaining elements truncated)...&#x27;]&gt;</pre></td>
+                  </tr>
+                
+              </tbody>
+            </table>
+            </details>
+          
+        </li>
+      
+        
+        <li class="frame django">
+          
+            <code class="fname">C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\query.py</code>, line 1308, in _values
+          
+
+          
+            <div class="context" id="c1783820015040">
+              
+                <ol start="1301" class="pre-context" id="pre1783820015040">
+                
+                  <li onclick="toggle('pre1783820015040', 'post1783820015040')"><pre>        return qs</pre></li>
+                
+                  <li onclick="toggle('pre1783820015040', 'post1783820015040')"><pre></pre></li>
+                
+                  <li onclick="toggle('pre1783820015040', 'post1783820015040')"><pre>    def _values(self, *fields, **expressions):</pre></li>
+                
+                  <li onclick="toggle('pre1783820015040', 'post1783820015040')"><pre>        clone = self._chain()</pre></li>
+                
+                  <li onclick="toggle('pre1783820015040', 'post1783820015040')"><pre>        if expressions:</pre></li>
+                
+                  <li onclick="toggle('pre1783820015040', 'post1783820015040')"><pre>            clone = clone.annotate(**expressions)</pre></li>
+                
+                  <li onclick="toggle('pre1783820015040', 'post1783820015040')"><pre>        clone._fields = fields</pre></li>
+                
+                </ol>
+              
+              <ol start="1308" class="context-line">
+                <li onclick="toggle('pre1783820015040', 'post1783820015040')"><pre>        clone.query.set_values(fields)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^</pre> <span>…</span></li>
+              </ol>
+              
+                <ol start='1309' class="post-context" id="post1783820015040">
+                  
+                  <li onclick="toggle('pre1783820015040', 'post1783820015040')"><pre>        return clone</pre></li>
+                  
+                  <li onclick="toggle('pre1783820015040', 'post1783820015040')"><pre></pre></li>
+                  
+                  <li onclick="toggle('pre1783820015040', 'post1783820015040')"><pre>    def values(self, *fields, **expressions):</pre></li>
+                  
+                  <li onclick="toggle('pre1783820015040', 'post1783820015040')"><pre>        fields += tuple(expressions)</pre></li>
+                  
+                  <li onclick="toggle('pre1783820015040', 'post1783820015040')"><pre>        clone = self._values(*fields, **expressions)</pre></li>
+                  
+                  <li onclick="toggle('pre1783820015040', 'post1783820015040')"><pre>        clone._iterable_class = ValuesIterable</pre></li>
+                  
+              </ol>
+              
+            </div>
+          
+
+          
+            
+              <details>
+                <summary class="commands">Local vars</summary>
+            
+            <table class="vars" id="v1783820015040">
+              <thead>
+                <tr>
+                  <th>Variable</th>
+                  <th>Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                
+                  <tr>
+                    <td>clone</td>
+                    <td class="code"><pre>&lt;QuerySet [&lt;ShopifyOrder: ShopifyOrder object (2a518c49-6328-4330-9607-f92c19a6c513)&gt;, &lt;ShopifyOrder: ShopifyOrder object (d3b1e8b2-1af7-4211-b0f1-71df13439b4d)&gt;, &lt;ShopifyOrder: ShopifyOrder object (c07ee504-2b0e-41de-bb38-4ecf23f88200)&gt;, &lt;ShopifyOrder: ShopifyOrder object (19461bc7-a8f5-4a05-8f98-11a691942bd9)&gt;, &lt;ShopifyOrder: ShopifyOrder object (47f57847-7431-4dcf-9d0f-d1a285ba7a04)&gt;, &lt;ShopifyOrder: ShopifyOrder object (d1efffd1-63f9-4f5b-b4f2-56bd78459e23)&gt;, &lt;ShopifyOrder: ShopifyOrder object (fa2f0767-11f5-4516-bc82-43f4de1099b4)&gt;, &lt;ShopifyOrder: ShopifyOrder object (825f0c9a-e2a7-470b-9fd9-e73f6ad4856b)&gt;, &lt;ShopifyOrder: ShopifyOrder object (7762b310-5b75-41ae-9ef3-dacc96d15374)&gt;, &lt;ShopifyOrder: ShopifyOrder object (704a6ca4-29f6-4745-84fa-188ae31b3d74)&gt;, &lt;ShopifyOrder: ShopifyOrder object (e95b770c-96b5-4744-a890-9cb31b8c831b)&gt;, &lt;ShopifyOrder: ShopifyOrder object (e0786d22-5aef-4a85-b81c-5e9c89f3b7ea)&gt;, &lt;ShopifyOrder: ShopifyOrder object (b5aa3401-7167-48da-836b-16dec196d587)&gt;, &lt;ShopifyOrder: ShopifyOrder object (c255aeb3-77ee-4a98-bb03-bc24dce63050)&gt;, &lt;ShopifyOrder: ShopifyOrder object (c891b1e9-acd1-4bab-ad74-840cfba890e8)&gt;, &lt;ShopifyOrder: ShopifyOrder object (5817e8fc-f47a-4da5-adc8-21bf54fa8d7f)&gt;, &lt;ShopifyOrder: ShopifyOrder object (6ad2fc06-1059-49ce-aba3-ea9d91d6e780)&gt;, &lt;ShopifyOrder: ShopifyOrder object (b7f415ed-8769-41cd-bf0c-2f5d90a47643)&gt;, &lt;ShopifyOrder: ShopifyOrder object (5cc4ae46-deff-4e5f-b2b1-895ef39914e4)&gt;, &lt;ShopifyOrder: ShopifyOrder object (b6c590c7-2988-425b-b1e6-49eb313c08f9)&gt;, &#x27;...(remaining elements truncated)...&#x27;]&gt;</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>expressions</td>
+                    <td class="code"><pre>{}</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>fields</td>
+                    <td class="code"><pre>(&#x27;store__name&#x27;, &#x27;store__code&#x27;)</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>self</td>
+                    <td class="code"><pre>&lt;QuerySet [&lt;ShopifyOrder: ShopifyOrder object (2a518c49-6328-4330-9607-f92c19a6c513)&gt;, &lt;ShopifyOrder: ShopifyOrder object (d3b1e8b2-1af7-4211-b0f1-71df13439b4d)&gt;, &lt;ShopifyOrder: ShopifyOrder object (c07ee504-2b0e-41de-bb38-4ecf23f88200)&gt;, &lt;ShopifyOrder: ShopifyOrder object (19461bc7-a8f5-4a05-8f98-11a691942bd9)&gt;, &lt;ShopifyOrder: ShopifyOrder object (47f57847-7431-4dcf-9d0f-d1a285ba7a04)&gt;, &lt;ShopifyOrder: ShopifyOrder object (d1efffd1-63f9-4f5b-b4f2-56bd78459e23)&gt;, &lt;ShopifyOrder: ShopifyOrder object (fa2f0767-11f5-4516-bc82-43f4de1099b4)&gt;, &lt;ShopifyOrder: ShopifyOrder object (825f0c9a-e2a7-470b-9fd9-e73f6ad4856b)&gt;, &lt;ShopifyOrder: ShopifyOrder object (7762b310-5b75-41ae-9ef3-dacc96d15374)&gt;, &lt;ShopifyOrder: ShopifyOrder object (704a6ca4-29f6-4745-84fa-188ae31b3d74)&gt;, &lt;ShopifyOrder: ShopifyOrder object (e95b770c-96b5-4744-a890-9cb31b8c831b)&gt;, &lt;ShopifyOrder: ShopifyOrder object (e0786d22-5aef-4a85-b81c-5e9c89f3b7ea)&gt;, &lt;ShopifyOrder: ShopifyOrder object (b5aa3401-7167-48da-836b-16dec196d587)&gt;, &lt;ShopifyOrder: ShopifyOrder object (c255aeb3-77ee-4a98-bb03-bc24dce63050)&gt;, &lt;ShopifyOrder: ShopifyOrder object (c891b1e9-acd1-4bab-ad74-840cfba890e8)&gt;, &lt;ShopifyOrder: ShopifyOrder object (5817e8fc-f47a-4da5-adc8-21bf54fa8d7f)&gt;, &lt;ShopifyOrder: ShopifyOrder object (6ad2fc06-1059-49ce-aba3-ea9d91d6e780)&gt;, &lt;ShopifyOrder: ShopifyOrder object (b7f415ed-8769-41cd-bf0c-2f5d90a47643)&gt;, &lt;ShopifyOrder: ShopifyOrder object (5cc4ae46-deff-4e5f-b2b1-895ef39914e4)&gt;, &lt;ShopifyOrder: ShopifyOrder object (b6c590c7-2988-425b-b1e6-49eb313c08f9)&gt;, &#x27;...(remaining elements truncated)...&#x27;]&gt;</pre></td>
+                  </tr>
+                
+              </tbody>
+            </table>
+            </details>
+          
+        </li>
+      
+        
+        <li class="frame django">
+          
+            <code class="fname">C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\sql\query.py</code>, line 2461, in set_values
+          
+
+          
+            <div class="context" id="c1783820009920">
+              
+                <ol start="2454" class="pre-context" id="pre1783820009920">
+                
+                  <li onclick="toggle('pre1783820009920', 'post1783820009920')"><pre>            for expr in self.group_by:</pre></li>
+                
+                  <li onclick="toggle('pre1783820009920', 'post1783820009920')"><pre>                if isinstance(expr, Ref) and expr.refs not in selected:</pre></li>
+                
+                  <li onclick="toggle('pre1783820009920', 'post1783820009920')"><pre>                    expr = self.annotations[expr.refs]</pre></li>
+                
+                  <li onclick="toggle('pre1783820009920', 'post1783820009920')"><pre>                group_by.append(expr)</pre></li>
+                
+                  <li onclick="toggle('pre1783820009920', 'post1783820009920')"><pre>            self.group_by = tuple(group_by)</pre></li>
+                
+                  <li onclick="toggle('pre1783820009920', 'post1783820009920')"><pre></pre></li>
+                
+                  <li onclick="toggle('pre1783820009920', 'post1783820009920')"><pre>        self.values_select = tuple(field_names)</pre></li>
+                
+                </ol>
+              
+              <ol start="2461" class="context-line">
+                <li onclick="toggle('pre1783820009920', 'post1783820009920')"><pre>        self.add_fields(field_names, True)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^</pre> <span>…</span></li>
+              </ol>
+              
+                <ol start='2462' class="post-context" id="post1783820009920">
+                  
+                  <li onclick="toggle('pre1783820009920', 'post1783820009920')"><pre></pre></li>
+                  
+                  <li onclick="toggle('pre1783820009920', 'post1783820009920')"><pre>    @property</pre></li>
+                  
+                  <li onclick="toggle('pre1783820009920', 'post1783820009920')"><pre>    def annotation_select(self):</pre></li>
+                  
+                  <li onclick="toggle('pre1783820009920', 'post1783820009920')"><pre>        &quot;&quot;&quot;</pre></li>
+                  
+                  <li onclick="toggle('pre1783820009920', 'post1783820009920')"><pre>        Return the dictionary of aggregate columns that are not masked and</pre></li>
+                  
+                  <li onclick="toggle('pre1783820009920', 'post1783820009920')"><pre>        should be used in the SELECT clause. Cache this result for performance.</pre></li>
+                  
+              </ol>
+              
+            </div>
+          
+
+          
+            
+              <details>
+                <summary class="commands">Local vars</summary>
+            
+            <table class="vars" id="v1783820009920">
+              <thead>
+                <tr>
+                  <th>Variable</th>
+                  <th>Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                
+                  <tr>
+                    <td>annotation_names</td>
+                    <td class="code"><pre>[]</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>extra_names</td>
+                    <td class="code"><pre>[]</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>field_names</td>
+                    <td class="code"><pre>[&#x27;store__name&#x27;, &#x27;store__code&#x27;]</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>fields</td>
+                    <td class="code"><pre>(&#x27;store__name&#x27;, &#x27;store__code&#x27;)</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>selected</td>
+                    <td class="code"><pre>frozenset({&#x27;store__code&#x27;, &#x27;store__name&#x27;})</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>self</td>
+                    <td class="code"><pre>&lt;django.db.models.sql.query.Query object at 0x0000019F571BF500&gt;</pre></td>
+                  </tr>
+                
+              </tbody>
+            </table>
+            </details>
+          
+        </li>
+      
+        
+        <li class="frame django">
+          
+            <code class="fname">C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\sql\query.py</code>, line 2171, in add_fields
+          
+
+          
+            <div class="context" id="c1783820023360">
+              
+                <ol start="2164" class="pre-context" id="pre1783820023360">
+                
+                  <li onclick="toggle('pre1783820023360', 'post1783820023360')"><pre>                )</pre></li>
+                
+                  <li onclick="toggle('pre1783820023360', 'post1783820023360')"><pre>                targets, final_alias, joins = self.trim_joins(</pre></li>
+                
+                  <li onclick="toggle('pre1783820023360', 'post1783820023360')"><pre>                    join_info.targets,</pre></li>
+                
+                  <li onclick="toggle('pre1783820023360', 'post1783820023360')"><pre>                    join_info.joins,</pre></li>
+                
+                  <li onclick="toggle('pre1783820023360', 'post1783820023360')"><pre>                    join_info.path,</pre></li>
+                
+                  <li onclick="toggle('pre1783820023360', 'post1783820023360')"><pre>                )</pre></li>
+                
+                  <li onclick="toggle('pre1783820023360', 'post1783820023360')"><pre>                for target in targets:</pre></li>
+                
+                </ol>
+              
+              <ol start="2171" class="context-line">
+                <li onclick="toggle('pre1783820023360', 'post1783820023360')"><pre>                    cols.append(join_info.transform_function(target, final_alias))
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^</pre> <span>…</span></li>
+              </ol>
+              
+                <ol start='2172' class="post-context" id="post1783820023360">
+                  
+                  <li onclick="toggle('pre1783820023360', 'post1783820023360')"><pre>            if cols:</pre></li>
+                  
+                  <li onclick="toggle('pre1783820023360', 'post1783820023360')"><pre>                self.set_select(cols)</pre></li>
+                  
+                  <li onclick="toggle('pre1783820023360', 'post1783820023360')"><pre>        except MultiJoin:</pre></li>
+                  
+                  <li onclick="toggle('pre1783820023360', 'post1783820023360')"><pre>            raise FieldError(&quot;Invalid field name: &#x27;%s&#x27;&quot; % name)</pre></li>
+                  
+                  <li onclick="toggle('pre1783820023360', 'post1783820023360')"><pre>        except FieldError:</pre></li>
+                  
+                  <li onclick="toggle('pre1783820023360', 'post1783820023360')"><pre>            if LOOKUP_SEP in name:</pre></li>
+                  
+              </ol>
+              
+            </div>
+          
+
+          
+            
+              <details>
+                <summary class="commands">Local vars</summary>
+            
+            <table class="vars" id="v1783820023360">
+              <thead>
+                <tr>
+                  <th>Variable</th>
+                  <th>Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                
+                  <tr>
+                    <td>alias</td>
+                    <td class="code"><pre>&#x27;shopify_order&#x27;</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>allow_m2m</td>
+                    <td class="code"><pre>True</pre></td>
                   </tr>
                 
                   <tr>
                     <td>cols</td>
-                    <td class="code"><pre>[Col(shopify_order, integrations.ShopifyOrder.id),
- Col(shopify_order, integrations.ShopifyOrder.shopify_data)]</pre></td>
+                    <td class="code"><pre>[Col(shopify_store, integrations.ShopifyStore.name)]</pre></td>
                   </tr>
                 
                   <tr>
-                    <td>klass_info</td>
-                    <td class="code"><pre>{&#x27;model&#x27;: &lt;class &#x27;apps.integrations.shopify_models.ShopifyOrder&#x27;&gt;,
- &#x27;select_fields&#x27;: [0, 1]}</pre></td>
+                    <td>field_names</td>
+                    <td class="code"><pre>[&#x27;store__name&#x27;, &#x27;store__code&#x27;]</pre></td>
                   </tr>
                 
                   <tr>
-                    <td>select</td>
-                    <td class="code"><pre>[(Col(shopify_order, integrations.ShopifyOrder.id), None),
- (Col(shopify_order, integrations.ShopifyOrder.shopify_data), None)]</pre></td>
+                    <td>final_alias</td>
+                    <td class="code"><pre>&#x27;shopify_order&#x27;</pre></td>
                   </tr>
                 
                   <tr>
-                    <td>select_idx</td>
-                    <td class="code"><pre>2</pre></td>
+                    <td>join_info</td>
+                    <td class="code"><pre>JoinInfo(final_field=&lt;django.db.models.fields.related.ForeignKey: store&gt;, targets=(&lt;django.db.models.fields.UUIDField: id&gt;,), opts=&lt;Options for ShopifyStore&gt;, joins=[&#x27;shopify_order&#x27;, &#x27;shopify_store&#x27;], path=[PathInfo(from_opts=&lt;Options for ShopifyOrder&gt;, to_opts=&lt;Options for ShopifyStore&gt;, target_fields=(&lt;django.db.models.fields.UUIDField: id&gt;,), join_field=&lt;django.db.models.fields.related.ForeignKey: store&gt;, m2m=False, direct=True, filtered_relation=None)], transform_function=functools.partial(&lt;function Query.setup_joins.&lt;locals&gt;.transform at 0x0000019F53F2ECA0&gt;, name=&#x27;code&#x27;, previous=&lt;function Query.setup_joins.&lt;locals&gt;.final_transformer at 0x0000019F53F2E200&gt;))</pre></td>
                   </tr>
                 
                   <tr>
-                    <td>select_list</td>
-                    <td class="code"><pre>[0, 1]</pre></td>
+                    <td>joins</td>
+                    <td class="code"><pre>[&#x27;shopify_order&#x27;]</pre></td>
                   </tr>
                 
                   <tr>
-                    <td>select_mask</td>
-                    <td class="code"><pre>{&lt;django.db.models.fields.UUIDField: id&gt;: {},
- &lt;django.db.models.fields.json.JSONField: shopify_data&gt;: {}}</pre></td>
-                  </tr>
-                
-                  <tr>
-                    <td>self</td>
-                    <td class="code"><pre>&lt;SQLCompiler model=ShopifyOrder connection=&lt;DatabaseWrapper vendor=&#x27;postgresql&#x27; alias=&#x27;default&#x27;&gt; using=&#x27;default&#x27;&gt;</pre></td>
-                  </tr>
-                
-                  <tr>
-                    <td>with_col_aliases</td>
-                    <td class="code"><pre>False</pre></td>
-                  </tr>
-                
-              </tbody>
-            </table>
-            </details>
-          
-        </li>
-      
-        
-        <li class="frame django">
-          
-            <code class="fname">C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\sql\compiler.py</code>, line 1211, in get_related_selections
-          
-
-          
-            <div class="context" id="c1706782242048">
-              
-                <ol start="1204" class="pre-context" id="pre1706782242048">
-                
-                  <li onclick="toggle('pre1706782242048', 'post1706782242048')"><pre>                                f.name,</pre></li>
-                
-                  <li onclick="toggle('pre1706782242048', 'post1706782242048')"><pre>                                &quot;, &quot;.join(_get_field_choices()) or &quot;(none)&quot;,</pre></li>
-                
-                  <li onclick="toggle('pre1706782242048', 'post1706782242048')"><pre>                            )</pre></li>
-                
-                  <li onclick="toggle('pre1706782242048', 'post1706782242048')"><pre>                        )</pre></li>
-                
-                  <li onclick="toggle('pre1706782242048', 'post1706782242048')"><pre>            else:</pre></li>
-                
-                  <li onclick="toggle('pre1706782242048', 'post1706782242048')"><pre>                next = False</pre></li>
-                
-                  <li onclick="toggle('pre1706782242048', 'post1706782242048')"><pre></pre></li>
-                
-                </ol>
-              
-              <ol start="1211" class="context-line">
-                <li onclick="toggle('pre1706782242048', 'post1706782242048')"><pre>            if not select_related_descend(f, restricted, requested, select_mask):
-                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^</pre> <span>…</span></li>
-              </ol>
-              
-                <ol start='1212' class="post-context" id="post1706782242048">
-                  
-                  <li onclick="toggle('pre1706782242048', 'post1706782242048')"><pre>                continue</pre></li>
-                  
-                  <li onclick="toggle('pre1706782242048', 'post1706782242048')"><pre>            related_select_mask = select_mask.get(f) or {}</pre></li>
-                  
-                  <li onclick="toggle('pre1706782242048', 'post1706782242048')"><pre>            klass_info = {</pre></li>
-                  
-                  <li onclick="toggle('pre1706782242048', 'post1706782242048')"><pre>                &quot;model&quot;: f.remote_field.model,</pre></li>
-                  
-                  <li onclick="toggle('pre1706782242048', 'post1706782242048')"><pre>                &quot;field&quot;: f,</pre></li>
-                  
-                  <li onclick="toggle('pre1706782242048', 'post1706782242048')"><pre>                &quot;reverse&quot;: False,</pre></li>
-                  
-              </ol>
-              
-            </div>
-          
-
-          
-            
-              <details>
-                <summary class="commands">Local vars</summary>
-            
-            <table class="vars" id="v1706782242048">
-              <thead>
-                <tr>
-                  <th>Variable</th>
-                  <th>Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                
-                  <tr>
-                    <td>_get_field_choices</td>
-                    <td class="code"><pre>&lt;function SQLCompiler.get_related_selections.&lt;locals&gt;._get_field_choices at 0x0000018D604CD620&gt;</pre></td>
-                  </tr>
-                
-                  <tr>
-                    <td>cur_depth</td>
-                    <td class="code"><pre>1</pre></td>
-                  </tr>
-                
-                  <tr>
-                    <td>f</td>
-                    <td class="code"><pre>&lt;django.db.models.fields.related.ForeignKey: store&gt;</pre></td>
-                  </tr>
-                
-                  <tr>
-                    <td>fields_found</td>
-                    <td class="code"><pre>{&#x27;created_at&#x27;,
- &#x27;created_by&#x27;,
- &#x27;id&#x27;,
- &#x27;status&#x27;,
- &#x27;store&#x27;,
- &#x27;updated_at&#x27;,
- &#x27;updated_by&#x27;,
- &#x27;version&#x27;}</pre></td>
-                  </tr>
-                
-                  <tr>
-                    <td>get_related_klass_infos</td>
-                    <td class="code"><pre>&lt;function SQLCompiler.get_related_selections.&lt;locals&gt;.get_related_klass_infos at 0x0000018D604CFEC0&gt;</pre></td>
-                  </tr>
-                
-                  <tr>
-                    <td>next</td>
-                    <td class="code"><pre>{}</pre></td>
+                    <td>name</td>
+                    <td class="code"><pre>&#x27;store__code&#x27;</pre></td>
                   </tr>
                 
                   <tr>
@@ -1919,40 +1805,18 @@
                   </tr>
                 
                   <tr>
-                    <td>related_klass_infos</td>
-                    <td class="code"><pre>[]</pre></td>
-                  </tr>
-                
-                  <tr>
-                    <td>requested</td>
-                    <td class="code"><pre>{&#x27;erp_document&#x27;: {}, &#x27;store&#x27;: {}}</pre></td>
-                  </tr>
-                
-                  <tr>
-                    <td>restricted</td>
-                    <td class="code"><pre>True</pre></td>
-                  </tr>
-                
-                  <tr>
-                    <td>root_alias</td>
-                    <td class="code"><pre>&#x27;shopify_order&#x27;</pre></td>
-                  </tr>
-                
-                  <tr>
-                    <td>select</td>
-                    <td class="code"><pre>[(Col(shopify_order, integrations.ShopifyOrder.id), None),
- (Col(shopify_order, integrations.ShopifyOrder.shopify_data), None)]</pre></td>
-                  </tr>
-                
-                  <tr>
-                    <td>select_mask</td>
-                    <td class="code"><pre>{&lt;django.db.models.fields.UUIDField: id&gt;: {},
- &lt;django.db.models.fields.json.JSONField: shopify_data&gt;: {}}</pre></td>
-                  </tr>
-                
-                  <tr>
                     <td>self</td>
-                    <td class="code"><pre>&lt;SQLCompiler model=ShopifyOrder connection=&lt;DatabaseWrapper vendor=&#x27;postgresql&#x27; alias=&#x27;default&#x27;&gt; using=&#x27;default&#x27;&gt;</pre></td>
+                    <td class="code"><pre>&lt;django.db.models.sql.query.Query object at 0x0000019F571BF500&gt;</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>target</td>
+                    <td class="code"><pre>&lt;django.db.models.fields.related.ForeignKey: store&gt;</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>targets</td>
+                    <td class="code"><pre>(&lt;django.db.models.fields.related.ForeignKey: store&gt;,)</pre></td>
                   </tr>
                 
               </tbody>
@@ -1964,48 +1828,48 @@
         
         <li class="frame django">
           
-            <code class="fname">C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\query_utils.py</code>, line 347, in select_related_descend
+            <code class="fname">C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\sql\query.py</code>, line 1851, in transform
           
 
           
-            <div class="context" id="c1706772662272">
+            <div class="context" id="c1783820020608">
               
-                <ol start="340" class="pre-context" id="pre1706772662272">
+                <ol start="1844" class="pre-context" id="pre1783820020608">
                 
-                  <li onclick="toggle('pre1706772662272', 'post1706772662272')"><pre>        return False</pre></li>
+                  <li onclick="toggle('pre1783820020608', 'post1783820020608')"><pre>            def transform(field, alias, *, name, previous):</pre></li>
                 
-                  <li onclick="toggle('pre1706772662272', 'post1706772662272')"><pre>    if (</pre></li>
+                  <li onclick="toggle('pre1783820020608', 'post1783820020608')"><pre>                try:</pre></li>
                 
-                  <li onclick="toggle('pre1706772662272', 'post1706772662272')"><pre>        restricted</pre></li>
+                  <li onclick="toggle('pre1783820020608', 'post1783820020608')"><pre>                    wrapped = previous(field, alias)</pre></li>
                 
-                  <li onclick="toggle('pre1706772662272', 'post1706772662272')"><pre>        and select_mask</pre></li>
+                  <li onclick="toggle('pre1783820020608', 'post1783820020608')"><pre>                    return self.try_transform(wrapped, name)</pre></li>
                 
-                  <li onclick="toggle('pre1706772662272', 'post1706772662272')"><pre>        and field.name in requested</pre></li>
+                  <li onclick="toggle('pre1783820020608', 'post1783820020608')"><pre>                except FieldError:</pre></li>
                 
-                  <li onclick="toggle('pre1706772662272', 'post1706772662272')"><pre>        and field not in select_mask</pre></li>
+                  <li onclick="toggle('pre1783820020608', 'post1783820020608')"><pre>                    # FieldError is raised if the transform doesn&#x27;t exist.</pre></li>
                 
-                  <li onclick="toggle('pre1706772662272', 'post1706772662272')"><pre>    ):</pre></li>
+                  <li onclick="toggle('pre1783820020608', 'post1783820020608')"><pre>                    if isinstance(final_field, Field) and last_field_exception:</pre></li>
                 
                 </ol>
               
-              <ol start="347" class="context-line">
-                <li onclick="toggle('pre1706772662272', 'post1706772662272')"><pre>        raise FieldError(
-             ^</pre> <span>…</span></li>
+              <ol start="1851" class="context-line">
+                <li onclick="toggle('pre1783820020608', 'post1783820020608')"><pre>                        raise last_field_exception
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^</pre> <span>…</span></li>
               </ol>
               
-                <ol start='348' class="post-context" id="post1706772662272">
+                <ol start='1852' class="post-context" id="post1783820020608">
                   
-                  <li onclick="toggle('pre1706772662272', 'post1706772662272')"><pre>            f&quot;Field {field.model._meta.object_name}.{field.name} cannot be both &quot;</pre></li>
+                  <li onclick="toggle('pre1783820020608', 'post1783820020608')"><pre>                    else:</pre></li>
                   
-                  <li onclick="toggle('pre1706772662272', 'post1706772662272')"><pre>            &quot;deferred and traversed using select_related at the same time.&quot;</pre></li>
+                  <li onclick="toggle('pre1783820020608', 'post1783820020608')"><pre>                        raise</pre></li>
                   
-                  <li onclick="toggle('pre1706772662272', 'post1706772662272')"><pre>        )</pre></li>
+                  <li onclick="toggle('pre1783820020608', 'post1783820020608')"><pre></pre></li>
                   
-                  <li onclick="toggle('pre1706772662272', 'post1706772662272')"><pre>    return True</pre></li>
+                  <li onclick="toggle('pre1783820020608', 'post1783820020608')"><pre>            final_transformer = functools.partial(</pre></li>
                   
-                  <li onclick="toggle('pre1706772662272', 'post1706772662272')"><pre></pre></li>
+                  <li onclick="toggle('pre1783820020608', 'post1783820020608')"><pre>                transform, name=name, previous=final_transformer</pre></li>
                   
-                  <li onclick="toggle('pre1706772662272', 'post1706772662272')"><pre></pre></li>
+                  <li onclick="toggle('pre1783820020608', 'post1783820020608')"><pre>            )</pre></li>
                   
               </ol>
               
@@ -2017,7 +1881,7 @@
               <details>
                 <summary class="commands">Local vars</summary>
             
-            <table class="vars" id="v1706772662272">
+            <table class="vars" id="v1783820020608">
               <thead>
                 <tr>
                   <th>Variable</th>
@@ -2027,29 +1891,432 @@
               <tbody>
                 
                   <tr>
+                    <td>alias</td>
+                    <td class="code"><pre>&#x27;shopify_order&#x27;</pre></td>
+                  </tr>
+                
+                  <tr>
                     <td>field</td>
                     <td class="code"><pre>&lt;django.db.models.fields.related.ForeignKey: store&gt;</pre></td>
                   </tr>
                 
                   <tr>
-                    <td>requested</td>
-                    <td class="code"><pre>{&#x27;erp_document&#x27;: {}, &#x27;store&#x27;: {}}</pre></td>
+                    <td>final_field</td>
+                    <td class="code"><pre>&lt;django.db.models.fields.related.ForeignKey: store&gt;</pre></td>
                   </tr>
                 
                   <tr>
-                    <td>restricted</td>
+                    <td>last_field_exception</td>
+                    <td class="code"><pre>FieldError(&quot;Cannot resolve keyword &#x27;code&#x27; into field. Choices are: access_token, api_key, api_secret, api_version, auto_sync_inventory, auto_sync_orders, auto_sync_products, company, company_id, connection_error, created_at, created_by, created_by_id, discounts, draft_orders, gift_cards, id, inventory_levels, is_connected, last_connection_test, last_inventory_sync, last_order_sync, last_product_sync, name, orders, products, shop_domain, status, sync_interval_minutes, sync_jobs, updated_at, updated_by, updated_by_id, version, webhook_logs, webhook_secret, webhooks&quot;)</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>name</td>
+                    <td class="code"><pre>&#x27;code&#x27;</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>previous</td>
+                    <td class="code"><pre>&lt;function Query.setup_joins.&lt;locals&gt;.final_transformer at 0x0000019F53F2E200&gt;</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>self</td>
+                    <td class="code"><pre>&lt;django.db.models.sql.query.Query object at 0x0000019F571BF500&gt;</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>wrapped</td>
+                    <td class="code"><pre>Col(shopify_order, integrations.ShopifyOrder.store)</pre></td>
+                  </tr>
+                
+              </tbody>
+            </table>
+            </details>
+          
+        </li>
+      
+        
+        <li class="frame django">
+          
+            <code class="fname">C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\sql\query.py</code>, line 1824, in setup_joins
+          
+
+          
+            <div class="context" id="c1783820025088">
+              
+                <ol start="1817" class="pre-context" id="pre1783820025088">
+                
+                  <li onclick="toggle('pre1783820025088', 'post1783820025088')"><pre>            return field.get_col(alias)</pre></li>
+                
+                  <li onclick="toggle('pre1783820025088', 'post1783820025088')"><pre></pre></li>
+                
+                  <li onclick="toggle('pre1783820025088', 'post1783820025088')"><pre>        # Try resolving all the names as fields first. If there&#x27;s an error,</pre></li>
+                
+                  <li onclick="toggle('pre1783820025088', 'post1783820025088')"><pre>        # treat trailing names as lookups until a field can be resolved.</pre></li>
+                
+                  <li onclick="toggle('pre1783820025088', 'post1783820025088')"><pre>        last_field_exception = None</pre></li>
+                
+                  <li onclick="toggle('pre1783820025088', 'post1783820025088')"><pre>        for pivot in range(len(names), 0, -1):</pre></li>
+                
+                  <li onclick="toggle('pre1783820025088', 'post1783820025088')"><pre>            try:</pre></li>
+                
+                </ol>
+              
+              <ol start="1824" class="context-line">
+                <li onclick="toggle('pre1783820025088', 'post1783820025088')"><pre>                path, final_field, targets, rest = self.names_to_path(
+                                                         </pre> <span>…</span></li>
+              </ol>
+              
+                <ol start='1825' class="post-context" id="post1783820025088">
+                  
+                  <li onclick="toggle('pre1783820025088', 'post1783820025088')"><pre>                    names[:pivot],</pre></li>
+                  
+                  <li onclick="toggle('pre1783820025088', 'post1783820025088')"><pre>                    opts,</pre></li>
+                  
+                  <li onclick="toggle('pre1783820025088', 'post1783820025088')"><pre>                    allow_many,</pre></li>
+                  
+                  <li onclick="toggle('pre1783820025088', 'post1783820025088')"><pre>                    fail_on_missing=True,</pre></li>
+                  
+                  <li onclick="toggle('pre1783820025088', 'post1783820025088')"><pre>                )</pre></li>
+                  
+                  <li onclick="toggle('pre1783820025088', 'post1783820025088')"><pre>            except FieldError as exc:</pre></li>
+                  
+              </ol>
+              
+            </div>
+          
+
+          
+            
+              <details>
+                <summary class="commands">Local vars</summary>
+            
+            <table class="vars" id="v1783820025088">
+              <thead>
+                <tr>
+                  <th>Variable</th>
+                  <th>Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                
+                  <tr>
+                    <td>alias</td>
+                    <td class="code"><pre>&#x27;shopify_store&#x27;</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>allow_many</td>
                     <td class="code"><pre>True</pre></td>
                   </tr>
                 
                   <tr>
-                    <td>reverse</td>
+                    <td>can_reuse</td>
+                    <td class="code"><pre>None</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>connection</td>
+                    <td class="code"><pre>&lt;django.db.models.sql.datastructures.Join object at 0x0000019F571BF290&gt;</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>filtered_relation</td>
+                    <td class="code"><pre>None</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>final_field</td>
+                    <td class="code"><pre>&lt;django.db.models.fields.related.ForeignKey: store&gt;</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>final_transformer</td>
+                    <td class="code"><pre>functools.partial(&lt;function Query.setup_joins.&lt;locals&gt;.transform at 0x0000019F53F2ECA0&gt;, name=&#x27;code&#x27;, previous=&lt;function Query.setup_joins.&lt;locals&gt;.final_transformer at 0x0000019F53F2E200&gt;)</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>join</td>
+                    <td class="code"><pre>PathInfo(from_opts=&lt;Options for ShopifyOrder&gt;, to_opts=&lt;Options for ShopifyStore&gt;, target_fields=(&lt;django.db.models.fields.UUIDField: id&gt;,), join_field=&lt;django.db.models.fields.related.ForeignKey: store&gt;, m2m=False, direct=True, filtered_relation=None)</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>joins</td>
+                    <td class="code"><pre>[&#x27;shopify_order&#x27;, &#x27;shopify_store&#x27;]</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>last_field_exception</td>
+                    <td class="code"><pre>FieldError(&quot;Cannot resolve keyword &#x27;code&#x27; into field. Choices are: access_token, api_key, api_secret, api_version, auto_sync_inventory, auto_sync_orders, auto_sync_products, company, company_id, connection_error, created_at, created_by, created_by_id, discounts, draft_orders, gift_cards, id, inventory_levels, is_connected, last_connection_test, last_inventory_sync, last_order_sync, last_product_sync, name, orders, products, shop_domain, status, sync_interval_minutes, sync_jobs, updated_at, updated_by, updated_by_id, version, webhook_logs, webhook_secret, webhooks&quot;)</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>name</td>
+                    <td class="code"><pre>&#x27;code&#x27;</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>names</td>
+                    <td class="code"><pre>[&#x27;store&#x27;, &#x27;code&#x27;]</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>nullable</td>
                     <td class="code"><pre>False</pre></td>
                   </tr>
                 
                   <tr>
-                    <td>select_mask</td>
-                    <td class="code"><pre>{&lt;django.db.models.fields.UUIDField: id&gt;: {},
- &lt;django.db.models.fields.json.JSONField: shopify_data&gt;: {}}</pre></td>
+                    <td>opts</td>
+                    <td class="code"><pre>&lt;Options for ShopifyStore&gt;</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>path</td>
+                    <td class="code"><pre>[PathInfo(from_opts=&lt;Options for ShopifyOrder&gt;, to_opts=&lt;Options for ShopifyStore&gt;, target_fields=(&lt;django.db.models.fields.UUIDField: id&gt;,), join_field=&lt;django.db.models.fields.related.ForeignKey: store&gt;, m2m=False, direct=True, filtered_relation=None)]</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>pivot</td>
+                    <td class="code"><pre>1</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>rest</td>
+                    <td class="code"><pre>[]</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>reuse</td>
+                    <td class="code"><pre>None</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>reuse_with_filtered_relation</td>
+                    <td class="code"><pre>False</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>self</td>
+                    <td class="code"><pre>&lt;django.db.models.sql.query.Query object at 0x0000019F571BF500&gt;</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>table_alias</td>
+                    <td class="code"><pre>None</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>targets</td>
+                    <td class="code"><pre>(&lt;django.db.models.fields.UUIDField: id&gt;,)</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>transform</td>
+                    <td class="code"><pre>&lt;function Query.setup_joins.&lt;locals&gt;.transform at 0x0000019F53F2ECA0&gt;</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>transforms</td>
+                    <td class="code"><pre>[&#x27;code&#x27;]</pre></td>
+                  </tr>
+                
+              </tbody>
+            </table>
+            </details>
+          
+        </li>
+      
+        
+        <li class="frame django">
+          
+            <code class="fname">C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\sql\query.py</code>, line 1725, in names_to_path
+          
+
+          
+            <div class="context" id="c1783820019200">
+              
+                <ol start="1718" class="pre-context" id="pre1783820019200">
+                
+                  <li onclick="toggle('pre1783820019200', 'post1783820019200')"><pre>                    available = sorted(</pre></li>
+                
+                  <li onclick="toggle('pre1783820019200', 'post1783820019200')"><pre>                        [</pre></li>
+                
+                  <li onclick="toggle('pre1783820019200', 'post1783820019200')"><pre>                            *get_field_names_from_opts(opts),</pre></li>
+                
+                  <li onclick="toggle('pre1783820019200', 'post1783820019200')"><pre>                            *self.annotation_select,</pre></li>
+                
+                  <li onclick="toggle('pre1783820019200', 'post1783820019200')"><pre>                            *self._filtered_relations,</pre></li>
+                
+                  <li onclick="toggle('pre1783820019200', 'post1783820019200')"><pre>                        ]</pre></li>
+                
+                  <li onclick="toggle('pre1783820019200', 'post1783820019200')"><pre>                    )</pre></li>
+                
+                </ol>
+              
+              <ol start="1725" class="context-line">
+                <li onclick="toggle('pre1783820019200', 'post1783820019200')"><pre>                    raise FieldError(
+                          ^</pre> <span>…</span></li>
+              </ol>
+              
+                <ol start='1726' class="post-context" id="post1783820019200">
+                  
+                  <li onclick="toggle('pre1783820019200', 'post1783820019200')"><pre>                        &quot;Cannot resolve keyword &#x27;%s&#x27; into field. &quot;</pre></li>
+                  
+                  <li onclick="toggle('pre1783820019200', 'post1783820019200')"><pre>                        &quot;Choices are: %s&quot; % (name, &quot;, &quot;.join(available))</pre></li>
+                  
+                  <li onclick="toggle('pre1783820019200', 'post1783820019200')"><pre>                    )</pre></li>
+                  
+                  <li onclick="toggle('pre1783820019200', 'post1783820019200')"><pre>                break</pre></li>
+                  
+                  <li onclick="toggle('pre1783820019200', 'post1783820019200')"><pre>            # Check if we need any joins for concrete inheritance cases (the</pre></li>
+                  
+                  <li onclick="toggle('pre1783820019200', 'post1783820019200')"><pre>            # field lives in parent, but we are currently in one of its</pre></li>
+                  
+              </ol>
+              
+            </div>
+          
+
+          
+            
+              <details>
+                <summary class="commands">Local vars</summary>
+            
+            <table class="vars" id="v1783820019200">
+              <thead>
+                <tr>
+                  <th>Variable</th>
+                  <th>Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                
+                  <tr>
+                    <td>allow_many</td>
+                    <td class="code"><pre>True</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>available</td>
+                    <td class="code"><pre>[&#x27;access_token&#x27;,
+ &#x27;api_key&#x27;,
+ &#x27;api_secret&#x27;,
+ &#x27;api_version&#x27;,
+ &#x27;auto_sync_inventory&#x27;,
+ &#x27;auto_sync_orders&#x27;,
+ &#x27;auto_sync_products&#x27;,
+ &#x27;company&#x27;,
+ &#x27;company_id&#x27;,
+ &#x27;connection_error&#x27;,
+ &#x27;created_at&#x27;,
+ &#x27;created_by&#x27;,
+ &#x27;created_by_id&#x27;,
+ &#x27;discounts&#x27;,
+ &#x27;draft_orders&#x27;,
+ &#x27;gift_cards&#x27;,
+ &#x27;id&#x27;,
+ &#x27;inventory_levels&#x27;,
+ &#x27;is_connected&#x27;,
+ &#x27;last_connection_test&#x27;,
+ &#x27;last_inventory_sync&#x27;,
+ &#x27;last_order_sync&#x27;,
+ &#x27;last_product_sync&#x27;,
+ &#x27;name&#x27;,
+ &#x27;orders&#x27;,
+ &#x27;products&#x27;,
+ &#x27;shop_domain&#x27;,
+ &#x27;status&#x27;,
+ &#x27;sync_interval_minutes&#x27;,
+ &#x27;sync_jobs&#x27;,
+ &#x27;updated_at&#x27;,
+ &#x27;updated_by&#x27;,
+ &#x27;updated_by_id&#x27;,
+ &#x27;version&#x27;,
+ &#x27;webhook_logs&#x27;,
+ &#x27;webhook_secret&#x27;,
+ &#x27;webhooks&#x27;]</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>cur_names_with_path</td>
+                    <td class="code"><pre>(&#x27;code&#x27;, [])</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>fail_on_missing</td>
+                    <td class="code"><pre>True</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>field</td>
+                    <td class="code"><pre>None</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>filtered_relation</td>
+                    <td class="code"><pre>None</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>final_field</td>
+                    <td class="code"><pre>&lt;django.db.models.fields.related.ForeignKey: store&gt;</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>last</td>
+                    <td class="code"><pre>PathInfo(from_opts=&lt;Options for ShopifyOrder&gt;, to_opts=&lt;Options for ShopifyStore&gt;, target_fields=(&lt;django.db.models.fields.UUIDField: id&gt;,), join_field=&lt;django.db.models.fields.related.ForeignKey: store&gt;, m2m=False, direct=True, filtered_relation=None)</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>model</td>
+                    <td class="code"><pre>&lt;class &#x27;apps.integrations.shopify_models.ShopifyOrder&#x27;&gt;</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>name</td>
+                    <td class="code"><pre>&#x27;code&#x27;</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>names</td>
+                    <td class="code"><pre>[&#x27;store&#x27;, &#x27;code&#x27;]</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>names_with_path</td>
+                    <td class="code"><pre>[(&#x27;store&#x27;,
+  [PathInfo(from_opts=&lt;Options for ShopifyOrder&gt;, to_opts=&lt;Options for ShopifyStore&gt;, target_fields=(&lt;django.db.models.fields.UUIDField: id&gt;,), join_field=&lt;django.db.models.fields.related.ForeignKey: store&gt;, m2m=False, direct=True, filtered_relation=None)])]</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>opts</td>
+                    <td class="code"><pre>&lt;Options for ShopifyStore&gt;</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>path</td>
+                    <td class="code"><pre>[PathInfo(from_opts=&lt;Options for ShopifyOrder&gt;, to_opts=&lt;Options for ShopifyStore&gt;, target_fields=(&lt;django.db.models.fields.UUIDField: id&gt;,), join_field=&lt;django.db.models.fields.related.ForeignKey: store&gt;, m2m=False, direct=True, filtered_relation=None)]</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>pathinfos</td>
+                    <td class="code"><pre>[PathInfo(from_opts=&lt;Options for ShopifyOrder&gt;, to_opts=&lt;Options for ShopifyStore&gt;, target_fields=(&lt;django.db.models.fields.UUIDField: id&gt;,), join_field=&lt;django.db.models.fields.related.ForeignKey: store&gt;, m2m=False, direct=True, filtered_relation=None)]</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>pos</td>
+                    <td class="code"><pre>0</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>self</td>
+                    <td class="code"><pre>&lt;django.db.models.sql.query.Query object at 0x0000019F571BF500&gt;</pre></td>
+                  </tr>
+                
+                  <tr>
+                    <td>targets</td>
+                    <td class="code"><pre>(&lt;django.db.models.fields.UUIDField: id&gt;,)</pre></td>
                   </tr>
                 
               </tbody>
@@ -2120,6 +2387,14 @@ Installed Middleware:
 
 
 Traceback (most recent call last):
+  File "C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\sql\query.py", line 1847, in transform
+    return self.try_transform(wrapped, name)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\sql\query.py", line 1357, in try_transform
+    raise FieldError(
+    ^
+
+During handling of the above exception (Unsupported lookup &#x27;code&#x27; for UUIDField or join on the field not permitted.), another exception occurred:
   File "C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
     response = get_response(request)
                ^^^^^^^^^^^^^^^^^^^^^
@@ -2144,42 +2419,33 @@ Traceback (most recent call last):
   File "C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 506, in dispatch
     response = handler(request, *args, **kwargs)
                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\jeril\OneDrive\Desktop\88gb\erp\88-ERP\backend\apps\integrations\shopify_views.py", line 993, in sales_summary
-    for order in queryset.only(&#x27;shopify_data&#x27;):
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\query.py", line 398, in __iter__
-    self._fetch_all()
-    ^^^^^^^^^^^^^^^^^
-  File "C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\query.py", line 1881, in _fetch_all
-    self._result_cache = list(self._iterable_class(self))
-                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\query.py", line 91, in __iter__
-    results = compiler.execute_sql(
-              
-  File "C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\sql\compiler.py", line 1549, in execute_sql
-    sql, params = self.as_sql()
-                  ^^^^^^^^^^^^^
-  File "C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\sql\compiler.py", line 736, in as_sql
-    extra_select, order_by, group_by = self.pre_sql_setup(
+  File "C:\Users\jeril\OneDrive\Desktop\88gb\erp\88-ERP\backend\apps\integrations\shopify_views.py", line 1012, in sales_summary
+    by_store = queryset.values(
+               
+  File "C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\query.py", line 1313, in values
+    clone = self._values(*fields, **expressions)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\query.py", line 1308, in _values
+    clone.query.set_values(fields)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\sql\query.py", line 2461, in set_values
+    self.add_fields(field_names, True)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\sql\query.py", line 2171, in add_fields
+    cols.append(join_info.transform_function(target, final_alias))
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\sql\query.py", line 1851, in transform
+    raise last_field_exception
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\sql\query.py", line 1824, in setup_joins
+    path, final_field, targets, rest = self.names_to_path(
                                        
-  File "C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\sql\compiler.py", line 84, in pre_sql_setup
-    self.setup_query(with_col_aliases=with_col_aliases)
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\sql\compiler.py", line 73, in setup_query
-    self.select, self.klass_info, self.annotation_col_map = self.get_select(
-                                                            
-  File "C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\sql\compiler.py", line 279, in get_select
-    related_klass_infos = self.get_related_selections(select, select_mask)
-                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\sql\compiler.py", line 1211, in get_related_selections
-    if not select_related_descend(f, restricted, requested, select_mask):
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\query_utils.py", line 347, in select_related_descend
+  File "C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\sql\query.py", line 1725, in names_to_path
     raise FieldError(
     ^
 
 Exception Type: FieldError at /api/integrations/shopify/orders/sales_summary/
-Exception Value: Field ShopifyOrder.store cannot be both deferred and traversed using select_related at the same time.
+Exception Value: Cannot resolve keyword &#x27;code&#x27; into field. Choices are: access_token, api_key, api_secret, api_version, auto_sync_inventory, auto_sync_orders, auto_sync_products, company, company_id, connection_error, created_at, created_by, created_by_id, discounts, draft_orders, gift_cards, id, inventory_levels, is_connected, last_connection_test, last_inventory_sync, last_order_sync, last_product_sync, name, orders, products, shop_domain, status, sync_interval_minutes, sync_jobs, updated_at, updated_by, updated_by_id, version, webhook_logs, webhook_secret, webhooks
 </textarea>
   <br><br>
   <input type="submit" value="Share this traceback on a public website">
@@ -2908,7 +3174,7 @@ Exception Value: Field ShopifyOrder.store cannot be both deferred and traversed 
       
         <tr>
           <td>wsgi.input</td>
-          <td class="code"><pre>&lt;django.core.handlers.wsgi.LimitedStream object at 0x0000018D6121BCD0&gt;</pre></td>
+          <td class="code"><pre>&lt;django.core.handlers.wsgi.LimitedStream object at 0x0000019F53EBAB30&gt;</pre></td>
         </tr>
       
         <tr>

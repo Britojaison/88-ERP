@@ -129,8 +129,8 @@ export interface ShopifySalesSummary {
 }
 
 export const shopifyService = {
-  getSalesSummary: async (): Promise<ShopifySalesSummary> => {
-    const response = await api.get('/integrations/shopify/orders/sales_summary/')
+  getSalesSummary: async (days: number = 30): Promise<ShopifySalesSummary> => {
+    const response = await api.get('/integrations/shopify/orders/sales_summary/', { params: { days } })
     return response.data
   },
 
@@ -271,13 +271,13 @@ export const shopifyService = {
     return response.data
   },
 
-  getTopProducts: async (limit: number = 10) => {
-    const response = await api.get('/integrations/shopify/orders/top_products/', { params: { limit } })
+  getTopProducts: async (limit: number = 10, days: number = 30) => {
+    const response = await api.get('/integrations/shopify/orders/top_products/', { params: { limit, days } })
     return response.data
   },
 
-  getGeographicSales: async () => {
-    const response = await api.get('/integrations/shopify/orders/geographic_sales/')
+  getGeographicSales: async (days: number = 30) => {
+    const response = await api.get('/integrations/shopify/orders/geographic_sales/', { params: { days } })
     return response.data
   },
 }

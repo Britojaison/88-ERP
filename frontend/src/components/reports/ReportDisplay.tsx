@@ -99,39 +99,41 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
     try {
       let data: any = {}
 
+      const days = dateRange === 'custom' ? 30 : parseInt(dateRange, 10) || 30
+
       // Load data based on report type
       switch (reportName) {
         case 'Online Sales Summary':
         case 'Unified Sales Dashboard':
-          data = await loadSalesSummary()
+          data = await loadSalesSummary(days)
           break
         case 'Sales by Channel':
           // REMOVED: Redundant report - use Sales Trend or Order Status instead
-          data = await loadShopifySalesTrend()
+          data = await loadShopifySalesTrend(days)
           if (!data) data = await loadSalesByChannel()
           break
         case 'Sales by Store':
-          data = await loadShopifySalesByStore()
+          data = await loadShopifySalesByStore(days)
           if (!data) data = await loadDailyStorePerformance()
           break
         case 'Sales Trend':
         case 'Daily Sales':
-          data = await loadShopifySalesTrend()
+          data = await loadShopifySalesTrend(days)
           if (!data) data = await loadDailyStorePerformance()
           break
         case 'Top Products':
         case 'Top Sellers':
-          data = await loadShopifyTopProducts()
+          data = await loadShopifyTopProducts(days)
           if (!data) data = await loadProductPerformance()
           break
         case 'Order Status':
         case 'Order Fulfillment':
-          data = await loadShopifyOrderStatus()
+          data = await loadShopifyOrderStatus(days)
           if (!data) data = await loadGenericReport()
           break
         case 'Geographic Sales':
         case 'Sales by Location':
-          data = await loadShopifyGeographicSales()
+          data = await loadShopifyGeographicSales(days)
           if (!data) data = await loadGenericReport()
           break
         case 'Traffic Source Analysis':
@@ -196,10 +198,10 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
     }
   }
 
-  const loadSalesSummary = async () => {
+  const loadSalesSummary = async (days: number = 30) => {
     try {
       // Try to load Shopify data first
-      const shopifyData = await shopifyService.getSalesSummary()
+      const shopifyData = await shopifyService.getSalesSummary(days)
 
       if (shopifyData && shopifyData.summary.total_transactions > 0) {
         // Use real Shopify data
