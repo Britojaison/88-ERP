@@ -15,6 +15,7 @@ from .models import (
     SKU,
     SKUBarcode,
     Fabric,
+    Store,
 )
 
 
@@ -259,3 +260,17 @@ class FabricSerializer(serializers.ModelSerializer):
         if obj.sku:
             return obj.sku.code
         return None
+
+
+class StoreSerializer(serializers.ModelSerializer):
+    location_name = serializers.ReadOnlyField(source='location.name')
+    
+    class Meta:
+        model = Store
+        fields = [
+            'id', 'company', 'code', 'name', 'location', 
+            'location_name', 'email', 
+            'gstin', 'opening_date', 'status', 'created_at', 'updated_at'
+        ]
+        extra_kwargs = {'company': {'required': False}}
+        validators = []

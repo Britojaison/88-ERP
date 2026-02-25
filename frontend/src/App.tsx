@@ -17,6 +17,7 @@ import Reports from './pages/Reports'
 import Settings from './pages/Settings'
 import MetadataManagement from './pages/MetadataManagement'
 import ShopifyIntegration from './pages/ShopifyIntegration'
+import StoreInventory from './pages/StoreInventory'
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const location = useLocation()
@@ -60,6 +61,7 @@ function App() {
           <Route index element={<Dashboard />} />
           <Route path="pos" element={<POSCheckout />} />
           <Route path="master-data" element={<MasterData />} />
+          <Route path="store-inventory" element={<StoreInventory />} />
           <Route path="documents" element={<Documents />} />
           <Route path="inventory" element={<Inventory />} />
           <Route path="inventory/barcodes" element={<InventoryBarcodes />} />

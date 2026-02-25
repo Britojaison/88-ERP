@@ -146,6 +146,38 @@ class Location(TenantAwareModel):
         return f"{self.code} - {self.name}"
 
 
+class Store(TenantAwareModel):
+    """
+    Retail store master data.
+    Links to a Location of type 'store'.
+    """
+    
+    code = models.CharField(max_length=50, unique=True, db_index=True)
+    name = models.CharField(max_length=255)
+    
+    location = models.OneToOneField(
+        Location,
+        on_delete=models.PROTECT,
+        related_name='store_details',
+        help_text='The physical location associated with this store'
+    )
+    
+    email = models.EmailField(blank=True)
+    
+    gstin = models.CharField(max_length=15, blank=True, help_text='Store-specific GSTIN if different from company')
+    opening_date = models.DateField(null=True, blank=True)
+    
+    objects = models.Manager()
+    active = ActiveManager()
+    
+    class Meta:
+        db_table = 'mdm_store'
+        unique_together = [['company', 'code']]
+    
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
 class User(AbstractBaseUser, PermissionsMixin, BaseModel):
     """
     Custom user model.

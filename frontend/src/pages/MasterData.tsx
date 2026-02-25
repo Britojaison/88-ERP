@@ -30,7 +30,7 @@ import {
 } from '@mui/material'
 import { Add, CheckCircle, Cancel } from '@mui/icons-material'
 import PageHeader from '../components/ui/PageHeader'
-import { mdmService, type BusinessUnit, type Company, type Location, type Product, type SKU, type Fabric } from '../services/mdm.service'
+import { mdmService, type BusinessUnit, type Company, type Location, type Product, type SKU, type Fabric, type Store } from '../services/mdm.service'
 
 interface TabPanelProps {
   children?: React.ReactNode
@@ -56,6 +56,7 @@ export default function MasterData() {
   const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>([])
   const [locations, setLocations] = useState<Location[]>([])
   const [fabrics, setFabrics] = useState<Fabric[]>([])
+  const [stores, setStores] = useState<Store[]>([])
   const [fabricFilter, setFabricFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all')
   const [openProductDialog, setOpenProductDialog] = useState(false)
   // @ts-ignore: TS6133
@@ -64,6 +65,7 @@ export default function MasterData() {
   const [openCompanyDialog, setOpenCompanyDialog] = useState(false)
   // @ts-ignore: TS6133
   const [openLocationDialog, setOpenLocationDialog] = useState(false)
+  const [openStoreDialog, setOpenStoreDialog] = useState(false)
   const [openVariantsDialog, setOpenVariantsDialog] = useState(false)
   const [openFabricDialog, setOpenFabricDialog] = useState(false)
   const [openRejectDialog, setOpenRejectDialog] = useState(false)
@@ -119,6 +121,14 @@ export default function MasterData() {
     business_unit: '',
     is_inventory_location: true,
   })
+  const [storeForm, setStoreForm] = useState({
+    code: '',
+    name: '',
+    location: '',
+    email: '',
+    gstin: '',
+    opening_date: '',
+  })
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>(
     { open: false, message: '', severity: 'info' },
   )
@@ -139,6 +149,8 @@ export default function MasterData() {
       setBusinessUnits(businessUnitData)
       setLocations(locationData)
       setFabrics(fabricData)
+      const storeData = await mdmService.getStores()
+      setStores(storeData)
     } catch (error) {
       setSnackbar({ open: true, message: 'Failed to load master data.', severity: 'error' })
     }
@@ -215,6 +227,18 @@ export default function MasterData() {
         is_inventory_location: true,
       })
       setOpenLocationDialog(true)
+      return
+    }
+    if (tabValue === 5) {
+      setStoreForm({
+        code: '',
+        name: '',
+        location: '',
+        email: '',
+        gstin: '',
+        opening_date: '',
+      })
+      setOpenStoreDialog(true)
       return
     }
     setSnackbar({
@@ -368,6 +392,21 @@ export default function MasterData() {
     }
   }
 
+  const handleCreateStore = async () => {
+    if (!storeForm.code || !storeForm.name || !storeForm.location) {
+      setSnackbar({ open: true, message: 'Code, Name and Location are required.', severity: 'error' })
+      return
+    }
+    try {
+      await mdmService.createStore(storeForm)
+      setOpenStoreDialog(false)
+      setSnackbar({ open: true, message: 'Store created successfully.', severity: 'success' })
+      setTimeout(() => { void loadData() }, 300)
+    } catch (error: any) {
+      setSnackbar({ open: true, message: error?.response?.data?.detail || 'Failed to create store.', severity: 'error' })
+    }
+  }
+
   const filteredFabrics = fabricFilter === 'all' ? fabrics : fabrics.filter(f => f.approval_status === fabricFilter)
 
   return (
@@ -391,6 +430,7 @@ export default function MasterData() {
           <Tab label="Fabrics" />
           <Tab label="Companies" />
           <Tab label="Locations" />
+          <Tab label="Stores" />
         </Tabs>
 
         <TabPanel value={tabValue} index={0}>
@@ -644,6 +684,40 @@ export default function MasterData() {
                       <TableCell>{location.name}</TableCell>
                       <TableCell>{location.location_type}</TableCell>
                       <TableCell>{location.status}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </TabPanel>
+        <TabPanel value={tabValue} index={5}>
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Store Code</TableCell>
+                  <TableCell>Store Name</TableCell>
+                  <TableCell>Store Email</TableCell>
+                  <TableCell>Opening Date</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {stores.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} align="center">
+                      <Typography variant="body2" color="text.secondary" sx={{ py: 4 }}>
+                        No stores found. Click "Add New" to add a store.
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  stores.map((store) => (
+                    <TableRow key={store.id}>
+                      <TableCell>{store.code}</TableCell>
+                      <TableCell>{store.name}</TableCell>
+                      <TableCell>{store.email || '-'}</TableCell>
+                      <TableCell>{store.opening_date ? new Date(store.opening_date).toLocaleDateString() : '-'}</TableCell>
                     </TableRow>
                   ))
                 )}
@@ -979,6 +1053,78 @@ export default function MasterData() {
         <DialogActions>
           <Button onClick={() => setOpenFabricDialog(false)}>Cancel</Button>
           <Button variant="contained" onClick={() => void handleCreateFabric()}>Create Fabric</Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog open={openStoreDialog} onClose={() => setOpenStoreDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Add New Store</DialogTitle>
+        <DialogContent>
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={6}>
+              <TextField
+                fullWidth
+                label="Store Code"
+                value={storeForm.code}
+                onChange={(e) => setStoreForm(prev => ({ ...prev, code: e.target.value }))}
+                required
+              />
+            </Grid>
+            <Grid item xs={6}>
+              <TextField
+                fullWidth
+                label="Store Name"
+                value={storeForm.name}
+                onChange={(e) => setStoreForm(prev => ({ ...prev, name: e.target.value }))}
+                required
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <FormControl fullWidth required>
+                <InputLabel>Mapped Location</InputLabel>
+                <Select
+                  value={storeForm.location}
+                  label="Mapped Location"
+                  onChange={(e) => setStoreForm(prev => ({ ...prev, location: e.target.value }))}
+                >
+                  {locations.filter(l => l.location_type === 'store').map(loc => (
+                    <MenuItem key={loc.id} value={loc.id}>{loc.name} ({loc.code})</MenuItem>
+                  ))}
+                  {locations.filter(l => l.location_type === 'store').length === 0 && (
+                    <MenuItem disabled>No Store Locations found. Create one first.</MenuItem>
+                  )}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Store Email"
+                value={storeForm.email}
+                onChange={(e) => setStoreForm(prev => ({ ...prev, email: e.target.value }))}
+              />
+            </Grid>
+            <Grid item xs={6}>
+              <TextField
+                fullWidth
+                label="GSTIN"
+                value={storeForm.gstin}
+                onChange={(e) => setStoreForm(prev => ({ ...prev, gstin: e.target.value }))}
+              />
+            </Grid>
+            <Grid item xs={6}>
+              <TextField
+                fullWidth
+                label="Opening Date"
+                type="date"
+                InputLabelProps={{ shrink: true }}
+                value={storeForm.opening_date}
+                onChange={(e) => setStoreForm(prev => ({ ...prev, opening_date: e.target.value }))}
+              />
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenStoreDialog(false)}>Cancel</Button>
+          <Button variant="contained" onClick={() => void handleCreateStore()}>Save Store</Button>
         </DialogActions>
       </Dialog>
 

@@ -48,6 +48,7 @@ const navSections = [
       { text: 'Inventory', icon: <InventoryIcon />, path: '/inventory' },
       { text: 'Barcodes', icon: <BarcodeIcon />, path: '/inventory/barcodes' },
       { text: 'Receiving', icon: <ReceivingIcon />, path: '/inventory/receiving' },
+      { text: 'Stores', icon: <StoreIcon />, path: '/store-inventory' },
       { text: 'Store POS', icon: <StoreIcon />, path: '/pos' },
       { text: 'Reports', icon: <ReportIcon />, path: '/reports' },
     ],
@@ -68,6 +69,7 @@ export default function Layout() {
   const navigate = useNavigate()
   const location = useLocation()
   const dispatch = useDispatch()
+
 
   const activeTitle = useMemo(() => {
     const matched = navSections

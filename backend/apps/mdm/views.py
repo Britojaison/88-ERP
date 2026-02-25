@@ -6,7 +6,7 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from .models import Company, BusinessUnit, Location, Customer, Vendor, Product, Style, SKU, SKUBarcode, Fabric
+from .models import Company, BusinessUnit, Location, Customer, Vendor, Product, Style, SKU, SKUBarcode, Fabric, Store
 from .serializers import (
     CompanySerializer,
     BusinessUnitSerializer,
@@ -18,6 +18,7 @@ from .serializers import (
     SKUSerializer,
     SKUBarcodeSerializer,
     FabricSerializer,
+    StoreSerializer,
 )
 from rest_framework.pagination import PageNumberPagination
 from .barcode_service import BarcodeService
@@ -427,3 +428,12 @@ class FabricViewSet(TenantScopedViewSet):
         fabric.rejection_reason = request.data.get('reason', '')
         fabric.save()
         return Response(FabricSerializer(fabric, context={'request': request}).data)
+
+
+class StoreViewSet(TenantScopedViewSet):
+    serializer_class = StoreSerializer
+
+    def get_queryset(self):
+        return Store.objects.filter(
+            company_id=self.request.user.company_id, status="active"
+        ).select_related("location").order_by("-created_at")

@@ -117,6 +117,21 @@ export interface Fabric {
   updated_at: string
 }
 
+export interface Store {
+  id: string
+  company: string
+  code: string
+  name: string
+  location: string
+  location_name?: string
+  email?: string
+  gstin?: string
+  opening_date?: string
+  status: string
+  created_at: string
+  updated_at: string
+}
+
 export interface PaginatedResponse<T> {
   count: number
   next: string | null
@@ -272,5 +287,16 @@ export const mdmService = {
   rejectFabric: async (id: string, reason: string) => {
     const response = await api.post(`/mdm/fabrics/${id}/reject/`, { reason })
     return response.data as Fabric
+  },
+
+  // Stores
+  getStores: async (params?: any) => {
+    const response = await api.get('/mdm/stores/', { params })
+    return extractListData<Store>(response.data)
+  },
+
+  createStore: async (data: Partial<Store> & { code: string; name: string; location: string }) => {
+    const response = await api.post('/mdm/stores/', data)
+    return response.data as Store
   },
 }
