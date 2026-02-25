@@ -32,9 +32,9 @@ export const loadShopifySalesByChannel = async () => {
   return null
 }
 
-export const loadShopifySalesByStore = async () => {
+export const loadShopifySalesByStore = async (days: number = 30) => {
   try {
-    const data = await shopifyService.getSalesSummary()
+    const data = await shopifyService.getSalesSummary(days)
 
     if (!data || !data.by_store || data.by_store.length === 0) {
       return null
@@ -71,9 +71,9 @@ export const loadShopifySalesByStore = async () => {
   }
 }
 
-export const loadShopifySalesTrend = async () => {
+export const loadShopifySalesTrend = async (days: number = 30) => {
   try {
-    const data = await shopifyService.getSalesSummary()
+    const data = await shopifyService.getSalesSummary(days)
 
     if (!data || !data.daily_sales || data.daily_sales.length === 0) {
       return null
@@ -112,9 +112,9 @@ export const loadShopifySalesTrend = async () => {
   }
 }
 
-export const loadShopifyTopProducts = async () => {
+export const loadShopifyTopProducts = async (days: number = 30) => {
   try {
-    const data = await shopifyService.getTopProducts(20)
+    const data = await shopifyService.getTopProducts(20, days)
 
     if (!data || data.products.length === 0) {
       return null
@@ -156,9 +156,9 @@ export const loadShopifyTopProducts = async () => {
   }
 }
 
-export const loadShopifyOrderStatus = async () => {
+export const loadShopifyOrderStatus = async (days: number = 30) => {
   try {
-    const data = await shopifyService.getSalesSummary()
+    const data = await shopifyService.getSalesSummary(days)
 
     if (!data || !(data as any).status_breakdown) {
       return null
@@ -204,9 +204,9 @@ export const loadShopifyOrderStatus = async () => {
   }
 }
 
-export const loadShopifyGeographicSales = async () => {
+export const loadShopifyGeographicSales = async (days: number = 30) => {
   try {
-    const data = await shopifyService.getGeographicSales()
+    const data = await shopifyService.getGeographicSales(days)
 
     if (!data || data.locations.length === 0) {
       return null

@@ -368,6 +368,25 @@ export default function MasterData() {
     }
   }
 
+  const handleCreateLocation = async () => {
+    if (!locationForm.code || !locationForm.name) {
+      setSnackbar({ open: true, message: 'Location Code and Name are required.', severity: 'error' })
+      return
+    }
+    // ensure business_unit is passed (even if empty, though API might require it. We will send existing bu or null)
+    try {
+      await mdmService.createLocation({
+        ...locationForm,
+        business_unit: locationForm.business_unit || (businessUnits.length > 0 ? businessUnits[0].id : '')
+      })
+      setOpenLocationDialog(false)
+      setTimeout(() => { void loadData() }, 300)
+      setSnackbar({ open: true, message: 'Location created successfully!', severity: 'success' })
+    } catch (error: any) {
+      setSnackbar({ open: true, message: error?.response?.data?.detail || 'Failed to create location.', severity: 'error' })
+    }
+  }
+
   const filteredFabrics = fabricFilter === 'all' ? fabrics : fabrics.filter(f => f.approval_status === fabricFilter)
 
   return (
@@ -998,6 +1017,55 @@ export default function MasterData() {
         <DialogActions>
           <Button onClick={() => setOpenRejectDialog(false)}>Cancel</Button>
           <Button variant="contained" color="error" onClick={() => void handleRejectFabric()}>Reject</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Create Location Dialog */}
+      <Dialog open={openLocationDialog} onClose={() => setOpenLocationDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Create Location</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth margin="normal" label="Location Code" required
+            value={locationForm.code}
+            onChange={(e) => setLocationForm(prev => ({ ...prev, code: e.target.value }))}
+            placeholder="e.g. STORE-01"
+          />
+          <TextField
+            fullWidth margin="normal" label="Name" required
+            value={locationForm.name}
+            onChange={(e) => setLocationForm(prev => ({ ...prev, name: e.target.value }))}
+            placeholder="e.g. MG Road Branch"
+          />
+          <FormControl fullWidth margin="normal">
+            <InputLabel>Location Type</InputLabel>
+            <Select
+              value={locationForm.location_type}
+              label="Location Type"
+              onChange={(e) => setLocationForm(prev => ({ ...prev, location_type: e.target.value as any }))}
+            >
+              <MenuItem value="warehouse">Warehouse</MenuItem>
+              <MenuItem value="store">Retail Store</MenuItem>
+              <MenuItem value="factory">Factory</MenuItem>
+              <MenuItem value="office">Office</MenuItem>
+            </Select>
+          </FormControl>
+          <FormControl fullWidth margin="normal">
+            <InputLabel>Business Unit</InputLabel>
+            <Select
+              value={locationForm.business_unit}
+              label="Business Unit"
+              onChange={(e) => setLocationForm(prev => ({ ...prev, business_unit: e.target.value }))}
+            >
+              <MenuItem value="" disabled>Select Business Unit</MenuItem>
+              {businessUnits.map((bu) => (
+                <MenuItem key={bu.id} value={bu.id}>{bu.name}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenLocationDialog(false)}>Cancel</Button>
+          <Button variant="contained" onClick={() => void handleCreateLocation()}>Create Location</Button>
         </DialogActions>
       </Dialog>
 

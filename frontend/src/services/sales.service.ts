@@ -127,9 +127,12 @@ export interface POSCheckoutPayload {
     sku_id: string
     quantity: number
     unit_price: number
+    discount_percent?: number
   }>
   payment_method: string
-  customer_mobile: string
+  customer_mobile?: string
+  customer_email?: string
+  bill_discount_percent?: number
 }
 
 export const salesService = {

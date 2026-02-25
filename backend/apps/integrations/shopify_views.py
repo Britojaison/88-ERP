@@ -945,16 +945,36 @@ class ShopifyOrderViewSet(viewsets.ReadOnlyModelViewSet):
     pagination_class = ShopifyOrderPagination
 
     def get_queryset(self):
+        from datetime import timedelta
+        from django.utils import timezone as tz
+
         queryset = ShopifyOrder.objects.select_related('erp_document', 'store').order_by('-processed_at')
         store_id = self.request.query_params.get('store')
         if store_id:
             queryset = queryset.filter(store_id=store_id)
+
+        # Date filtering: ?days=30 (default 30) or ?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD
+        start_date = self.request.query_params.get('start_date')
+        end_date = self.request.query_params.get('end_date')
+        days = self.request.query_params.get('days')
+
+        if start_date:
+            queryset = queryset.filter(processed_at__date__gte=start_date)
+        if end_date:
+            queryset = queryset.filter(processed_at__date__lte=end_date)
+        if not start_date and not end_date:
+            # Default to last N days (default 30)
+            period = int(days) if days else 30
+            cutoff = tz.now() - timedelta(days=period)
+            queryset = queryset.filter(processed_at__gte=cutoff)
+
         return queryset
 
     @action(detail=False, methods=['get'])
     def sales_summary(self, request):
         """
         Aggregate sales summary from Shopify orders for reporting.
+        Respects ?days=N, ?start_date, ?end_date from get_queryset.
         """
         from django.db.models import Sum, Count, Avg, Q
         from django.db.models.functions import TruncDate
@@ -970,12 +990,24 @@ class ShopifyOrderViewSet(viewsets.ReadOnlyModelViewSet):
         
         # Calculate total items from line_items in shopify_data
         total_items = 0
-        for order in queryset:
-            if order.shopify_data and 'line_items' in order.shopify_data:
-                total_items += sum(item.get('quantity', 0) for item in order.shopify_data['line_items'])
+        for shopify_data in queryset.values_list('shopify_data', flat=True):
+            if shopify_data and 'line_items' in shopify_data:
+                total_items += sum(item.get('quantity', 0) for item in shopify_data['line_items'])
         
         summary['total_items'] = total_items
         
+        # Sales by channel
+        by_channel = []
+        total_sales_val = float(summary['total_sales'] or 0)
+        # All Shopify orders are "online" channel
+        if total_sales_val > 0:
+            by_channel.append({
+                'sales_channel': 'online',
+                'total_sales': total_sales_val,
+                'transaction_count': summary['total_transactions'] or 0,
+                'avg_value': float(summary['avg_transaction_value'] or 0),
+            })
+
         # Sales by store (properly aggregated)
         by_store = queryset.values(
             'store__name',
@@ -986,13 +1018,13 @@ class ShopifyOrderViewSet(viewsets.ReadOnlyModelViewSet):
             avg_value=Avg('total_price'),
         )
         
-        # Daily sales (last 30 days)
+        # Daily sales within the filtered period
         daily_sales = queryset.annotate(
             date=TruncDate('processed_at')
         ).values('date').annotate(
             total_sales=Sum('total_price'),
             transaction_count=Count('id'),
-        ).order_by('-date')[:30]
+        ).order_by('-date')
         
         # Order status breakdown
         status_breakdown = {
@@ -1008,18 +1040,23 @@ class ShopifyOrderViewSet(viewsets.ReadOnlyModelViewSet):
             'fulfilled': queryset.filter(fulfillment_status='fulfilled').count(),
             'partial': queryset.filter(fulfillment_status='partial').count(),
         }
+
+        # Date range info
+        days_param = request.query_params.get('days', '30')
         
         return Response({
             'summary': {
-                'total_sales': float(summary['total_sales'] or 0),
+                'total_sales': total_sales_val,
                 'total_transactions': summary['total_transactions'] or 0,
                 'avg_transaction_value': float(summary['avg_transaction_value'] or 0),
                 'total_items': total_items,
             },
+            'by_channel': by_channel,
             'by_store': list(by_store),
             'daily_sales': list(daily_sales),
             'status_breakdown': status_breakdown,
             'fulfillment_breakdown': fulfillment_breakdown,
+            'period_days': int(days_param),
         })
     
     @action(detail=False, methods=['get'])

@@ -148,18 +148,21 @@ class SalesTransactionViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'], url_path='pos-checkout')
     def pos_checkout(self, request):
-        """Process a POS checkout. Deducts inventory and records sale."""
+        """Process a POS checkout with discounts, customer data, and inventory deduction."""
         from django.db import transaction
         from apps.mdm.models import SKU, Location, Customer
         from apps.inventory.models import InventoryBalance
         from django.utils import timezone
+        from decimal import Decimal, ROUND_HALF_UP
         import uuid
 
         store_id = request.data.get('store_id')
         items = request.data.get('items', [])
         payment_method = request.data.get('payment_method', SalesTransaction.PAYMENT_METHOD_CASH)
-        customer_mobile = request.data.get('customer_mobile')
-        
+        customer_mobile = request.data.get('customer_mobile', '').strip()
+        customer_email = request.data.get('customer_email', '').strip()
+        bill_discount_percent = Decimal(str(request.data.get('bill_discount_percent', 0)))
+
         if not store_id or not items:
             return Response({'error': 'store_id and items are required'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -168,24 +171,34 @@ class SalesTransactionViewSet(viewsets.ModelViewSet):
         except Location.DoesNotExist:
             return Response({'error': 'Store not found'}, status=status.HTTP_404_NOT_FOUND)
 
+        # Customer handling: optional, lookup by phone if provided
         customer = None
         if customer_mobile:
-            customer, _ = Customer.objects.get_or_create(
+            customer, created = Customer.objects.get_or_create(
                 company_id=request.user.company_id,
                 phone=customer_mobile,
-                defaults={'name': 'Walk-in Customer'}
+                defaults={
+                    'name': 'Walk-in Customer',
+                    'code': f"CUST-{customer_mobile[-6:]}",
+                    'email': customer_email,
+                }
             )
+            # Update email if it wasn't previously set
+            if not created and customer_email and not customer.email:
+                customer.email = customer_email
+                customer.save()
 
         try:
             with transaction.atomic():
-                total_amount = 0
-                subtotal = 0
+                subtotal = Decimal('0')
+                total_line_discounts = Decimal('0')
                 item_count = 0
+                receipt_num = f"POS-{uuid.uuid4().hex[:8].upper()}"
 
                 # 1. Create Transaction Shell
                 txn = SalesTransaction.objects.create(
                     company_id=request.user.company_id,
-                    transaction_number=f"POS-{uuid.uuid4().hex[:8].upper()}",
+                    transaction_number=receipt_num,
                     transaction_date=timezone.now(),
                     sales_channel=SalesTransaction.CHANNEL_STORE,
                     store=store,
@@ -197,7 +210,7 @@ class SalesTransactionViewSet(viewsets.ModelViewSet):
                     payment_method=payment_method,
                 )
 
-                # 2. Process Items
+                # 2. Process Items with per-line discounts
                 for idx, item in enumerate(items):
                     try:
                         sku = SKU.objects.get(id=item['sku_id'], company_id=request.user.company_id)
@@ -205,18 +218,22 @@ class SalesTransactionViewSet(viewsets.ModelViewSet):
                         raise Exception(f"SKU {item.get('sku_id')} not found")
 
                     quantity = int(item.get('quantity', 1))
-                    unit_price = float(item.get('unit_price', sku.base_price))
-                    line_total = quantity * unit_price
+                    unit_price = Decimal(str(item.get('unit_price', sku.base_price)))
+                    item_discount_pct = Decimal(str(item.get('discount_percent', 0)))
 
-                    # deduct inventory
+                    gross_total = (unit_price * quantity).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                    item_discount_amt = (gross_total * item_discount_pct / 100).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                    line_total = gross_total - item_discount_amt
+
+                    # Deduct inventory
                     inv_balance, _ = InventoryBalance.objects.get_or_create(
                         company_id=request.user.company_id,
                         sku=sku,
                         location=store,
-                        defaults={'quantity': 0, 'reserved_quantity': 0}
+                        defaults={'quantity_on_hand': 0, 'quantity_reserved': 0, 'quantity_available': 0}
                     )
-                    
-                    inv_balance.quantity -= quantity
+                    inv_balance.quantity_on_hand -= quantity
+                    inv_balance.quantity_available = inv_balance.quantity_on_hand - inv_balance.quantity_reserved
                     inv_balance.save()
 
                     SalesTransactionLine.objects.create(
@@ -225,20 +242,34 @@ class SalesTransactionViewSet(viewsets.ModelViewSet):
                         sku=sku,
                         quantity=quantity,
                         unit_price=unit_price,
+                        discount_percent=item_discount_pct,
+                        discount_amount=item_discount_amt,
                         line_total=line_total,
                         unit_cost=sku.cost_price,
                     )
 
-                    subtotal += line_total
+                    subtotal += gross_total
+                    total_line_discounts += item_discount_amt
                     item_count += quantity
 
+                # 3. Apply bill-level discount on top of line discounts
+                after_line_discounts = subtotal - total_line_discounts
+                bill_discount_amt = Decimal('0')
+                if bill_discount_percent > 0:
+                    bill_discount_amt = (after_line_discounts * bill_discount_percent / 100).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+                total_discount = total_line_discounts + bill_discount_amt
+                final_amount = subtotal - total_discount
+
                 txn.subtotal = subtotal
-                txn.total_amount = subtotal
+                txn.discount_amount = total_discount
+                txn.total_amount = final_amount
                 txn.item_count = item_count
                 txn.save()
 
-            serializer = self.get_serializer(txn)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            data = self.get_serializer(txn).data
+            data['receipt_number'] = receipt_num
+            return Response(data, status=status.HTTP_201_CREATED)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
