@@ -23,7 +23,7 @@ import {
     Tab
 } from '@mui/material'
 import {
-    Storefront,
+    Warehouse as WarehouseIcon,
     Inventory2,
     Search,
     Email,
@@ -36,10 +36,10 @@ import PageHeader from '../components/ui/PageHeader'
 import { mdmService, Location } from '../services/mdm.service'
 import { inventoryService, InventoryBalance, GoodsReceiptScanLog } from '../services/inventory.service'
 
-export default function Stores() {
-    const [stores, setStores] = useState<Location[]>([])
+export default function Warehouse() {
+    const [warehouses, setWarehouses] = useState<Location[]>([])
     const [loading, setLoading] = useState(true)
-    const [selectedStore, setSelectedStore] = useState<Location | null>(null)
+    const [selectedWarehouse, setSelectedWarehouse] = useState<Location | null>(null)
     const [balances, setBalances] = useState<InventoryBalance[]>([])
     const [fetchingBalances, setFetchingBalances] = useState(false)
     const [scanLogs, setScanLogs] = useState<GoodsReceiptScanLog[]>([])
@@ -47,28 +47,28 @@ export default function Stores() {
     const [tabValue, setTabValue] = useState(0)
 
     useEffect(() => {
-        const fetchStores = async () => {
+        const fetchWarehouses = async () => {
             try {
-                const locations = await mdmService.getLocations({ location_type: 'store' })
+                const locations = await mdmService.getLocations({ location_type: 'warehouse' })
                 const list = (Array.isArray(locations) ? locations : (locations as any).results || [])
                     .sort((a: Location, b: Location) => a.name.localeCompare(b.name))
-                setStores(list)
+                setWarehouses(list)
 
                 if (list.length === 1) {
-                    setSelectedStore(list[0])
+                    setSelectedWarehouse(list[0])
                 }
             } catch (error) {
-                console.error('Error fetching stores:', error)
+                console.error('Error fetching warehouses:', error)
             } finally {
                 setLoading(false)
             }
         }
-        fetchStores()
+        fetchWarehouses()
     }, [])
 
     useEffect(() => {
         const fetchData = async () => {
-            if (!selectedStore) {
+            if (!selectedWarehouse) {
                 setBalances([])
                 setScanLogs([])
                 return
@@ -79,17 +79,14 @@ export default function Stores() {
 
             try {
                 const [balanceData, logData] = await Promise.all([
-                    inventoryService.getBalances({ location: selectedStore.id }),
-                    inventoryService.getGoodsReceiptScans({ location: selectedStore.id })
+                    inventoryService.getBalances({ location: selectedWarehouse.id }),
+                    inventoryService.getGoodsReceiptScans({ location: selectedWarehouse.id })
                 ])
 
-                const sortedBalances = (Array.isArray(balanceData) ? balanceData : (balanceData as any).results || [])
-                    .sort((a: InventoryBalance, b: InventoryBalance) => (a.sku_code || '').localeCompare(b.sku_code || ''))
-
-                setBalances(sortedBalances)
+                setBalances(Array.isArray(balanceData) ? balanceData : (balanceData as any).results || [])
                 setScanLogs(Array.isArray(logData) ? logData : (logData as any).results || [])
             } catch (error) {
-                console.error('Error fetching store data:', error)
+                console.error('Error fetching warehouse data:', error)
                 setBalances([])
                 setScanLogs([])
             } finally {
@@ -98,7 +95,7 @@ export default function Stores() {
             }
         }
         fetchData()
-    }, [selectedStore])
+    }, [selectedWarehouse])
 
     const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
         setTabValue(newValue)
@@ -115,8 +112,8 @@ export default function Stores() {
     return (
         <Box>
             <PageHeader
-                title="Store Operations"
-                subtitle="View retail inventory, product availability, and monitor recent stock updates."
+                title="Warehouse Management"
+                subtitle="Monitor stock levels, track receiving history, and manage warehouse operations."
             />
 
             {/* Selection Bar */}
@@ -136,24 +133,24 @@ export default function Stores() {
             >
                 <Box sx={{ flexGrow: 1 }}>
                     <Typography variant="caption" sx={{ display: 'block', mb: 1, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase' }}>
-                        Active Retail Store
+                        Active Storage Unit
                     </Typography>
                     <Autocomplete
-                        options={stores}
+                        options={warehouses}
                         getOptionLabel={(option) => `${option.name} (${option.code})`}
-                        value={selectedStore}
-                        onChange={(_, newValue) => setSelectedStore(newValue)}
+                        value={selectedWarehouse}
+                        onChange={(_, newValue) => setSelectedWarehouse(newValue)}
                         renderInput={(params) => (
                             <TextField
                                 {...params}
-                                placeholder="Search or select a store..."
+                                placeholder="Search or select a warehouse..."
                                 variant="outlined"
                                 size="small"
                                 InputProps={{
                                     ...params.InputProps,
                                     startAdornment: (
                                         <InputAdornment position="start">
-                                            <Storefront color="primary" sx={{ fontSize: 20 }} />
+                                            <WarehouseIcon color="primary" sx={{ fontSize: 20 }} />
                                         </InputAdornment>
                                     ),
                                     sx: { borderRadius: 3, bgcolor: 'white' }
@@ -163,17 +160,17 @@ export default function Stores() {
                         sx={{ maxWidth: 500 }}
                     />
                 </Box>
-                {selectedStore && (
+                {selectedWarehouse && (
                     <Stack direction="row" spacing={1}>
                         <Chip
                             icon={<Badge sx={{ fontSize: '1rem !important' }} />}
-                            label={`Store: ${selectedStore.code}`}
+                            label={`ID: ${selectedWarehouse.code}`}
                             variant="outlined"
                             sx={{ borderRadius: 2, fontWeight: 600 }}
                         />
                         <Chip
                             icon={<Email sx={{ fontSize: '1rem !important' }} />}
-                            label={selectedStore.email || 'No Email'}
+                            label={selectedWarehouse.email || 'No Contact'}
                             variant="outlined"
                             sx={{ borderRadius: 2, fontWeight: 600 }}
                         />
@@ -181,7 +178,7 @@ export default function Stores() {
                 )}
             </Paper>
 
-            {!selectedStore ? (
+            {!selectedWarehouse ? (
                 <Box
                     sx={{
                         display: 'flex',
@@ -195,13 +192,13 @@ export default function Stores() {
                     }}
                 >
                     <Box sx={{ mb: 3, p: 3, borderRadius: '50%', bgcolor: 'rgba(15, 109, 106, 0.05)' }}>
-                        <Storefront sx={{ fontSize: 64, color: 'primary.main', opacity: 0.3 }} />
+                        <WarehouseIcon sx={{ fontSize: 64, color: 'primary.main', opacity: 0.3 }} />
                     </Box>
                     <Typography variant="h5" sx={{ fontWeight: 700, mb: 1, color: '#1e293b' }}>
-                        No Store Selected
+                        Select a Warehouse
                     </Typography>
                     <Typography variant="body1" color="text.secondary">
-                        Please use the selection menu above to view store inventory.
+                        Please choose a warehouse from the dropdown to view its details.
                     </Typography>
                 </Box>
             ) : (
@@ -213,7 +210,7 @@ export default function Stores() {
                                 <Card elevation={0} sx={{ borderRadius: 4, border: '1px solid rgba(15,23,42,0.08)', bgcolor: '#0f6d6a', color: 'white' }}>
                                     <CardContent sx={{ p: 4 }}>
                                         <Typography variant="caption" sx={{ opacity: 0.8, fontWeight: 700, textTransform: 'uppercase' }}>
-                                            Total SKUs
+                                            Stocked Items (SKUs)
                                         </Typography>
                                         <Typography variant="h3" sx={{ fontWeight: 800, mt: 1 }}>
                                             {balances.length}
@@ -225,7 +222,7 @@ export default function Stores() {
                                 <Card elevation={0} sx={{ borderRadius: 4, border: '1px solid rgba(15,23,42,0.08)', bgcolor: 'white' }}>
                                     <CardContent sx={{ p: 4 }}>
                                         <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, textTransform: 'uppercase' }}>
-                                            Available Quantity
+                                            Total Unit Count
                                         </Typography>
                                         <Typography variant="h3" sx={{ fontWeight: 800, mt: 1, color: '#0f6d6a' }}>
                                             {balances.reduce((acc, b) => acc + parseInt(b.quantity_available || '0'), 0)}
@@ -237,7 +234,7 @@ export default function Stores() {
                                 <Card elevation={0} sx={{ borderRadius: 4, border: '1px solid rgba(15,23,42,0.08)', bgcolor: 'white' }}>
                                     <CardContent sx={{ p: 4 }}>
                                         <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, textTransform: 'uppercase' }}>
-                                            Out of Stock Items
+                                            Zero Stock Alerts
                                         </Typography>
                                         <Typography variant="h3" sx={{ fontWeight: 800, mt: 1, color: 'error.main' }}>
                                             {balances.filter(b => parseInt(b.quantity_available || '0') <= 0).length}
@@ -264,7 +261,7 @@ export default function Stores() {
                                     <Tab
                                         icon={<Inventory2 sx={{ fontSize: 20 }} />}
                                         iconPosition="start"
-                                        label="Live Inventory"
+                                        label="Current Inventory"
                                         sx={{ minHeight: 64, fontWeight: 700 }}
                                     />
                                     <Tab
@@ -286,7 +283,7 @@ export default function Stores() {
                                         <Box sx={{ textAlign: 'center', py: 10 }}>
                                             <Inventory2 sx={{ fontSize: 48, color: 'text.disabled', mb: 2 }} />
                                             <Typography variant="body1" color="text.secondary" fontWeight={500}>
-                                                No inventory found at this store.
+                                                No inventory records found for this warehouse.
                                             </Typography>
                                         </Box>
                                     ) : (
@@ -309,7 +306,7 @@ export default function Stores() {
                                                             sx={{ '&:hover': { bgcolor: 'rgba(15, 109, 106, 0.02)' } }}
                                                         >
                                                             <TableCell sx={{ fontWeight: 600, color: 'primary.main' }}>
-                                                                {row.sku_code || 'N/A'}
+                                                                {row.sku_code || 'MMW-UNK'}
                                                             </TableCell>
                                                             <TableCell sx={{ fontWeight: 500 }}>
                                                                 {row.sku_code ? row.sku_code.split('-').slice(0, 2).join(' ') : 'Unknown Item'}
@@ -334,7 +331,7 @@ export default function Stores() {
                                                             </TableCell>
                                                             <TableCell align="center">
                                                                 <Chip
-                                                                    label={parseInt(row.quantity_available) > 0 ? 'Active' : 'Stockout'}
+                                                                    label={parseInt(row.quantity_available) > 0 ? 'In Stock' : 'Out of Stock'}
                                                                     color={parseInt(row.quantity_available) > 0 ? 'success' : 'error'}
                                                                     size="small"
                                                                     sx={{ borderRadius: 1.5, fontWeight: 700 }}
@@ -359,7 +356,7 @@ export default function Stores() {
                                         <Box sx={{ textAlign: 'center', py: 10 }}>
                                             <ReceiptLong sx={{ fontSize: 48, color: 'text.disabled', mb: 2 }} />
                                             <Typography variant="body1" color="text.secondary" fontWeight={500}>
-                                                No scan audit history found for this store.
+                                                No receiving logs found for this warehouse.
                                             </Typography>
                                         </Box>
                                     ) : (
@@ -367,10 +364,10 @@ export default function Stores() {
                                             <Table>
                                                 <TableHead sx={{ bgcolor: 'rgba(248, 250, 252, 0.8)' }}>
                                                     <TableRow>
-                                                        <TableCell sx={{ fontWeight: 800 }}>Date & Time</TableCell>
+                                                        <TableCell sx={{ fontWeight: 800 }}>Scanned At</TableCell>
                                                         <TableCell sx={{ fontWeight: 800 }}>Barcode</TableCell>
                                                         <TableCell sx={{ fontWeight: 800 }}>SKU</TableCell>
-                                                        <TableCell sx={{ fontWeight: 800 }} align="right">Quantity</TableCell>
+                                                        <TableCell sx={{ fontWeight: 800 }} align="right">Qty</TableCell>
                                                         <TableCell sx={{ fontWeight: 800 }} align="center">Result</TableCell>
                                                         <TableCell sx={{ fontWeight: 800 }}>Message</TableCell>
                                                     </TableRow>

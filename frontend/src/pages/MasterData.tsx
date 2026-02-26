@@ -68,6 +68,7 @@ export default function MasterData() {
   const [openFabricDialog, setOpenFabricDialog] = useState(false)
   const [openRejectDialog, setOpenRejectDialog] = useState(false)
   const [openStoreDialog, setOpenStoreDialog] = useState(false)
+  const [openWarehouseDialog, setOpenWarehouseDialog] = useState(false)
   const [rejectFabricId, setRejectFabricId] = useState('')
   const [rejectReason, setRejectReason] = useState('')
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
@@ -91,6 +92,13 @@ export default function MasterData() {
     notes: '',
   })
   const [storeForm, setStoreForm] = useState({
+    code: '',
+    name: '',
+    email: '',
+    opening_date: '',
+    business_unit: '',
+  })
+  const [warehouseForm, setWarehouseForm] = useState({
     code: '',
     name: '',
     email: '',
@@ -226,6 +234,17 @@ export default function MasterData() {
       return
     }
     if (tabValue === 5) {
+      setWarehouseForm({
+        code: '',
+        name: '',
+        email: '',
+        opening_date: new Date().toISOString().split('T')[0],
+        business_unit: '',
+      })
+      setOpenWarehouseDialog(true)
+      return
+    }
+    if (tabValue === 6) {
       setStoreForm({
         code: '',
         name: '',
@@ -406,6 +425,29 @@ export default function MasterData() {
     }
   }
 
+  const handleCreateWarehouse = async () => {
+    if (!warehouseForm.code || !warehouseForm.name) {
+      setSnackbar({ open: true, message: 'Warehouse Code and Name are required.', severity: 'error' })
+      return
+    }
+    try {
+      await mdmService.createLocation({
+        code: warehouseForm.code,
+        name: warehouseForm.name,
+        email: warehouseForm.email,
+        opening_date: warehouseForm.opening_date,
+        location_type: 'warehouse',
+        business_unit: warehouseForm.business_unit || (businessUnits.length > 0 ? businessUnits[0].id : ''),
+        is_inventory_location: true,
+      })
+      setOpenWarehouseDialog(false)
+      setTimeout(() => { void loadData() }, 300)
+      setSnackbar({ open: true, message: 'Warehouse created successfully!', severity: 'success' })
+    } catch (error: any) {
+      setSnackbar({ open: true, message: error?.response?.data?.detail || 'Failed to create warehouse.', severity: 'error' })
+    }
+  }
+
   const handleCreateStore = async () => {
     if (!storeForm.code || !storeForm.name) {
       setSnackbar({ open: true, message: 'Store Code and Name are required.', severity: 'error' })
@@ -430,6 +472,7 @@ export default function MasterData() {
   }
 
   const filteredFabrics = fabricFilter === 'all' ? fabrics : fabrics.filter(f => f.approval_status === fabricFilter)
+  const filteredWarehouses = locations.filter(loc => loc.location_type === 'warehouse')
   const filteredStores = locations.filter(loc => loc.location_type === 'store')
 
   return (
@@ -453,6 +496,7 @@ export default function MasterData() {
           <Tab label="Fabrics" />
           <Tab label="Companies" />
           <Tab label="Locations" />
+          <Tab label="Warehouses" />
           <Tab label="Stores" />
         </Tabs>
 
@@ -716,6 +760,41 @@ export default function MasterData() {
         </TabPanel>
 
         <TabPanel value={tabValue} index={5}>
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Warehouse Code</TableCell>
+                  <TableCell>Warehouse Name</TableCell>
+                  <TableCell>Contact Email</TableCell>
+                  <TableCell>Opening Date</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {filteredWarehouses.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} align="center">
+                      <Typography variant="body2" color="text.secondary" sx={{ py: 4 }}>
+                        No warehouses found. Click "Add New" to create your first warehouse.
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredWarehouses.map((wh) => (
+                    <TableRow key={wh.id}>
+                      <TableCell>{wh.code}</TableCell>
+                      <TableCell>{wh.name}</TableCell>
+                      <TableCell>{wh.email || '-'}</TableCell>
+                      <TableCell>{wh.opening_date ? new Date(wh.opening_date).toLocaleDateString() : '-'}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </TabPanel>
+
+        <TabPanel value={tabValue} index={6}>
           <TableContainer>
             <Table>
               <TableHead>
@@ -1145,6 +1224,56 @@ export default function MasterData() {
         <DialogActions>
           <Button onClick={() => setOpenLocationDialog(false)}>Cancel</Button>
           <Button variant="contained" onClick={() => void handleCreateLocation()}>Create Location</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Create Warehouse Dialog */}
+      <Dialog open={openWarehouseDialog} onClose={() => setOpenWarehouseDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Create New Warehouse</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth margin="normal" label="Warehouse Code" required
+            value={warehouseForm.code}
+            onChange={(e) => setWarehouseForm(prev => ({ ...prev, code: e.target.value }))}
+            placeholder="e.g. WH-01"
+          />
+          <TextField
+            fullWidth margin="normal" label="Warehouse Name" required
+            value={warehouseForm.name}
+            onChange={(e) => setWarehouseForm(prev => ({ ...prev, name: e.target.value }))}
+            placeholder="e.g. Main Warehouse"
+          />
+          <TextField
+            fullWidth margin="normal" label="Warehouse Email"
+            value={warehouseForm.email}
+            onChange={(e) => setWarehouseForm(prev => ({ ...prev, email: e.target.value }))}
+            placeholder="e.g. warehouse@company.com"
+            type="email"
+          />
+          <TextField
+            fullWidth margin="normal" label="Opening Date"
+            value={warehouseForm.opening_date}
+            onChange={(e) => setWarehouseForm(prev => ({ ...prev, opening_date: e.target.value }))}
+            type="date"
+            InputLabelProps={{ shrink: true }}
+          />
+          <FormControl fullWidth margin="normal">
+            <InputLabel>Business Unit</InputLabel>
+            <Select
+              value={warehouseForm.business_unit}
+              label="Business Unit"
+              onChange={(e) => setWarehouseForm(prev => ({ ...prev, business_unit: e.target.value }))}
+            >
+              <MenuItem value="" disabled>Select Business Unit</MenuItem>
+              {businessUnits.map((bu) => (
+                <MenuItem key={bu.id} value={bu.id}>{bu.name}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenWarehouseDialog(false)}>Cancel</Button>
+          <Button variant="contained" onClick={() => void handleCreateWarehouse()}>Create Warehouse</Button>
         </DialogActions>
       </Dialog>
 
