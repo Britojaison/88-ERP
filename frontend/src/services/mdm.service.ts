@@ -55,6 +55,8 @@ export interface Location {
   is_inventory_location: boolean
   email?: string
   opening_date?: string
+  offer_tag: 'none' | 'b1g1' | 'b2g1' | 'b3g1'
+  offer_mode: 'all' | 'selected'
   status: string
   created_at: string
   updated_at: string
@@ -159,7 +161,7 @@ export const mdmService = {
     return response.data as { sku_code: string }
   },
 
-  createProductVariants: async (productId: string, data: { sizes: string[], selling_price: string, mrp: string }) => {
+  createProductVariants: async (productId: string, data: { sizes: string[], selling_price: string, mrp: string, offer_tag?: string }) => {
     const response = await api.post(`/mdm/products/${productId}/create-variants/`, data)
     return response.data as {
       created: number
@@ -236,6 +238,11 @@ export const mdmService = {
 
   createLocation: async (data: Partial<Location> & { code: string; name: string; location_type: Location['location_type']; business_unit: string }) => {
     const response = await api.post('/mdm/locations/', data)
+    return response.data as Location
+  },
+
+  updateLocation: async (id: string, data: Partial<Location>) => {
+    const response = await api.patch(`/mdm/locations/${id}/`, data)
     return response.data as Location
   },
 

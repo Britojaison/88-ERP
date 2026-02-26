@@ -17,10 +17,13 @@ import {
     Alert,
     CircularProgress,
     Paper,
+    LinearProgress,
+    Chip,
 } from '@mui/material'
-import { Storefront, DeleteOutline, PointOfSale, Search } from '@mui/icons-material'
+import { Storefront, DeleteOutline, PointOfSale, Search, LocalOffer } from '@mui/icons-material'
 import PageHeader from '../components/ui/PageHeader'
 import { mdmService, Location, SKU } from '../services/mdm.service'
+import { inventoryService, InventoryBalance } from '../services/inventory.service'
 import { salesService } from '../services/sales.service'
 import { StoreInvoice } from '../components/pos/StoreInvoice'
 
@@ -39,6 +42,7 @@ export default function POSCheckout() {
     const [billDiscount, setBillDiscount] = useState('')
 
     const [skus, setSkus] = useState<SKU[]>([])
+    const [storeBalances, setStoreBalances] = useState<InventoryBalance[]>([])
     const [searchQuery, setSearchQuery] = useState('')
     const [loading, setLoading] = useState(false)
 
@@ -60,6 +64,20 @@ export default function POSCheckout() {
         fetchStores()
         fetchSKUs()
     }, [])
+
+    useEffect(() => {
+        if (!selectedStore) return
+        const fetchBalances = async () => {
+            try {
+                const data = await inventoryService.getBalances({ location: selectedStore })
+                const list = Array.isArray(data) ? data : (data as any).results || []
+                setStoreBalances(list)
+            } catch (err) {
+                console.error('Failed to load store balances', err)
+            }
+        }
+        fetchBalances()
+    }, [selectedStore])
 
     const fetchStores = async () => {
         try {
@@ -115,15 +133,82 @@ export default function POSCheckout() {
     }
 
     const grossSubtotal = cart.reduce((acc, item) => acc + (parseFloat(item.sku.base_price || '0') * item.quantity), 0)
+
+    const activeStore = stores.find(s => s.id === selectedStore)
+    const activeStoreOffer = activeStore?.offer_tag || 'none'
+    const activeStoreOfferMode = activeStore?.offer_mode || 'all'
+
+    // Mix & Match Offer Logic (Group-Level) - STORE WIDE
+    const calculateOfferDiscounts = () => {
+        let totalOfferSavings = 0
+        const groups: Record<string, number[]> = { 'b1g1': [], 'b2g1': [], 'b3g1': [] }
+
+        if (activeStoreOffer !== 'none' && groups[activeStoreOffer]) {
+            cart.forEach(item => {
+                // Check eligibility if mode is 'selected'
+                let isEligible = true
+                if (activeStoreOfferMode === 'selected') {
+                    const balance = storeBalances.find(b => b.sku === item.sku.id)
+                    isEligible = balance?.is_offer_eligible || false
+                }
+
+                if (isEligible) {
+                    const price = parseFloat(item.sku.base_price || '0')
+                    for (let i = 0; i < item.quantity; i++) groups[activeStoreOffer].push(price)
+                }
+            })
+        }
+
+        const stats: Record<string, { total: number, free: number, remaining: number, goal: number }> = {
+            'b1g1': { total: groups.b1g1.length, free: Math.floor(groups.b1g1.length / 2), remaining: groups.b1g1.length % 2, goal: 2 },
+            'b2g1': { total: groups.b2g1.length, free: Math.floor(groups.b2g1.length / 3), remaining: groups.b2g1.length % 3, goal: 3 },
+            'b3g1': { total: groups.b3g1.length, free: Math.floor(groups.b3g1.length / 4), remaining: groups.b3g1.length % 4, goal: 4 },
+        }
+
+        Object.entries(groups).forEach(([tag, units]) => {
+            if (units.length === 0) return
+            units.sort((a, b) => a - b) // Sort by price ascending
+            const freeCount = stats[tag].free
+            for (let i = 0; i < freeCount; i++) totalOfferSavings += units[i]
+        })
+        return { totalOfferSavings, stats }
+    }
+
+    const { totalOfferSavings: offerDiscountTotal, stats: offerStats } = calculateOfferDiscounts()
+
     const itemDiscountTotal = cart.reduce((acc, item) => {
         const lineGross = parseFloat(item.sku.base_price || '0') * item.quantity
-        return acc + (lineGross * item.discountPercent / 100)
+        let lineOfferSavings = 0
+
+        if (offerDiscountTotal > 0 && activeStoreOffer !== 'none') {
+            let isEligible = true
+            if (activeStoreOfferMode === 'selected') {
+                const balance = storeBalances.find(b => b.sku === item.sku.id)
+                isEligible = balance?.is_offer_eligible || false
+            }
+
+            if (isEligible) {
+                // Only divide by the gross of ELIGIBLE items to correctly distribute the discount
+                const eligibleGross = cart.reduce((tempAcc, tempItem) => {
+                    let tempEligible = true
+                    if (activeStoreOfferMode === 'selected') {
+                        const b = storeBalances.find(bal => bal.sku === tempItem.sku.id)
+                        tempEligible = b?.is_offer_eligible || false
+                    }
+                    return tempAcc + (tempEligible ? parseFloat(tempItem.sku.base_price || '0') * tempItem.quantity : 0)
+                }, 0)
+
+                lineOfferSavings = (lineGross / eligibleGross) * offerDiscountTotal
+            }
+        }
+        const priceAfterOffer = lineGross - lineOfferSavings
+        return acc + (priceAfterOffer * item.discountPercent / 100)
     }, 0)
-    const afterItemDiscounts = grossSubtotal - itemDiscountTotal
+
+    const afterItemDiscounts = grossSubtotal - offerDiscountTotal - itemDiscountTotal
     const billDiscountPct = parseFloat(billDiscount || '0')
     const billDiscountAmt = afterItemDiscounts * billDiscountPct / 100
     const finalTotal = afterItemDiscounts - billDiscountAmt
-    const totalDiscount = itemDiscountTotal + billDiscountAmt
 
     const handleCheckout = async () => {
         if (!selectedStore) {
@@ -271,6 +356,32 @@ export default function POSCheckout() {
                                 <MenuItem value="upi">UPI / Mobile Wallet</MenuItem>
                             </TextField>
 
+                            {/* Offer Progress Tracker */}
+                            {Object.entries(offerStats).map(([tag, stat]) => {
+                                if (stat.total === 0) return null;
+                                const isUnlocked = stat.free > 0;
+                                const progress = (stat.remaining / stat.goal) * 100;
+
+                                return (
+                                    <Box key={tag} sx={{ mb: 2, p: 1.5, bgcolor: isUnlocked ? 'success.light' : 'action.hover', borderRadius: 1, borderLeft: '4px solid', borderColor: isUnlocked ? 'success.main' : 'warning.main' }}>
+                                        <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.5}>
+                                            <Typography variant="caption" fontWeight="bold" color={isUnlocked ? 'success.dark' : 'warning.dark'}>
+                                                {tag.toUpperCase()} TRACKER: {stat.total} Item{stat.total > 1 ? 's' : ''}
+                                            </Typography>
+                                            <Typography variant="caption" fontWeight="bold">
+                                                {stat.free > 0 ? `${stat.free} FREE UNLOCKED` : `${stat.goal - stat.remaining} more for FREE`}
+                                            </Typography>
+                                        </Box>
+                                        <LinearProgress
+                                            variant="determinate"
+                                            value={stat.remaining === 0 && stat.total > 0 ? 100 : progress}
+                                            color={isUnlocked ? 'success' : 'warning'}
+                                            sx={{ height: 6, borderRadius: 3 }}
+                                        />
+                                    </Box>
+                                );
+                            })}
+
                             <Divider sx={{ mb: 2 }}><Typography variant="body2" color="text.secondary">CART ITEMS</Typography></Divider>
 
                             {cart.length === 0 ? (
@@ -284,8 +395,44 @@ export default function POSCheckout() {
                                             sx={{ mb: 1, display: 'flex', alignItems: 'center' }}
                                         >
                                             <ListItemText
-                                                primary={item.sku.name}
-                                                secondary={`${item.quantity}x @ ₹${parseFloat(item.sku.base_price || '0').toFixed(2)}${item.discountPercent > 0 ? ` (-${item.discountPercent}%)` : ''}`}
+                                                primary={
+                                                    <Box display="flex" alignItems="center" gap={1}>
+                                                        {item.sku.name}
+                                                        {(() => {
+                                                            let isEligible = true
+                                                            if (activeStoreOfferMode === 'selected') {
+                                                                const balance = storeBalances.find(b => b.sku === item.sku.id)
+                                                                isEligible = balance?.is_offer_eligible || false
+                                                            }
+                                                            return activeStoreOffer !== 'none' && isEligible && (
+                                                                <Chip
+                                                                    label={activeStoreOffer.toUpperCase()}
+                                                                    size="small"
+                                                                    color="error"
+                                                                    sx={{ height: 18, fontSize: '0.65rem', fontWeight: 'bold' }}
+                                                                />
+                                                            )
+                                                        })()}
+                                                    </Box>
+                                                }
+                                                secondary={
+                                                    <Box component="span">
+                                                        {item.quantity}x @ ₹{parseFloat(item.sku.base_price || '0').toFixed(2)}
+                                                        {(() => {
+                                                            let isEligible = true
+                                                            if (activeStoreOfferMode === 'selected') {
+                                                                const balance = storeBalances.find(b => b.sku === item.sku.id)
+                                                                isEligible = balance?.is_offer_eligible || false
+                                                            }
+                                                            return activeStoreOffer !== 'none' && isEligible && (
+                                                                <Typography component="span" variant="caption" color="error.main" sx={{ ml: 1, fontWeight: 'bold' }}>
+                                                                    (Part of {activeStoreOffer.toUpperCase()} Mix & Match)
+                                                                </Typography>
+                                                            )
+                                                        })()}
+                                                        {item.discountPercent > 0 && ` (-${item.discountPercent}%)`}
+                                                    </Box>
+                                                }
                                                 sx={{ flexGrow: 1, mr: 1 }}
                                             />
                                             <TextField
@@ -299,7 +446,31 @@ export default function POSCheckout() {
                                             />
                                             <Box display="flex" alignItems="center" gap={1}>
                                                 <Typography variant="body1" fontWeight="bold">
-                                                    ₹{((parseFloat(item.sku.base_price || '0') * item.quantity) * (1 - item.discountPercent / 100)).toFixed(2)}
+                                                    ₹{(() => {
+                                                        const lineGross = parseFloat(item.sku.base_price || '0') * item.quantity
+                                                        let lineOfferSavings = 0
+
+                                                        if (offerDiscountTotal > 0 && activeStoreOffer !== 'none') {
+                                                            let isEligible = true
+                                                            if (activeStoreOfferMode === 'selected') {
+                                                                const balance = storeBalances.find(b => b.sku === item.sku.id)
+                                                                isEligible = balance?.is_offer_eligible || false
+                                                            }
+
+                                                            if (isEligible) {
+                                                                const eligibleGross = cart.reduce((acc, tempItem) => {
+                                                                    let tempEligible = true
+                                                                    if (activeStoreOfferMode === 'selected') {
+                                                                        const b = storeBalances.find(bal => bal.sku === tempItem.sku.id)
+                                                                        tempEligible = b?.is_offer_eligible || false
+                                                                    }
+                                                                    return acc + (tempEligible ? parseFloat(tempItem.sku.base_price || '0') * tempItem.quantity : 0)
+                                                                }, 0)
+                                                                lineOfferSavings = eligibleGross > 0 ? (lineGross / eligibleGross) * offerDiscountTotal : 0
+                                                            }
+                                                        }
+                                                        return ((lineGross - lineOfferSavings) * (1 - item.discountPercent / 100)).toFixed(2)
+                                                    })()}
                                                 </Typography>
                                                 <IconButton edge="end" color="error" onClick={() => removeFromCart(item.sku.id)}>
                                                     <DeleteOutline />
@@ -314,13 +485,25 @@ export default function POSCheckout() {
 
                         <Box sx={{ mt: 'auto', p: 2, bgcolor: 'background.default', borderTop: '1px solid', borderColor: 'divider' }}>
                             <Box display="flex" justifyContent="space-between" mb={1}>
-                                <Typography variant="body2" color="text.secondary">Subtotal:</Typography>
+                                <Typography variant="body2" color="text.secondary">Gross Total:</Typography>
                                 <Typography variant="body2">₹{grossSubtotal.toFixed(2)}</Typography>
                             </Box>
-                            {totalDiscount > 0 && (
+                            {offerDiscountTotal > 0 && (
                                 <Box display="flex" justifyContent="space-between" mb={1}>
-                                    <Typography variant="body2" color="error.main">Discount:</Typography>
-                                    <Typography variant="body2" color="error.main">-₹{totalDiscount.toFixed(2)}</Typography>
+                                    <Typography variant="body2" color="error.main">Offer Savings:</Typography>
+                                    <Typography variant="body2" color="error.main">-₹{offerDiscountTotal.toFixed(2)}</Typography>
+                                </Box>
+                            )}
+                            {itemDiscountTotal > 0 && (
+                                <Box display="flex" justifyContent="space-between" mb={1}>
+                                    <Typography variant="body2" color="error.main">Item Discounts:</Typography>
+                                    <Typography variant="body2" color="error.main">-₹{itemDiscountTotal.toFixed(2)}</Typography>
+                                </Box>
+                            )}
+                            {(billDiscountAmt > 0) && (
+                                <Box display="flex" justifyContent="space-between" mb={1}>
+                                    <Typography variant="body2" color="error.main">Bill Discount:</Typography>
+                                    <Typography variant="body2" color="error.main">-₹{billDiscountAmt.toFixed(2)}</Typography>
                                 </Box>
                             )}
                             <TextField
@@ -357,15 +540,26 @@ export default function POSCheckout() {
                 {/* RIGHT COLUMN: Product Catalog */}
                 <Grid item xs={12} md={7}>
                     <Paper elevation={0} sx={{ p: 2, border: '1px solid', borderColor: 'divider', height: '100%' }}>
-                        <Box display="flex" alignItems="center" gap={2} mb={3}>
-                            <Search color="action" />
-                            <TextField
-                                fullWidth
-                                variant="standard"
-                                placeholder="Search products by SKU code or name..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                            />
+                        <Box display="flex" alignItems="center" justifyContent="space-between" mb={3} gap={2}>
+                            <Box display="flex" alignItems="center" gap={2} flexGrow={1}>
+                                <Search color="action" />
+                                <TextField
+                                    fullWidth
+                                    variant="standard"
+                                    placeholder="Search products by SKU code or name..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                />
+                            </Box>
+                            {activeStoreOffer !== 'none' && (
+                                <Chip
+                                    icon={<LocalOffer sx={{ fontSize: '1rem !important' }} />}
+                                    label={`Active: ${activeStoreOffer.toUpperCase()} (${activeStoreOfferMode === 'selected' ? 'Selected items' : 'Store-wide'})`}
+                                    color="error"
+                                    variant="outlined"
+                                    sx={{ fontWeight: 'bold' }}
+                                />
+                            )}
                         </Box>
 
                         {loading ? (
@@ -380,9 +574,38 @@ export default function POSCheckout() {
                                             sx={{
                                                 cursor: 'pointer',
                                                 transition: '0.2s',
+                                                position: 'relative',
                                                 '&:hover': { borderColor: 'primary.main', boxShadow: 2, bgcolor: 'action.hover' }
                                             }}
                                         >
+                                            {(() => {
+                                                if (activeStoreOffer === 'none') return null
+                                                let isEligible = true
+                                                if (activeStoreOfferMode === 'selected') {
+                                                    const balance = storeBalances.find(b => b.sku === sku.id)
+                                                    isEligible = balance?.is_offer_eligible || false
+                                                }
+                                                return isEligible && (
+                                                    <Box
+                                                        sx={{
+                                                            position: 'absolute',
+                                                            top: 0,
+                                                            right: 0,
+                                                            bgcolor: 'error.main',
+                                                            color: 'white',
+                                                            px: 1,
+                                                            py: 0.25,
+                                                            fontSize: '0.65rem',
+                                                            fontWeight: 800,
+                                                            borderBottomLeftRadius: 8,
+                                                            zIndex: 2,
+                                                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                                                        }}
+                                                    >
+                                                        {activeStoreOffer.toUpperCase()}
+                                                    </Box>
+                                                )
+                                            })()}
                                             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
                                                 <Typography variant="caption" color="text.secondary" display="block">{sku.code}</Typography>
                                                 <Typography variant="subtitle2" fontWeight="bold" noWrap title={sku.name}>

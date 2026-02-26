@@ -30,7 +30,8 @@ class InventoryPagination(PageNumberPagination):
     max_page_size = 200
 
 
-class InventoryBalanceViewSet(viewsets.ReadOnlyModelViewSet):
+from rest_framework import mixins
+class InventoryBalanceViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.UpdateModelMixin, viewsets.GenericViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = InventoryBalanceSerializer
     pagination_class = InventoryPagination

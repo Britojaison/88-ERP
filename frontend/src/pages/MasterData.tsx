@@ -293,12 +293,11 @@ export default function MasterData() {
           cost_price: variantForm.mrp.toString(),
         }
         console.log('Sending Initial SKU Payload:', payload);
-        await mdmService.createSKU(payload)
+        await mdmService.createSKU(payload as any)
       } else if (variantForm.sizes.length > 0 && variantForm.selling_price && variantForm.mrp) {
         await mdmService.createProductVariants(product.id, variantForm)
       }
 
-      setOpenProductDialog(false)
       setProductForm({ code: '', name: '', description: '' })
       setVariantForm({ sizes: [], selling_price: '', mrp: '' })
       setSkuForm({
@@ -1157,10 +1156,10 @@ export default function MasterData() {
           <Button onClick={() => setOpenFabricDialog(false)}>Cancel</Button>
           <Button variant="contained" onClick={() => void handleCreateFabric()}>Create Fabric</Button>
         </DialogActions>
-      </Dialog>
+      </Dialog >
 
       {/* Reject Fabric Dialog */}
-      <Dialog open={openRejectDialog} onClose={() => setOpenRejectDialog(false)} maxWidth="xs" fullWidth>
+      < Dialog open={openRejectDialog} onClose={() => setOpenRejectDialog(false)} maxWidth="xs" fullWidth >
         <DialogTitle>Reject Fabric</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
@@ -1176,10 +1175,10 @@ export default function MasterData() {
           <Button onClick={() => setOpenRejectDialog(false)}>Cancel</Button>
           <Button variant="contained" color="error" onClick={() => void handleRejectFabric()}>Reject</Button>
         </DialogActions>
-      </Dialog>
+      </Dialog >
 
       {/* Create Location Dialog */}
-      <Dialog open={openLocationDialog} onClose={() => setOpenLocationDialog(false)} maxWidth="sm" fullWidth>
+      < Dialog open={openLocationDialog} onClose={() => setOpenLocationDialog(false)} maxWidth="sm" fullWidth >
         <DialogTitle>Create Location</DialogTitle>
         <DialogContent>
           <TextField
@@ -1225,10 +1224,10 @@ export default function MasterData() {
           <Button onClick={() => setOpenLocationDialog(false)}>Cancel</Button>
           <Button variant="contained" onClick={() => void handleCreateLocation()}>Create Location</Button>
         </DialogActions>
-      </Dialog>
+      </Dialog >
 
       {/* Create Warehouse Dialog */}
-      <Dialog open={openWarehouseDialog} onClose={() => setOpenWarehouseDialog(false)} maxWidth="sm" fullWidth>
+      < Dialog open={openWarehouseDialog} onClose={() => setOpenWarehouseDialog(false)} maxWidth="sm" fullWidth >
         <DialogTitle>Create New Warehouse</DialogTitle>
         <DialogContent>
           <TextField
@@ -1275,10 +1274,10 @@ export default function MasterData() {
           <Button onClick={() => setOpenWarehouseDialog(false)}>Cancel</Button>
           <Button variant="contained" onClick={() => void handleCreateWarehouse()}>Create Warehouse</Button>
         </DialogActions>
-      </Dialog>
+      </Dialog >
 
       {/* Create Store Dialog */}
-      <Dialog open={openStoreDialog} onClose={() => setOpenStoreDialog(false)} maxWidth="sm" fullWidth>
+      < Dialog open={openStoreDialog} onClose={() => setOpenStoreDialog(false)} maxWidth="sm" fullWidth >
         <DialogTitle>Create New Store</DialogTitle>
         <DialogContent>
           <TextField
@@ -1325,7 +1324,7 @@ export default function MasterData() {
           <Button onClick={() => setOpenStoreDialog(false)}>Cancel</Button>
           <Button variant="contained" onClick={() => void handleCreateStore()}>Create Store</Button>
         </DialogActions>
-      </Dialog>
+      </Dialog >
 
       <Snackbar
         open={snackbar.open}
@@ -1337,6 +1336,6 @@ export default function MasterData() {
           {snackbar.message}
         </Alert>
       </Snackbar>
-    </Box>
+    </Box >
   )
 }

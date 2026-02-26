@@ -99,6 +99,11 @@ export const StoreInvoice = forwardRef<HTMLDivElement, StoreInvoiceProps>(({ sal
                         <div style={{ paddingLeft: '4px', fontSize: '11px', fontStyle: 'italic', maxWidth: '85%' }}>
                             {item.sku.name}
                         </div>
+                        {item.sku.offer_tag && item.sku.offer_tag !== 'none' && (
+                            <div style={{ paddingLeft: '4px', fontSize: '11px', color: '#B12704', fontWeight: 'bold' }}>
+                                Offer: {item.sku.offer_tag.toUpperCase()}
+                            </div>
+                        )}
                         {item.sku.size && (
                             <div style={{ paddingLeft: '4px', fontSize: '11px' }}>
                                 Size: {item.sku.size}
