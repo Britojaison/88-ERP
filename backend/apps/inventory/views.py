@@ -741,10 +741,10 @@ class ProductionKanbanViewSet(viewsets.ViewSet):
         from apps.mdm.models import SKU
         from .models import ProductJourneyCheckpoint
 
-        # Fetch SKUs in proto or in_production that aren't inactive
+        # Fetch SKUs in_production or newly active (ready/storage)
         skus = SKU.objects.filter(
             company_id=request.user.company_id,
-            lifecycle_status__in=[SKU.LIFECYCLE_PROTO, SKU.LIFECYCLE_IN_PRODUCTION],
+            lifecycle_status__in=[SKU.LIFECYCLE_IN_PRODUCTION, SKU.LIFECYCLE_ACTIVE],
             status='active'
         ).prefetch_related(
             Prefetch(
@@ -755,9 +755,6 @@ class ProductionKanbanViewSet(viewsets.ViewSet):
         )
 
         columns = {
-            'fabric_sourced': [],
-            'fabric_dispatched': [],
-            'design_approved': [],
             'in_production': [],
             'shoot': [],
             'received': [],
@@ -767,7 +764,11 @@ class ProductionKanbanViewSet(viewsets.ViewSet):
 
         for sku in skus:
             checkpoints = getattr(sku, 'latest_checkpoints', [])
-            latest_stage = checkpoints[0].stage if checkpoints else 'fabric_sourced'
+            latest_stage = checkpoints[0].stage if checkpoints else None
+            if not latest_stage:
+                # If no checkpoints or stage but it's in production, assume it just started
+                latest_stage = 'in_production'
+
             latest_cp = checkpoints[0] if checkpoints else None
 
             # Map to kanban columns
@@ -777,10 +778,10 @@ class ProductionKanbanViewSet(viewsets.ViewSet):
             elif mapped_stage in ['picked', 'packed', 'dispatched', 'in_transit', 'delivered']:
                 continue  # Already beyond production
             elif mapped_stage not in columns:
-                if latest_stage == 'design_approved':
-                    mapped_stage = 'design_approved'
+                if sku.lifecycle_status == SKU.LIFECYCLE_IN_PRODUCTION:
+                    mapped_stage = 'in_production'
                 else:
-                    mapped_stage = 'fabric_sourced'
+                    continue  # Ignore completed or unrelated stages
 
             item_data = {
                 "id": str(sku.id),

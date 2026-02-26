@@ -36,6 +36,9 @@ import {
   TrendingUp as MarginIcon,
   CompareArrows as CompareIcon,
   PointOfSale as DailySalesIcon,
+  Brush as DesignerIcon,
+  PrecisionManufacturing as KanbanIcon,
+  SwapHoriz as TransferIcon,
 } from '@mui/icons-material'
 import { logout } from '../store/slices/authSlice'
 import { authService } from '../services/auth.service'
@@ -52,7 +55,16 @@ const navSections = [
       { text: 'Inventory', icon: <InventoryIcon />, path: '/inventory' },
       { text: 'Barcodes', icon: <BarcodeIcon />, path: '/inventory/barcodes' },
       { text: 'Receiving', icon: <ReceivingIcon />, path: '/inventory/receiving' },
+      { text: 'Transfers', icon: <TransferIcon />, path: '/inventory/stock-transfers' },
       { text: 'Store POS', icon: <StoreIcon />, path: '/pos' },
+    ],
+  },
+  {
+    heading: 'Design & Production',
+    items: [
+      { text: 'Designer Workbench', icon: <DesignerIcon />, path: '/inventory/design-approvals' },
+      { text: 'Production Kanban', icon: <KanbanIcon />, path: '/inventory/production-kanban' },
+      { text: 'Product Journey', icon: <BarcodeIcon />, path: '/inventory/product-journey' },
     ],
   },
   {
