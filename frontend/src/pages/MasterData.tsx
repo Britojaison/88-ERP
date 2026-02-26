@@ -28,7 +28,7 @@ import {
   IconButton,
   Tooltip,
 } from '@mui/material'
-import { Add, CheckCircle, Cancel } from '@mui/icons-material'
+import { Add, CheckCircle, Cancel, PhotoCamera as PhotoCameraIcon, Collections as CollectionsIcon } from '@mui/icons-material'
 import PageHeader from '../components/ui/PageHeader'
 import { mdmService, type BusinessUnit, type Company, type Location, type Product, type SKU, type Fabric } from '../services/mdm.service'
 
@@ -107,6 +107,8 @@ export default function MasterData() {
   })
   const [fabricPhotoFile, setFabricPhotoFile] = useState<File | null>(null)
   const [fabricPhotoPreview, setFabricPhotoPreview] = useState('')
+  const [productImageFile, setProductImageFile] = useState<File | null>(null)
+  const [productImagePreview, setProductImagePreview] = useState('')
   // @ts-ignore: TS6133
   const [skuForm, setSkuForm] = useState({
     code: '',
@@ -179,6 +181,8 @@ export default function MasterData() {
         is_serialized: false,
         is_batch_tracked: false,
       })
+      setProductImageFile(null)
+      setProductImagePreview('')
       setOpenProductDialog(true)
       return
     } else if (tabValue === 2) {
@@ -275,7 +279,7 @@ export default function MasterData() {
     }
 
     try {
-      const product = await mdmService.createProduct(productForm)
+      const product = await mdmService.createProduct(productForm, productImageFile || undefined)
 
       if (variantForm.sizes.length === 0 && variantForm.selling_price && variantForm.mrp) {
         let finalSkuCode = skuForm.code;
@@ -300,6 +304,8 @@ export default function MasterData() {
 
       setOpenProductDialog(false)
       setProductForm({ code: '', name: '', description: '' })
+      setProductImageFile(null)
+      setProductImagePreview('')
       setVariantForm({ sizes: [], selling_price: '', mrp: '' })
       setSkuForm({
         code: '',
@@ -344,9 +350,11 @@ export default function MasterData() {
     }
 
     try {
-      const result = await mdmService.createProductVariants(selectedProduct.id, variantForm)
+      const result = await mdmService.createProductVariants(selectedProduct.id, variantForm, productImageFile || undefined)
       setOpenVariantsDialog(false)
       setVariantForm({ sizes: [], selling_price: '', mrp: '' })
+      setProductImageFile(null)
+      setProductImagePreview('')
       setSelectedProduct(null)
 
       // Small delay to ensure database transactions are committed before fetching
@@ -505,6 +513,7 @@ export default function MasterData() {
             <Table>
               <TableHead>
                 <TableRow>
+                  <TableCell>Image</TableCell>
                   <TableCell>Product Code</TableCell>
                   <TableCell>Name</TableCell>
                   <TableCell>Description</TableCell>
@@ -516,7 +525,7 @@ export default function MasterData() {
               <TableBody>
                 {products.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} align="center">
+                    <TableCell colSpan={7} align="center">
                       <Typography variant="body2" color="text.secondary" sx={{ py: 4 }}>
                         No products found. Click "Add New" to create your first product.
                       </Typography>
@@ -525,6 +534,15 @@ export default function MasterData() {
                 ) : (
                   products.map((product) => (
                     <TableRow key={product.id}>
+                      <TableCell>
+                        {product.image_url ? (
+                          <Box component="img" src={product.image_url} sx={{ width: 40, height: 40, borderRadius: 0.5, objectFit: 'cover' }} />
+                        ) : (
+                          <Box sx={{ width: 40, height: 40, bgcolor: 'action.hover', borderRadius: 0.5, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <CollectionsIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
+                          </Box>
+                        )}
+                      </TableCell>
                       <TableCell>{product.code}</TableCell>
                       <TableCell>{product.name}</TableCell>
                       <TableCell>{product.description || '-'}</TableCell>
@@ -536,6 +554,8 @@ export default function MasterData() {
                           variant="outlined"
                           onClick={() => {
                             setSelectedProduct(product)
+                            setProductImagePreview(product.image_url || '')
+                            setProductImageFile(null)
                             setOpenVariantsDialog(true)
                           }}
                         >
@@ -972,6 +992,54 @@ export default function MasterData() {
                 />
               </Grid>
             </Grid>
+            <Grid container spacing={2}>
+              <Grid item xs={12}>
+                <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                  {productImagePreview ? (
+                    <Box
+                      component="img"
+                      src={productImagePreview}
+                      sx={{ width: 200, height: 200, objectFit: 'cover', borderRadius: 1 }}
+                    />
+                  ) : (
+                    <Box
+                      sx={{
+                        width: 200,
+                        height: 200,
+                        bgcolor: 'action.hover',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderRadius: 1,
+                        border: '1px dashed',
+                        borderColor: 'divider',
+                      }}
+                    >
+                      <CollectionsIcon sx={{ fontSize: 40, color: 'text.secondary' }} />
+                    </Box>
+                  )}
+                  <Button variant="outlined" component="label" startIcon={<PhotoCameraIcon />}>
+                    Upload Product Image
+                    <input
+                      type="file"
+                      hidden
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) {
+                          setProductImageFile(file)
+                          const reader = new FileReader()
+                          reader.onloadend = () => {
+                            setProductImagePreview(reader.result as string)
+                          }
+                          reader.readAsDataURL(file)
+                        }
+                      }}
+                    />
+                  </Button>
+                </Box>
+              </Grid>
+            </Grid>
           </Box>
         </DialogContent>
         <DialogActions>
@@ -1043,6 +1111,52 @@ export default function MasterData() {
                 onChange={(e) => setVariantForm((prev) => ({ ...prev, mrp: e.target.value }))}
                 type="number"
               />
+            </Grid>
+            <Grid item xs={12}>
+              <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                {productImagePreview ? (
+                  <Box
+                    component="img"
+                    src={productImagePreview}
+                    sx={{ width: 200, height: 200, objectFit: 'cover', borderRadius: 1 }}
+                  />
+                ) : (
+                  <Box
+                    sx={{
+                      width: 200,
+                      height: 200,
+                      bgcolor: 'action.hover',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderRadius: 1,
+                      border: '1px dashed',
+                      borderColor: 'divider',
+                    }}
+                  >
+                    <CollectionsIcon sx={{ fontSize: 40, color: 'text.secondary' }} />
+                  </Box>
+                )}
+                <Button variant="outlined" component="label" startIcon={<PhotoCameraIcon />}>
+                  Upload Product Image
+                  <input
+                    type="file"
+                    hidden
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) {
+                        setProductImageFile(file)
+                        const reader = new FileReader()
+                        reader.onloadend = () => {
+                          setProductImagePreview(reader.result as string)
+                        }
+                        reader.readAsDataURL(file)
+                      }
+                    }}
+                  />
+                </Button>
+              </Box>
             </Grid>
           </Grid>
         </DialogContent>
@@ -1337,6 +1451,6 @@ export default function MasterData() {
           {snackbar.message}
         </Alert>
       </Snackbar>
-    </Box>
+    </Box >
   )
 }

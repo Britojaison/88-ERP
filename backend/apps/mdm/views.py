@@ -157,7 +157,22 @@ class ProductViewSet(TenantScopedViewSet):
         Bulk create SKU variants for a product with different sizes.
         """
         product = self.get_object()
+        
+        # Handle optional image update during variant creation
+        image = request.FILES.get('image')
+        if image:
+            product.image = image
+            product.save(update_fields=['image'])
+            
         sizes = request.data.get('sizes', [])
+        # If sizes comes as a string (FormData often does this depending on how it's appended)
+        if isinstance(sizes, str):
+            import json
+            try:
+                sizes = json.loads(sizes)
+            except json.JSONDecodeError:
+                sizes = [s.strip() for s in sizes.split(',')]
+                
         selling_price = request.data.get('selling_price')
         mrp = request.data.get('mrp')
         

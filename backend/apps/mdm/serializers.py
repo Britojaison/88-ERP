@@ -81,11 +81,21 @@ class VendorSerializer(serializers.ModelSerializer):
 
 
 class ProductSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+
     class Meta:
         model = Product
         fields = '__all__'
         extra_kwargs = {'company': {'required': False}}
         validators = []
+        
+    def get_image_url(self, obj):
+        if obj.image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.image.url)
+            return obj.image.url
+        return None
 
 
 class StyleSerializer(serializers.ModelSerializer):

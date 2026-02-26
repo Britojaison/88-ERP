@@ -600,6 +600,19 @@ class ShopifyService:
                     'weight_unit': 'kg',
                 }]
             }
+
+            # Add image if available
+            if sku.product.image:
+                try:
+                    import base64
+                    with sku.product.image.open('rb') as image_file:
+                        encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
+                        product_data['images'] = [{
+                            'attachment': encoded_string,
+                            'filename': f"{sku.code}.jpg"
+                        }]
+                except Exception as e:
+                    logger.error(f"Failed to encode product image for Shopify: {e}")
             
             # Add size as option if present
             if sku.size:
@@ -672,16 +685,33 @@ class ShopifyService:
         if not inventory_item_id:
             raise ValueError("Could not find inventory_item_id for this variant.")
         
-        # If no location specified, use first location
+        # If no location specified, try to find where this item is already tracked on Shopify
         if not location_id:
-            locations = client.get_locations()
-            if locations:
-                location_id = locations[0]['id']
-            else:
-                raise ValueError("No Shopify locations found.")
+            try:
+                levels = client.get_inventory_levels(inventory_item_ids=str(inventory_item_id))
+                if levels:
+                    # Use the first location where this item is already active
+                    location_id = levels[0]['location_id']
+                    logger.info(f"Auto-selected Shopify location {location_id} for SKU {mapping.shopify_sku} based on existing levels.")
+                else:
+                    # Fallback to the first location found on the store
+                    locations = client.get_locations()
+                    if locations:
+                        location_id = locations[0]['id']
+                        logger.warning(f"SKU {mapping.shopify_sku} not tracked anywhere. Defaulting to first location: {location_id}")
+                    else:
+                        raise ValueError("No Shopify locations found.")
+            except Exception as e:
+                logger.error(f"Failed to resolve Shopify location for SKU {mapping.shopify_sku}: {e}")
+                raise
         
         # Set inventory level
         result = client.set_inventory_level(inventory_item_id, location_id, quantity)
+        
+        # Update cached quantity in mapping
+        mapping.shopify_inventory_quantity = result.get('available', quantity)
+        mapping.last_synced_at = timezone.now()
+        mapping.save(update_fields=['shopify_inventory_quantity', 'last_synced_at'])
         
         return {
             'success': True,

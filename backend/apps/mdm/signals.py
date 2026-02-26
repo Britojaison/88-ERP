@@ -9,9 +9,10 @@ logger = logging.getLogger(__name__)
 @receiver(post_save, sender=SKU)
 def sync_sku_to_shopify_on_save(sender, instance, created, **kwargs):
     """
-    When a new SKU is created, sync it to Shopify asynchronously.
+    When a SKU becomes active (received in warehouse) and is not inactive, sync its listing to Shopify asynchronously.
+    Updates will also sync if changes are made to the Master Data.
     """
-    if created and instance.status == 'active':
+    if instance.status == 'active' and instance.lifecycle_status == 'active':
         try:
             from apps.integrations.models import ShopifyStore
             from apps.integrations.shopify_service import ShopifyService
