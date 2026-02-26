@@ -13,6 +13,7 @@ import ProductJourney from './pages/ProductJourney'
 import DesignApprovals from './pages/DesignApprovals'
 import ProductionKanban from './pages/ProductionKanban'
 import StockTransfer from './pages/StockTransfer'
+import InventoryHealth from './pages/InventoryHealth'
 import POSCheckout from './pages/POSCheckout'
 import Stores from './pages/Stores'
 import Warehouse from './pages/Warehouse'
@@ -78,6 +79,7 @@ function App() {
           <Route path="inventory/design-approvals" element={<DesignApprovals />} />
           <Route path="inventory/production-kanban" element={<ProductionKanban />} />
           <Route path="inventory/stock-transfers" element={<StockTransfer />} />
+          <Route path="inventory/health" element={<InventoryHealth />} />
           <Route path="reports" element={<Reports />} />
           <Route path="reports/daily" element={<DailySalesReport />} />
           <Route path="reports/weekly-stock" element={<WeeklyStockReport />} />

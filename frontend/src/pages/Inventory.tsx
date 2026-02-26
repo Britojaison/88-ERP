@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { Box, Button, Grid, Paper, Stack, Typography } from '@mui/material'
-import { Inventory2, LocalOffer, QrCodeScanner, Brush, PrecisionManufacturing } from '@mui/icons-material'
+import { Inventory2, LocalOffer, QrCodeScanner, Brush, PrecisionManufacturing, TrendingUp } from '@mui/icons-material'
 import PageHeader from '../components/ui/PageHeader'
 import MetricCard from '../components/ui/MetricCard'
 
@@ -101,6 +101,18 @@ export default function Inventory() {
               icon={<Inventory2 />}
               tone="success"
               note="Move physical goods between Warehouse and Retail Stores."
+            />
+          </Box>
+        </Grid>
+
+        <Grid item xs={12} md={3}>
+          <Box onClick={() => navigate('/inventory/health')} sx={{ cursor: 'pointer' }}>
+            <MetricCard
+              label="Health & Velocity"
+              value="Analyze"
+              icon={<TrendingUp />}
+              tone="error"
+              note="Identify Fast/Slow moving items and Best Seller alerts."
             />
           </Box>
         </Grid>

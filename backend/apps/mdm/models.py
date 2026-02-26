@@ -405,6 +405,36 @@ class SKU(TenantAwareModel):
     is_serialized = models.BooleanField(default=False)
     is_batch_tracked = models.BooleanField(default=False)
     
+    # Stock Management & Alerts
+    min_stock_level = models.DecimalField(
+        max_digits=15, 
+        decimal_places=3, 
+        default=0,
+        help_text='Alert when stock falls below this level'
+    )
+    is_best_seller = models.BooleanField(
+        default=False,
+        help_text='Mark as best seller for prioritized alerts'
+    )
+    
+    CLASSIFICATION_FAST = 'fast'
+    CLASSIFICATION_SLOW = 'slow'
+    CLASSIFICATION_DEAD = 'dead'
+    CLASSIFICATION_NONE = 'none'
+    
+    CLASSIFICATION_CHOICES = [
+        (CLASSIFICATION_FAST, 'Fast Moving'),
+        (CLASSIFICATION_SLOW, 'Slow Moving'),
+        (CLASSIFICATION_DEAD, 'Dead Stock'),
+        (CLASSIFICATION_NONE, 'Not Classified'),
+    ]
+    
+    movement_classification = models.CharField(
+        max_length=10,
+        choices=CLASSIFICATION_CHOICES,
+        default=CLASSIFICATION_NONE
+    )
+    
     objects = models.Manager()
     active = ActiveManager()
     

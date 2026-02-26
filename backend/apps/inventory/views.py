@@ -53,61 +53,94 @@ class InventoryBalanceViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, 
 
     @action(detail=False, methods=['get'], url_path='velocity')
     def stock_velocity(self, request):
-        """Calculates fast, slow, and dead stock based on recent sales vs current balance."""
+        """
+        Calculates fast, slow, and dead stock based on recent sales vs current balance.
+        Persists classification to SKU model.
+        """
         from django.db.models import Sum
         from apps.sales.models import SalesTransactionLine
         from django.utils import timezone
         import datetime
 
-        thirty_days_ago = timezone.now() - datetime.timedelta(days=30)
+        days = int(request.query_params.get("days", "30"))
+        fast_threshold = float(request.query_params.get("fast_threshold", "20"))
+        slow_threshold = float(request.query_params.get("slow_threshold", "1"))
+        period_ago = timezone.now() - datetime.timedelta(days=days)
         
         # 1. Get current inventory by sku
         balances = InventoryBalance.objects.filter(
             company_id=request.user.company_id,
             status="active"
         ).values('sku__id', 'sku__code', 'sku__name').annotate(
-            total_quantity=Sum('quantity')
+            total_quantity=Sum('quantity_on_hand')
         )
         
-        # 2. Get sales last 30 days
+        # 2. Get sales in period
         sales = SalesTransactionLine.objects.filter(
             sku__company_id=request.user.company_id,
-            transaction__transaction_date__gte=thirty_days_ago,
+            transaction__transaction_date__gte=period_ago,
             transaction__status='active'
         ).values('sku__id').annotate(
-            sold_last_30_days=Sum('quantity')
+            sold_in_period=Sum('quantity')
         )
-        sales_dict = {item['sku__id']: item['sold_last_30_days'] for item in sales}
+        sales_dict = {item['sku__id']: item['sold_in_period'] for item in sales}
 
         fast, slow, dead = [], [], []
+        sku_updates = []
+        
+        # We need SKU objects to update them
+        all_skus = SKU.objects.filter(company_id=request.user.company_id, status='active')
+        sku_map = {sku.id: sku for sku in all_skus}
+
         for bal in balances:
             sku_id = bal['sku__id']
             qty = bal['total_quantity'] or 0
-            sold = sales_dict.get(sku_id, 0)
+            sold = float(sales_dict.get(sku_id, 0))
             
             item = {
                 "sku_id": str(sku_id),
                 "sku_code": bal['sku__code'],
                 "sku_name": bal['sku__name'],
                 "current_stock": float(qty),
-                "sold_30d": float(sold)
+                "sold_period": sold
             }
-            if sold >= 20: # threshold could be dynamic
+            
+            classification = SKU.CLASSIFICATION_NONE
+            if sold >= fast_threshold:
+                classification = SKU.CLASSIFICATION_FAST
                 fast.append(item)
-            elif sold > 0:
+            elif sold >= slow_threshold:
+                classification = SKU.CLASSIFICATION_SLOW
                 slow.append(item)
             else:
+                classification = SKU.CLASSIFICATION_DEAD
                 dead.append(item)
+            
+            # Update SKU model if changed
+            sku_obj = sku_map.get(sku_id)
+            if sku_obj and sku_obj.movement_classification != classification:
+                sku_obj.movement_classification = classification
+                sku_updates.append(sku_obj)
+                
+        if sku_updates:
+            SKU.objects.bulk_update(sku_updates, ['movement_classification'])
                 
         # sort by highest sold / Highest stock
-        fast = sorted(fast, key=lambda x: x['sold_30d'], reverse=True)
-        slow = sorted(slow, key=lambda x: x['sold_30d'], reverse=True)
+        fast = sorted(fast, key=lambda x: x['sold_period'], reverse=True)
+        slow = sorted(slow, key=lambda x: x['sold_period'], reverse=True)
         dead = sorted(dead, key=lambda x: x['current_stock'], reverse=True)
         
         return Response({
-            "fast_moving": fast[:20],  # Give top 20
-            "slow_moving": slow[:20],
-            "dead_stock": dead[:20]
+            "period_days": days,
+            "thresholds": {"fast": fast_threshold, "slow": slow_threshold},
+            "summary": {
+                "fast_count": len(fast),
+                "slow_count": len(slow),
+                "dead_count": len(dead)
+            },
+            "fast_moving": fast[:50],
+            "slow_moving": slow[:50],
+            "dead_stock": dead[:50]
         })
 
 
@@ -240,32 +273,51 @@ class InventoryMovementViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["get"], url_path="alerts")
     def alerts(self, request):
-        threshold_str = request.query_params.get("threshold", "10")
-        threshold = Decimal(threshold_str)
+        """
+        Stock alerts using per-SKU minimum stock levels.
+        Prioritizes best sellers.
+        """
+        all_balances = InventoryBalance.objects.filter(
+            company_id=request.user.company_id,
+            status="active",
+        ).select_related("sku", "location")
 
-        low_stock = (
-            InventoryBalance.objects.filter(
-                company_id=request.user.company_id,
-                status="active",
-                quantity_available__lte=threshold,
-            )
-            .select_related("sku", "location")
-            .order_by("quantity_available")
-        )
+        critical_alerts = [] # Best sellers below min
+        standard_alerts = [] # Regular items below min
 
-        data = [
-            {
-                "id": str(item.id),
-                "sku": item.sku.code,
-                "location": item.location.code,
-                "available_quantity": str(item.quantity_available),
-                "threshold": str(threshold),
-                "updated_at": timezone.localtime(item.updated_at).isoformat(),
+        for item in all_balances:
+            min_level = item.sku.min_stock_level
+            current_qty = item.quantity_available
+            
+            if min_level > 0 and current_qty <= min_level:
+                alert_data = {
+                    "id": str(item.id),
+                    "sku_code": item.sku.code,
+                    "sku_name": item.sku.name,
+                    "location": item.location.code,
+                    "available_quantity": str(current_qty),
+                    "min_stock_level": str(min_level),
+                    "is_best_seller": item.sku.is_best_seller,
+                    "updated_at": timezone.localtime(item.updated_at).isoformat(),
+                }
+                
+                if item.sku.is_best_seller:
+                    critical_alerts.append(alert_data)
+                else:
+                    standard_alerts.append(alert_data)
+
+        # Sort: lowest stock relative to min_level first
+        standard_alerts.sort(key=lambda x: float(x['available_quantity']))
+        critical_alerts.sort(key=lambda x: float(x['available_quantity']))
+
+        return Response({
+            "critical_best_sellers": critical_alerts,
+            "standard_alerts": standard_alerts,
+            "summary": {
+                "critical_count": len(critical_alerts),
+                "standard_count": len(standard_alerts)
             }
-            for item in low_stock
-        ]
-
-        return Response(data)
+        })
 
 
 class GoodsReceiptScanViewSet(viewsets.GenericViewSet):
