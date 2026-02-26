@@ -8,6 +8,7 @@ from .models import InventoryBalance, InventoryMovement, GoodsReceiptScan, Damag
 
 class InventoryBalanceSerializer(serializers.ModelSerializer):
     sku_code = serializers.CharField(source="sku.code", read_only=True)
+    sku_name = serializers.CharField(source="sku.name", read_only=True)
     location_code = serializers.CharField(source="location.code", read_only=True)
 
     class Meta:
@@ -17,17 +18,30 @@ class InventoryBalanceSerializer(serializers.ModelSerializer):
             "company",
             "sku",
             "sku_code",
+            "sku_name",
             "location",
             "location_code",
             "quantity_on_hand",
             "quantity_reserved",
             "quantity_available",
             "condition",
+            "is_offer_eligible",
             "average_cost",
             "status",
             "updated_at",
         ]
-        read_only_fields = ["id", "updated_at"]
+        read_only_fields = [
+            "id", 
+            "company", 
+            "sku", 
+            "location", 
+            "quantity_on_hand", 
+            "quantity_reserved", 
+            "quantity_available", 
+            "average_cost", 
+            "status", 
+            "updated_at"
+        ]
 
 
 class InventoryMovementSerializer(serializers.ModelSerializer):

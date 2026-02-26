@@ -136,6 +136,38 @@ class Location(TenantAwareModel):
     
     is_inventory_location = models.BooleanField(default=True)
     
+    OFFER_NONE = 'none'
+    OFFER_B1G1 = 'b1g1'
+    OFFER_B2G1 = 'b2g1'
+    OFFER_B3G1 = 'b3g1'
+
+    OFFER_CHOICES = [
+        (OFFER_NONE, 'None'),
+        (OFFER_B1G1, 'Buy 1 Get 1 (B1G1)'),
+        (OFFER_B2G1, 'Buy 2 Get 1 (B2G1)'),
+        (OFFER_B3G1, 'Buy 3 Get 1 (B3G1)'),
+    ]
+
+    offer_tag = models.CharField(
+        max_length=20,
+        choices=OFFER_CHOICES,
+        default=OFFER_NONE,
+        help_text='The type of offer active at this location'
+    )
+
+    OFFER_MODE_ALL = 'all'
+    OFFER_MODE_SELECTED = 'selected'
+    OFFER_MODE_CHOICES = [
+        (OFFER_MODE_ALL, 'All Products'),
+        (OFFER_MODE_SELECTED, 'Selected Products Only'),
+    ]
+    offer_mode = models.CharField(
+        max_length=20,
+        choices=OFFER_MODE_CHOICES,
+        default=OFFER_MODE_ALL,
+        help_text='Whether the offer applies to all products or only chosen ones'
+    )
+
     objects = models.Manager()
     active = ActiveManager()
     

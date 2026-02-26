@@ -59,6 +59,11 @@ class InventoryBalance(TenantAwareModel):
         choices=CONDITION_CHOICES,
         default=CONDITION_NEW
     )
+
+    is_offer_eligible = models.BooleanField(
+        default=False,
+        help_text='Whether this unique SKU at this location is eligible for individual store offers'
+    )
     
     # Cost tracking
     average_cost = models.DecimalField(

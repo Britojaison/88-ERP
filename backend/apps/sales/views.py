@@ -210,7 +210,11 @@ class SalesTransactionViewSet(viewsets.ModelViewSet):
                     payment_method=payment_method,
                 )
 
-                # 2. Process Items with per-line discounts
+                # 2. Process Items with Mix & Match Offers
+                line_data = []
+                offer_buckets = {'b1g1': [], 'b2g1': [], 'b3g1': []}
+                
+                # Fetch all SKUs and build initial line measurements
                 for idx, item in enumerate(items):
                     try:
                         sku = SKU.objects.get(id=item['sku_id'], company_id=request.user.company_id)
@@ -220,10 +224,31 @@ class SalesTransactionViewSet(viewsets.ModelViewSet):
                     quantity = int(item.get('quantity', 1))
                     unit_price = Decimal(str(item.get('unit_price', sku.base_price)))
                     item_discount_pct = Decimal(str(item.get('discount_percent', 0)))
-
+                    
                     gross_total = (unit_price * quantity).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-                    item_discount_amt = (gross_total * item_discount_pct / 100).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-                    line_total = gross_total - item_discount_amt
+                    
+                    entry = {
+                        'idx': idx + 1,
+                        'sku': sku,
+                        'quantity': quantity,
+                        'unit_price': unit_price,
+                        'discount_percent': item_discount_pct,
+                        'gross_total': gross_total,
+                        'offer_discount': Decimal('0'),
+                        'manual_discount': Decimal('0'),
+                    }
+                    line_data.append(entry)
+                    
+                # Finalize lines and deduct inventory
+                for entry in line_data:
+                    sku = entry['sku']
+                    quantity = entry['quantity']
+                    
+                    # Manual discount applied ON TOP of remaining part
+                    entry['manual_discount'] = ((entry['gross_total'] - entry['offer_discount']) * entry['discount_percent'] / 100).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                    
+                    total_line_discount = entry['offer_discount'] + entry['manual_discount']
+                    line_total = entry['gross_total'] - total_line_discount
 
                     # Deduct inventory
                     inv_balance, _ = InventoryBalance.objects.get_or_create(
@@ -238,18 +263,18 @@ class SalesTransactionViewSet(viewsets.ModelViewSet):
 
                     SalesTransactionLine.objects.create(
                         transaction=txn,
-                        line_number=idx + 1,
+                        line_number=entry['idx'],
                         sku=sku,
                         quantity=quantity,
-                        unit_price=unit_price,
-                        discount_percent=item_discount_pct,
-                        discount_amount=item_discount_amt,
+                        unit_price=entry['unit_price'],
+                        discount_percent=entry['discount_percent'],
+                        discount_amount=total_line_discount,
                         line_total=line_total,
                         unit_cost=sku.cost_price,
                     )
 
-                    subtotal += gross_total
-                    total_line_discounts += item_discount_amt
+                    subtotal += entry['gross_total']
+                    total_line_discounts += total_line_discount
                     item_count += quantity
 
                 # 3. Apply bill-level discount on top of line discounts

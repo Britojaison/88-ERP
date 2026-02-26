@@ -6,12 +6,14 @@ export interface InventoryBalance {
   company: string
   sku: string
   sku_code?: string
+  sku_name?: string
   location: string
   location_code?: string
   quantity_on_hand: string
   quantity_reserved: string
   quantity_available: string
   condition: 'new' | 'used' | 'damaged'
+  is_offer_eligible: boolean
   average_cost: string
   status: string
   updated_at: string
@@ -62,6 +64,11 @@ export const inventoryService = {
   getBalance: async (id: string) => {
     const response = await api.get(`/inventory/balances/${id}/`)
     return response.data
+  },
+
+  updateBalance: async (id: string, data: Partial<InventoryBalance>) => {
+    const response = await api.patch(`/inventory/balances/${id}/`, data)
+    return response.data as InventoryBalance
   },
 
   getMovements: async (params?: any) => {
