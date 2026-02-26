@@ -1,5 +1,4 @@
 import { forwardRef } from 'react'
-import { QRCodeSVG } from 'qrcode.react'
 
 interface StoreInvoiceProps {
     saleData: any;
@@ -41,9 +40,9 @@ export const StoreInvoice = forwardRef<HTMLDivElement, StoreInvoiceProps>(({ sal
             <div style={{ textAlign: 'center' }}>
                 <div style={{ letterSpacing: '2px', fontWeight: 'bold' }}>INVOICE</div>
                 <div>------------------------------------------</div>
-                <div style={{ fontWeight: 'bold', fontSize: '16px', letterSpacing: '1px' }}>MMWEAR SHOP</div>
-                <div>Greenways Rd, Fairlands, Salem</div>
-                <div>GSTIN: 33AAACD1234E1Z1 | Ph: +91 9876543210</div>
+                <div style={{ fontWeight: 'bold', fontSize: '16px', letterSpacing: '1px' }}>Store Details (MMWEAR SHOP)</div>
+                <div>GSTIN: 33AMQPL4373F1ZW</div>
+                <div>Mobile No: 7305015217</div>
                 <div>------------------------------------------</div>
             </div>
 
@@ -138,18 +137,7 @@ export const StoreInvoice = forwardRef<HTMLDivElement, StoreInvoiceProps>(({ sal
             <div style={{ textAlign: 'center' }}>------------------------------------------</div>
 
             {/* Footer */}
-            <div style={{ textAlign: 'center', marginTop: '15px', marginBottom: '15px', fontWeight: 'bold' }}>
-                Hassle-Free Payment - Scan & Pay
-            </div>
 
-            {/* QR Code */}
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '15px' }}>
-                <QRCodeSVG
-                    value={`upi://pay?pa=mmwear@ybl&pn=MMWear%20Shop&am=${roundedTotal}&cu=INR`}
-                    size={120}
-                    level={"L"}
-                />
-            </div>
 
             <div style={{ textAlign: 'center', fontSize: '11px' }}>
                 Thank you for shopping with us! <br />
