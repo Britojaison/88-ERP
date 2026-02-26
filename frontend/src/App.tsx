@@ -13,6 +13,7 @@ import ProductJourney from './pages/ProductJourney'
 import DesignApprovals from './pages/DesignApprovals'
 import ProductionKanban from './pages/ProductionKanban'
 import POSCheckout from './pages/POSCheckout'
+import Stores from './pages/Stores'
 import Reports from './pages/Reports'
 import Settings from './pages/Settings'
 import MetadataManagement from './pages/MetadataManagement'
@@ -63,6 +64,7 @@ function App() {
         >
           <Route index element={<Dashboard />} />
           <Route path="pos" element={<POSCheckout />} />
+          <Route path="stores" element={<Stores />} />
           <Route path="master-data" element={<MasterData />} />
           <Route path="documents" element={<Documents />} />
           <Route path="inventory" element={<Inventory />} />
