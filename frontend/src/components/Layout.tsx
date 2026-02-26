@@ -52,13 +52,14 @@ const navSections = [
       { text: 'Inventory', icon: <InventoryIcon />, path: '/inventory' },
       { text: 'Barcodes', icon: <BarcodeIcon />, path: '/inventory/barcodes' },
       { text: 'Receiving', icon: <ReceivingIcon />, path: '/inventory/receiving' },
+      { text: 'Stores', icon: <StoreIcon />, path: '/stores' },
       { text: 'Store POS', icon: <StoreIcon />, path: '/pos' },
+      { text: 'Reports', icon: <ReportIcon />, path: '/reports' },
     ],
   },
   {
-    heading: 'Reports',
+    heading: 'Reports Detailed',
     items: [
-      { text: 'All Reports', icon: <ReportIcon />, path: '/reports' },
       { text: 'Daily Sales', icon: <DailySalesIcon />, path: '/reports/daily' },
       { text: 'Stock Velocity', icon: <VelocityIcon />, path: '/reports/weekly-stock' },
       { text: 'Margin Analysis', icon: <MarginIcon />, path: '/reports/monthly-margin' },

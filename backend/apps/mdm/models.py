@@ -130,6 +130,10 @@ class Location(TenantAwareModel):
     postal_code = models.CharField(max_length=20, blank=True)
     country = models.CharField(max_length=2, blank=True)
     
+    # Store specific fields
+    email = models.EmailField(blank=True, null=True)
+    opening_date = models.DateField(blank=True, null=True)
+    
     is_inventory_location = models.BooleanField(default=True)
     
     objects = models.Manager()

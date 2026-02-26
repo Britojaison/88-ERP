@@ -67,6 +67,7 @@ export default function MasterData() {
   const [openVariantsDialog, setOpenVariantsDialog] = useState(false)
   const [openFabricDialog, setOpenFabricDialog] = useState(false)
   const [openRejectDialog, setOpenRejectDialog] = useState(false)
+  const [openStoreDialog, setOpenStoreDialog] = useState(false)
   const [rejectFabricId, setRejectFabricId] = useState('')
   const [rejectReason, setRejectReason] = useState('')
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
@@ -88,6 +89,13 @@ export default function MasterData() {
     cost_per_meter: '',
     dispatch_unit: '',
     notes: '',
+  })
+  const [storeForm, setStoreForm] = useState({
+    code: '',
+    name: '',
+    email: '',
+    opening_date: '',
+    business_unit: '',
   })
   const [fabricPhotoFile, setFabricPhotoFile] = useState<File | null>(null)
   const [fabricPhotoPreview, setFabricPhotoPreview] = useState('')
@@ -215,6 +223,17 @@ export default function MasterData() {
         is_inventory_location: true,
       })
       setOpenLocationDialog(true)
+      return
+    }
+    if (tabValue === 5) {
+      setStoreForm({
+        code: '',
+        name: '',
+        email: '',
+        opening_date: new Date().toISOString().split('T')[0],
+        business_unit: '',
+      })
+      setOpenStoreDialog(true)
       return
     }
     setSnackbar({
@@ -387,7 +406,31 @@ export default function MasterData() {
     }
   }
 
+  const handleCreateStore = async () => {
+    if (!storeForm.code || !storeForm.name) {
+      setSnackbar({ open: true, message: 'Store Code and Name are required.', severity: 'error' })
+      return
+    }
+    try {
+      await mdmService.createLocation({
+        code: storeForm.code,
+        name: storeForm.name,
+        email: storeForm.email,
+        opening_date: storeForm.opening_date,
+        location_type: 'store',
+        business_unit: storeForm.business_unit || (businessUnits.length > 0 ? businessUnits[0].id : ''),
+        is_inventory_location: true,
+      })
+      setOpenStoreDialog(false)
+      setTimeout(() => { void loadData() }, 300)
+      setSnackbar({ open: true, message: 'Store created successfully!', severity: 'success' })
+    } catch (error: any) {
+      setSnackbar({ open: true, message: error?.response?.data?.detail || 'Failed to create store.', severity: 'error' })
+    }
+  }
+
   const filteredFabrics = fabricFilter === 'all' ? fabrics : fabrics.filter(f => f.approval_status === fabricFilter)
+  const filteredStores = locations.filter(loc => loc.location_type === 'store')
 
   return (
     <Box>
@@ -410,6 +453,7 @@ export default function MasterData() {
           <Tab label="Fabrics" />
           <Tab label="Companies" />
           <Tab label="Locations" />
+          <Tab label="Stores" />
         </Tabs>
 
         <TabPanel value={tabValue} index={0}>
@@ -663,6 +707,41 @@ export default function MasterData() {
                       <TableCell>{location.name}</TableCell>
                       <TableCell>{location.location_type}</TableCell>
                       <TableCell>{location.status}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </TabPanel>
+
+        <TabPanel value={tabValue} index={5}>
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Store Code</TableCell>
+                  <TableCell>Store Name</TableCell>
+                  <TableCell>Store Email</TableCell>
+                  <TableCell>Opening Date</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {filteredStores.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} align="center">
+                      <Typography variant="body2" color="text.secondary" sx={{ py: 4 }}>
+                        No stores found. Click "Add New" to create your first store.
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredStores.map((store) => (
+                    <TableRow key={store.id}>
+                      <TableCell>{store.code}</TableCell>
+                      <TableCell>{store.name}</TableCell>
+                      <TableCell>{store.email || '-'}</TableCell>
+                      <TableCell>{store.opening_date ? new Date(store.opening_date).toLocaleDateString() : '-'}</TableCell>
                     </TableRow>
                   ))
                 )}
@@ -1066,6 +1145,56 @@ export default function MasterData() {
         <DialogActions>
           <Button onClick={() => setOpenLocationDialog(false)}>Cancel</Button>
           <Button variant="contained" onClick={() => void handleCreateLocation()}>Create Location</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Create Store Dialog */}
+      <Dialog open={openStoreDialog} onClose={() => setOpenStoreDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Create New Store</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth margin="normal" label="Store Code" required
+            value={storeForm.code}
+            onChange={(e) => setStoreForm(prev => ({ ...prev, code: e.target.value }))}
+            placeholder="e.g. 124"
+          />
+          <TextField
+            fullWidth margin="normal" label="Store Name" required
+            value={storeForm.name}
+            onChange={(e) => setStoreForm(prev => ({ ...prev, name: e.target.value }))}
+            placeholder="e.g. Stores"
+          />
+          <TextField
+            fullWidth margin="normal" label="Store Email"
+            value={storeForm.email}
+            onChange={(e) => setStoreForm(prev => ({ ...prev, email: e.target.value }))}
+            placeholder="e.g. jdkjksdkjkj@gmail.com"
+            type="email"
+          />
+          <TextField
+            fullWidth margin="normal" label="Opening Date"
+            value={storeForm.opening_date}
+            onChange={(e) => setStoreForm(prev => ({ ...prev, opening_date: e.target.value }))}
+            type="date"
+            InputLabelProps={{ shrink: true }}
+          />
+          <FormControl fullWidth margin="normal">
+            <InputLabel>Business Unit</InputLabel>
+            <Select
+              value={storeForm.business_unit}
+              label="Business Unit"
+              onChange={(e) => setStoreForm(prev => ({ ...prev, business_unit: e.target.value }))}
+            >
+              <MenuItem value="" disabled>Select Business Unit</MenuItem>
+              {businessUnits.map((bu) => (
+                <MenuItem key={bu.id} value={bu.id}>{bu.name}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenStoreDialog(false)}>Cancel</Button>
+          <Button variant="contained" onClick={() => void handleCreateStore()}>Create Store</Button>
         </DialogActions>
       </Dialog>
 

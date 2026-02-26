@@ -53,6 +53,8 @@ export interface Location {
   business_unit: string
   business_unit_code?: string
   is_inventory_location: boolean
+  email?: string
+  opening_date?: string
   status: string
   created_at: string
   updated_at: string
