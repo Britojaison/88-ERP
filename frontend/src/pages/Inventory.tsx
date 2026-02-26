@@ -88,7 +88,19 @@ export default function Inventory() {
               value="Track"
               icon={<PrecisionManufacturing />}
               tone="primary"
-              note="Manage Fabric Dispatch and Shoot Status via drag and drop."
+              note="Manage Production and Warehouse Receiving via drag and drop."
+            />
+          </Box>
+        </Grid>
+
+        <Grid item xs={12} md={3}>
+          <Box onClick={() => navigate('/inventory/stock-transfers')} sx={{ cursor: 'pointer' }}>
+            <MetricCard
+              label="Stock Transfers"
+              value="Transfer"
+              icon={<Inventory2 />}
+              tone="success"
+              note="Move physical goods between Warehouse and Retail Stores."
             />
           </Box>
         </Grid>
