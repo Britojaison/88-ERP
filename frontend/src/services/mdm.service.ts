@@ -5,6 +5,8 @@ export interface Product {
   code: string
   name: string
   description?: string
+  image?: string | null
+  image_url?: string | null
   company: string
   status: string
   created_at: string
@@ -138,14 +140,30 @@ export const mdmService = {
     return response.data
   },
 
-  createProduct: async (data: Partial<Product>) => {
-    const response = await api.post('/mdm/products/', data)
-    return response.data
+  createProduct: async (data: Partial<Product>, imageFile?: File) => {
+    const formData = new FormData()
+    if (data.code) formData.append('code', data.code)
+    if (data.name) formData.append('name', data.name)
+    if (data.description) formData.append('description', data.description)
+    if (imageFile) formData.append('image', imageFile)
+
+    const response = await api.post('/mdm/products/', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return response.data as Product
   },
 
-  updateProduct: async (id: string, data: Partial<Product>) => {
-    const response = await api.put(`/mdm/products/${id}/`, data)
-    return response.data
+  updateProduct: async (id: string, data: Partial<Product>, imageFile?: File) => {
+    const formData = new FormData()
+    if (data.code) formData.append('code', data.code)
+    if (data.name) formData.append('name', data.name)
+    if (data.description) formData.append('description', data.description)
+    if (imageFile) formData.append('image', imageFile)
+
+    const response = await api.patch(`/mdm/products/${id}/`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return response.data as Product
   },
 
   deleteProduct: async (id: string) => {
@@ -159,8 +177,16 @@ export const mdmService = {
     return response.data as { sku_code: string }
   },
 
-  createProductVariants: async (productId: string, data: { sizes: string[], selling_price: string, mrp: string }) => {
-    const response = await api.post(`/mdm/products/${productId}/create-variants/`, data)
+  createProductVariants: async (productId: string, data: { sizes: string[], selling_price: string, mrp: string }, imageFile?: File) => {
+    const formData = new FormData()
+    formData.append('sizes', JSON.stringify(data.sizes))
+    formData.append('selling_price', data.selling_price)
+    formData.append('mrp', data.mrp)
+    if (imageFile) formData.append('image', imageFile)
+
+    const response = await api.post(`/mdm/products/${productId}/create-variants/`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
     return response.data as {
       created: number
       skipped: number

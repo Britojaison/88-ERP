@@ -255,6 +255,7 @@ class Product(TenantAwareModel):
     code = models.CharField(max_length=100, db_index=True)
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
+    image = models.ImageField(upload_to='products/images/', blank=True, null=True, help_text='Primary image for the product')
     
     # Product hierarchy (optional)
     parent = models.ForeignKey(

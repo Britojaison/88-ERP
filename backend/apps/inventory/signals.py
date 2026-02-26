@@ -19,7 +19,17 @@ def sync_inventory_to_shopify_on_save(sender, instance, **kwargs):
         if not stores.exists():
             return
 
-        qty = int(instance.quantity_available)
+        from django.db.models import Sum
+        
+        # Calculate total available inventory only in "warehouse" locations.
+        # This keeps Shopify's stock separate from Offline "store" stock.
+        warehouse_qty = InventoryBalance.objects.filter(
+            sku=instance.sku,
+            location__location_type='warehouse',
+            status='active'
+        ).aggregate(total=Sum('quantity_available'))['total'] or 0
+
+        qty = int(warehouse_qty)
         
         for store in stores:
             logger.info(f"Triggering background Shopify inventory sync for SKU: {instance.sku.code}")
@@ -38,5 +48,16 @@ def push_inventory(store, sku_id, quantity):
     try:
         ShopifyService.push_inventory_to_shopify(store, sku_id, quantity)
         logger.info(f"Successfully pushed inventory to Shopify for SKU ID {sku_id}.")
+    except ValueError as e:
+        if "not mapped to a Shopify product" in str(e):
+            logger.info(f"SKU {sku_id} not mapped to Shopify. Pushing SKU first...")
+            try:
+                ShopifyService.push_sku_to_shopify(store, sku_id)
+                ShopifyService.push_inventory_to_shopify(store, sku_id, quantity)
+                logger.info(f"Successfully pushed SKU and inventory to Shopify for SKU ID {sku_id}.")
+            except Exception as inner_e:
+                logger.error(f"Failed to push SKU and inventory: {inner_e}")
+        else:
+            logger.error(f"ValueError while pushing inventory to Shopify: {e}")
     except Exception as e:
         logger.error(f"Background thread failed to push inventory to Shopify: {e}")
