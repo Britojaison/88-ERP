@@ -313,7 +313,7 @@ export default function InventoryBarcodes() {
                           {option.code}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          {option.name}{option.size ? ` • Size: ${option.size}` : ''} • ₹{option.base_price} {option.offer_tag !== 'none' ? ` • ${option.offer_tag.toUpperCase()}` : ''}
+                          {option.name}{option.size ? ` • Size: ${option.size}` : ''} • ₹{option.base_price}
                         </Typography>
                       </Box>
                     </li>

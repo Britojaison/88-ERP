@@ -60,6 +60,7 @@ const navSections = [
       { text: 'Stores', icon: <StoreIcon />, path: '/stores' },
       { text: 'Transfers', icon: <TransferIcon />, path: '/inventory/stock-transfers' },
       { text: 'Store POS', icon: <StoreIcon />, path: '/pos' },
+      { text: 'POS Returns', icon: <StoreIcon />, path: '/pos/returns' },
       { text: 'Reports', icon: <ReportIcon />, path: '/reports' },
     ],
   },

@@ -39,6 +39,7 @@ class SalesTransactionViewSet(viewsets.ModelViewSet):
         store = self.request.query_params.get('store')
         date_from = self.request.query_params.get('date_from')
         date_to = self.request.query_params.get('date_to')
+        transaction_number = self.request.query_params.get('transaction_number')
         
         if channel:
             queryset = queryset.filter(sales_channel=channel)
@@ -48,6 +49,8 @@ class SalesTransactionViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(transaction_date__gte=date_from)
         if date_to:
             queryset = queryset.filter(transaction_date__lte=date_to)
+        if transaction_number:
+            queryset = queryset.filter(transaction_number=transaction_number)
         
         return queryset.order_by('-transaction_date')
 
@@ -312,6 +315,92 @@ class ReturnTransactionViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(company_id=self.request.user.company_id)
+
+    @action(detail=False, methods=['post'], url_path='process')
+    def process_return(self, request):
+        """Process a POS return."""
+        from django.db import transaction
+        from apps.mdm.models import Location
+        from apps.inventory.models import InventoryBalance
+        from apps.sales.models import SalesTransaction, SalesTransactionLine, ReturnTransaction
+        import uuid
+        from django.utils import timezone
+        from decimal import Decimal
+
+        store_id = request.data.get('store_id')
+        transaction_id = request.data.get('original_transaction_id')
+        items = request.data.get('items', [])
+        return_type = request.data.get('return_type', ReturnTransaction.RETURN_TYPE_REFUND)
+
+        if not store_id or not transaction_id or not items:
+            return Response({'error': 'store_id, original_transaction_id, and items are required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            store = Location.objects.get(id=store_id, company_id=request.user.company_id)
+            try:
+                orig_tx = SalesTransaction.objects.get(id=transaction_id, company_id=request.user.company_id)
+            except ValueError:
+                orig_tx = SalesTransaction.objects.get(transaction_number=transaction_id, company_id=request.user.company_id)
+        except (Location.DoesNotExist, SalesTransaction.DoesNotExist):
+            return Response({'error': 'Store or Transaction not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            with transaction.atomic():
+                total_refund = Decimal('0')
+                return_number = f"RET-{uuid.uuid4().hex[:8].upper()}"
+
+                ret_tx = ReturnTransaction.objects.create(
+                    company_id=request.user.company_id,
+                    return_number=return_number,
+                    return_date=timezone.now(),
+                    original_transaction=orig_tx,
+                    store=store,
+                    return_reason='Multiple reasons' if len(items) > 1 else items[0].get('return_reason', 'Customer requested'),
+                    return_type=return_type,
+                    refund_amount=0,
+                    processed_by=request.user,
+                )
+
+                for item in items:
+                    line_id = item.get('line_id')
+                    reason = item.get('return_reason', 'Customer requested')
+                    condition = item.get('condition', 'sellable')
+
+                    try:
+                        line = SalesTransactionLine.objects.get(id=line_id, transaction=orig_tx)
+                    except SalesTransactionLine.DoesNotExist:
+                        return Response({'error': f"Line item {line_id} not found"}, status=status.HTTP_400_BAD_REQUEST)
+
+                    if line.is_returned:
+                        continue
+                    
+                    line.is_returned = True
+                    line.return_reason = reason
+                    line.save()
+
+                    total_refund += line.line_total
+
+                    if condition == 'sellable':
+                        inv_balance, _ = InventoryBalance.objects.get_or_create(
+                            company_id=request.user.company_id,
+                            sku=line.sku,
+                            location=store,
+                            defaults={'quantity_on_hand': 0, 'quantity_reserved': 0, 'quantity_available': 0}
+                        )
+                        inv_balance.quantity_on_hand += line.quantity
+                        inv_balance.quantity_available = inv_balance.quantity_on_hand - inv_balance.quantity_reserved
+                        inv_balance.save()
+
+                ret_tx.refund_amount = total_refund
+                ret_tx.save()
+
+                return Response({
+                    'message': 'Return processed successfully',
+                    'return_number': return_number,
+                    'refund_amount': total_refund
+                }, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class StoreFootTrafficViewSet(viewsets.ModelViewSet):

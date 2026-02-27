@@ -1,21 +1,19 @@
 Latest 5 Products:
-- jeans-247: Jeans
-  -> SKU: MMW-4456-M-JEANS, Jeans - M, size: M
-- test-product-550RAND-999: Test Product Single SKU
-  -> SKU: MMW-4455-M-SKU, Test Product Single SKU - M, size: M
-- shirt-601: shirt
-  -> SKU: MMW-4451-M-SHIRT, shirt - M, size: M
-  -> SKU: MMW-4452-M-SHIRT, shirt - M, size: M
-  -> SKU: MMW-4453-S-SHIRT, shirt - S, size: S
-  -> SKU: MMW-4454-XS-SHIRT, shirt - XS, size: XS
-- line-thread-352: line thread
+- N-417: not okay
+  -> SKU: MMW-4482-XXS-OKAY, not okay - XXS, size: XXS
+  -> SKU: MMW-4483-XXXXL-OKAY, not okay - XXXXL, size: XXXXL
+- O-956: okay
   -> No SKUs found for this product.
-- SHOP-10298523058340-3: Mira Zipless Feeding Pant Set
-  -> SKU: MMW-2426-M-FPS, Mira Zipless Feeding Pant Set, size: None
+- T-535: tshirt
+  -> No SKUs found for this product.
+- J-199: jeans
+  -> SKU: MMW-4481-M-JEANS, jeans - M, size: M
+- S-854: shirt
+  -> SKU: MMW-4480-L-SHIRT, shirt - L, size: L
 
 Latest 5 SKUs total:
-- MMW-4456-M-JEANS: Jeans - M (Product: Jeans)
-- MMW-4455-M-SKU: Test Product Single SKU - M (Product: Test Product Single SKU)
-- MMW-4454-XS-SHIRT: shirt - XS (Product: shirt)
-- MMW-4453-S-SHIRT: shirt - S (Product: shirt)
-- MMW-4452-M-SHIRT: shirt - M (Product: shirt)
+- MMW-4483-XXXXL-OKAY: not okay - XXXXL (Product: not okay)
+- MMW-4482-XXS-OKAY: not okay - XXS (Product: not okay)
+- MMW-4481-M-JEANS: jeans - M (Product: jeans)
+- MMW-4480-L-SHIRT: shirt - L (Product: shirt)
+- MMW-4479-M-KURTHI: kurthi - M (Product: kurthi)
