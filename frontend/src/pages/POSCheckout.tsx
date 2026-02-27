@@ -19,8 +19,10 @@ import {
     Paper,
     LinearProgress,
     Chip,
+    FormControlLabel,
+    Switch,
 } from '@mui/material'
-import { Storefront, DeleteOutline, PointOfSale, Search, LocalOffer } from '@mui/icons-material'
+import { Storefront, DeleteOutline, PointOfSale, Search, LocalOffer, Refresh } from '@mui/icons-material'
 import PageHeader from '../components/ui/PageHeader'
 import { mdmService, Location, SKU } from '../services/mdm.service'
 import { inventoryService, InventoryBalance } from '../services/inventory.service'
@@ -45,6 +47,7 @@ export default function POSCheckout() {
     const [storeBalances, setStoreBalances] = useState<InventoryBalance[]>([])
     const [searchQuery, setSearchQuery] = useState('')
     const [loading, setLoading] = useState(false)
+    const [showInStockOnly, setShowInStockOnly] = useState(true)
 
     const [cart, setCart] = useState<CartItem[]>([])
     const [checkingOut, setCheckingOut] = useState(false)
@@ -65,17 +68,18 @@ export default function POSCheckout() {
         fetchSKUs()
     }, [])
 
-    useEffect(() => {
+    const fetchBalances = async () => {
         if (!selectedStore) return
-        const fetchBalances = async () => {
-            try {
-                const data = await inventoryService.getBalances({ location: selectedStore })
-                const list = Array.isArray(data) ? data : (data as any).results || []
-                setStoreBalances(list)
-            } catch (err) {
-                console.error('Failed to load store balances', err)
-            }
+        try {
+            const data = await inventoryService.getBalances({ location: selectedStore, page_size: 1000 })
+            const list = Array.isArray(data) ? data : (data as any).results || []
+            setStoreBalances(list)
+        } catch (err) {
+            console.error('Failed to load store balances', err)
         }
+    }
+
+    useEffect(() => {
         fetchBalances()
     }, [selectedStore])
 
@@ -94,7 +98,7 @@ export default function POSCheckout() {
     const fetchSKUs = async () => {
         setLoading(true)
         try {
-            const data = await mdmService.getSKUs({ exclude_fabrics: true })
+            const data = await mdmService.getSKUs({ exclude_fabrics: true, page_size: 1000 })
             // Unwrap pagination if applicable
             const skuList = Array.isArray(data) ? data : (data as any).results || []
             setSkus(skuList)
@@ -105,16 +109,35 @@ export default function POSCheckout() {
         }
     }
 
-    const filteredSKUs = skus.filter(s =>
-        !s.code.startsWith('FAB-') && (
+    const filteredSKUs = skus.filter(s => {
+        const matchesSearch = !s.code.startsWith('FAB-') && (
             s.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
             s.name.toLowerCase().includes(searchQuery.toLowerCase())
         )
-    ).slice(0, 50) // Limit display
+        if (!matchesSearch) return false
+
+        if (showInStockOnly) {
+            const balance = storeBalances.find(b => b.sku === s.id)
+            const available = balance ? parseFloat(balance.quantity_available.toString()) : 0
+            const inCart = cart.find(c => c.sku.id === s.id)?.quantity || 0
+            if (available - inCart <= 0) return false
+        }
+
+        return true
+    }).slice(0, 50) // Limit display
 
     const addToCart = (sku: SKU) => {
+        const balance = storeBalances.find(b => b.sku === sku.id)
+        const available = balance ? parseFloat(balance.quantity_available.toString()) : 0
+        const existing = cart.find(item => item.sku.id === sku.id)
+        const currentCartQty = existing ? existing.quantity : 0
+
+        if (currentCartQty >= available) {
+            setFeedback({ type: 'error', msg: `Stockout! Cannot add more ${sku.code}. Only ${available} units available.` })
+            return
+        }
+
         setCart(prev => {
-            const existing = prev.find(item => item.sku.id === sku.id)
             if (existing) {
                 return prev.map(item => item.sku.id === sku.id ? { ...item, quantity: item.quantity + 1 } : item)
             }
@@ -251,6 +274,9 @@ export default function POSCheckout() {
             setCustomerEmail('')
             setBillDiscount('')
 
+            // Refresh store inventory to reflect deductions
+            fetchBalances()
+
             // Automatically prompt for print after react renders the new state
             setTimeout(() => {
                 if (handlePrint) handlePrint()
@@ -306,19 +332,29 @@ export default function POSCheckout() {
                                 <Storefront color="primary" /> Checkout Details
                             </Typography>
 
-                            <TextField
-                                select
-                                fullWidth
-                                label="Store Location"
-                                value={selectedStore}
-                                onChange={(e) => setSelectedStore(e.target.value)}
-                                sx={{ mb: 2 }}
-                            >
-                                {stores.length === 0 && <MenuItem value="" disabled>No Stores Found</MenuItem>}
-                                {stores.map(store => (
-                                    <MenuItem key={store.id} value={store.id}>{store.name} ({store.code})</MenuItem>
-                                ))}
-                            </TextField>
+                            <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+                                <TextField
+                                    select
+                                    fullWidth
+                                    label="Store Location"
+                                    value={selectedStore}
+                                    onChange={(e) => setSelectedStore(e.target.value)}
+                                >
+                                    {stores.length === 0 && <MenuItem value="" disabled>No Stores Found</MenuItem>}
+                                    {stores.map(store => (
+                                        <MenuItem key={store.id} value={store.id}>{store.name} ({store.code})</MenuItem>
+                                    ))}
+                                </TextField>
+                                <Button
+                                    variant="outlined"
+                                    onClick={fetchBalances}
+                                    disabled={!selectedStore}
+                                    sx={{ minWidth: 56, p: 0 }}
+                                    title="Refresh Inventory"
+                                >
+                                    <Refresh />
+                                </Button>
+                            </Box>
 
                             <Grid container spacing={2} sx={{ mb: 2 }}>
                                 <Grid item xs={6}>
@@ -540,8 +576,8 @@ export default function POSCheckout() {
                 {/* RIGHT COLUMN: Product Catalog */}
                 <Grid item xs={12} md={7}>
                     <Paper elevation={0} sx={{ p: 2, border: '1px solid', borderColor: 'divider', height: '100%' }}>
-                        <Box display="flex" alignItems="center" justifyContent="space-between" mb={3} gap={2}>
-                            <Box display="flex" alignItems="center" gap={2} flexGrow={1}>
+                        <Box display="flex" alignItems="center" justifyContent="space-between" mb={3} gap={2} flexWrap="wrap">
+                            <Box display="flex" alignItems="center" gap={2} flexGrow={1} minWidth={300}>
                                 <Search color="action" />
                                 <TextField
                                     fullWidth
@@ -551,15 +587,29 @@ export default function POSCheckout() {
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                 />
                             </Box>
-                            {activeStoreOffer !== 'none' && (
-                                <Chip
-                                    icon={<LocalOffer sx={{ fontSize: '1rem !important' }} />}
-                                    label={`Active: ${activeStoreOffer.toUpperCase()} (${activeStoreOfferMode === 'selected' ? 'Selected items' : 'Store-wide'})`}
-                                    color="error"
-                                    variant="outlined"
-                                    sx={{ fontWeight: 'bold' }}
+
+                            <Box display="flex" alignItems="center" gap={2}>
+                                <FormControlLabel
+                                    control={
+                                        <Switch
+                                            size="small"
+                                            checked={showInStockOnly}
+                                            onChange={(e) => setShowInStockOnly(e.target.checked)}
+                                        />
+                                    }
+                                    label={<Typography variant="body2" color="text.secondary">In Stock Only</Typography>}
                                 />
-                            )}
+
+                                {activeStoreOffer !== 'none' && (
+                                    <Chip
+                                        icon={<LocalOffer sx={{ fontSize: '1rem !important' }} />}
+                                        label={`Active: ${activeStoreOffer.toUpperCase()} (${activeStoreOfferMode === 'selected' ? 'Selected items' : 'Store-wide'})`}
+                                        color="error"
+                                        variant="outlined"
+                                        sx={{ fontWeight: 'bold' }}
+                                    />
+                                )}
+                            </Box>
                         </Box>
 
                         {loading ? (
@@ -611,9 +661,34 @@ export default function POSCheckout() {
                                                 <Typography variant="subtitle2" fontWeight="bold" noWrap title={sku.name}>
                                                     {sku.name}
                                                 </Typography>
-                                                <Typography variant="body1" color="primary.main" mt={1}>
-                                                    ₹{parseFloat(sku.base_price || '0').toFixed(2)}
-                                                </Typography>
+                                                <Box display="flex" justifyContent="space-between" alignItems="center" mt={1}>
+                                                    <Typography variant="body1" color="primary.main" fontWeight="bold">
+                                                        ₹{parseFloat(sku.base_price || '0').toFixed(2)}
+                                                    </Typography>
+
+                                                    {(() => {
+                                                        const bal = storeBalances.find(b => b.sku === sku.id)
+                                                        const baseAvailable = bal ? parseFloat(bal.quantity_available.toString()) : 0
+                                                        const inCart = cart.find(c => c.sku.id === sku.id)?.quantity || 0
+                                                        const available = baseAvailable - inCart
+
+                                                        return (
+                                                            <Typography
+                                                                variant="caption"
+                                                                sx={{
+                                                                    bgcolor: available > 0 ? 'success.light' : 'error.light',
+                                                                    color: available > 0 ? 'success.dark' : 'error.dark',
+                                                                    px: 1,
+                                                                    py: 0.5,
+                                                                    borderRadius: 1,
+                                                                    fontWeight: 'bold'
+                                                                }}
+                                                            >
+                                                                {available} left
+                                                            </Typography>
+                                                        )
+                                                    })()}
+                                                </Box>
                                             </CardContent>
                                         </Card>
                                     </Grid>

@@ -24,6 +24,7 @@ import DailySalesReport from './pages/DailySalesReport'
 import WeeklyStockReport from './pages/WeeklyStockReport'
 import MonthlyMarginReport from './pages/MonthlyMarginReport'
 import ChannelComparisonReport from './pages/ChannelComparisonReport'
+import POSReturns from './pages/POSReturns'
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const location = useLocation()
@@ -66,6 +67,7 @@ function App() {
         >
           <Route index element={<Dashboard />} />
           <Route path="pos" element={<POSCheckout />} />
+          <Route path="pos/returns" element={<POSReturns />} />
           <Route path="stores" element={<Stores />} />
           <Route path="warehouses" element={<Warehouse />} />
           <Route path="master-data" element={<MasterData />} />
