@@ -1,0 +1,9 @@
+src/pages/InventoryBarcodes.tsx(316,118): error TS2339: Property 'offer_tag' does not exist on type 'SKU'.
+src/pages/InventoryBarcodes.tsx(316,154): error TS2339: Property 'offer_tag' does not exist on type 'SKU'.
+src/pages/ProductionKanban.tsx(18,5): error TS6133: 'Paper' is declared but its value is never read.
+src/pages/ProductionKanban.tsx(25,5): error TS6133: 'Stack' is declared but its value is never read.
+src/pages/ProductionKanban.tsx(284,59): error TS2339: Property 'user_name' does not exist on type 'ProductionKanbanItem & { currentStage: string; }'.
+src/pages/ProductionKanban.tsx(309,36): error TS6133: 'e' is declared but its value is never read.
+src/pages/Warehouse.tsx(10,5): error TS6133: 'Divider' is declared but its value is never read.
+src/pages/Warehouse.tsx(28,5): error TS6133: 'Search' is declared but its value is never read.
+src/pages/Warehouse.tsx(30,5): error TS6133: 'CalendarToday' is declared but its value is never read.

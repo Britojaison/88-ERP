@@ -27,6 +27,8 @@ export interface SKU {
   cost_price: string
   weight?: string | null
   size?: string | null
+  offer_tag?: string
+  offer_mode?: string
   is_serialized: boolean
   is_batch_tracked: boolean
   status: string

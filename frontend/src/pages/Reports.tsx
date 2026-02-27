@@ -38,8 +38,14 @@ import {
   People,
   LocalShipping,
   Close,
+  Today,
+  DateRange,
+  CalendarMonth,
+  CompareArrows
 } from '@mui/icons-material'
+import { useNavigate } from 'react-router-dom'
 import PageHeader from '../components/ui/PageHeader'
+import MetricCard from '../components/ui/MetricCard'
 import ReportDisplay from '../components/reports/ReportDisplay'
 import VisualDashboard from '../components/reports/VisualDashboard'
 import { reportingService } from '../services/reporting.service'
@@ -194,6 +200,7 @@ const unifiedReports = [
 ]
 
 export default function Reports() {
+  const navigate = useNavigate()
   const [tabValue, setTabValue] = useState(0)
   const [reportTypes, setReportTypes] = useState<Array<{ value: string; label: string }>>([])
   const [loading, setLoading] = useState(false)
@@ -261,6 +268,54 @@ export default function Reports() {
           </Stack>
         }
       />
+
+      {/* Advanced Reports Section */}
+      <Grid container spacing={2.5} sx={{ mb: 3 }}>
+        <Grid item xs={12} md={3}>
+          <Box onClick={() => navigate('/reports/daily')} sx={{ cursor: 'pointer' }}>
+            <MetricCard
+              label="Daily POS & Warehouse"
+              value="View Insights"
+              icon={<Today />}
+              tone="info"
+              note="Track daily sales, discounts, and opening/closing stock."
+            />
+          </Box>
+        </Grid>
+        <Grid item xs={12} md={3}>
+          <Box onClick={() => navigate('/reports/weekly-stock')} sx={{ cursor: 'pointer' }}>
+            <MetricCard
+              label="Weekly Stock Velocity"
+              value="Analyze Velocity"
+              icon={<DateRange />}
+              tone="warning"
+              note="Analyze Fast, Slow, and Dead stock performance."
+            />
+          </Box>
+        </Grid>
+        <Grid item xs={12} md={3}>
+          <Box onClick={() => navigate('/reports/monthly-margin')} sx={{ cursor: 'pointer' }}>
+            <MetricCard
+              label="Monthly Turnover & Margin"
+              value="Review Margins"
+              icon={<CalendarMonth />}
+              tone="success"
+              note="Track gross margins, COGS, and stock turnover ratios."
+            />
+          </Box>
+        </Grid>
+        <Grid item xs={12} md={3}>
+          <Box onClick={() => navigate('/reports/channel-comparison')} sx={{ cursor: 'pointer' }}>
+            <MetricCard
+              label="Store vs Shopify Sales"
+              value="Compare Channels"
+              icon={<CompareArrows />}
+              tone="primary"
+              note="In-store POS vs online Shopify sales side by side."
+            />
+          </Box>
+        </Grid>
+      </Grid>
 
       {/* Filters */}
       <Paper sx={{ p: 2.5, mb: 2.5 }}>

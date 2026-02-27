@@ -1,0 +1,1 @@
+src/pages/InventoryBarcodes.tsx(316,147): error TS18048: 'option.offer_tag' is possibly 'undefined'.

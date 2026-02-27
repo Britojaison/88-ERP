@@ -15,14 +15,12 @@ import {
     TableContainer,
     TableHead,
     TableRow,
-    Paper,
     Checkbox,
     Dialog,
     DialogTitle,
     DialogContent,
     DialogActions,
     TablePagination,
-    Stack,
     InputAdornment
 } from '@mui/material'
 import { CloudUpload, Search, LocalShipping } from '@mui/icons-material'
@@ -281,7 +279,7 @@ export default function ProductionKanban() {
                                             </TableCell>
                                             <TableCell>
                                                 <Typography variant="body2" color="text.secondary">
-                                                    {item.user_name || 'System Admin'}
+                                                    System Admin
                                                 </Typography>
                                             </TableCell>
                                             <TableCell align="right">
@@ -306,7 +304,7 @@ export default function ProductionKanban() {
                     count={filteredItems.length}
                     rowsPerPage={rowsPerPage}
                     page={page}
-                    onPageChange={(e, newPage) => setPage(newPage)}
+                    onPageChange={(_, newPage) => setPage(newPage)}
                     onRowsPerPageChange={(e) => {
                         setRowsPerPage(parseInt(e.target.value, 10))
                         setPage(0)

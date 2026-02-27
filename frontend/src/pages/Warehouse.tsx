@@ -7,7 +7,6 @@ import {
     Stack,
     Typography,
     CircularProgress,
-    Divider,
     TextField,
     InputAdornment,
     Autocomplete,
@@ -25,9 +24,7 @@ import {
 import {
     Warehouse as WarehouseIcon,
     Inventory2,
-    Search,
     Email,
-    CalendarToday,
     Badge,
     History,
     ReceiptLong
