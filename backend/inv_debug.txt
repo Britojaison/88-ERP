@@ -1,0 +1,23 @@
+=== RETURNED (SELLABLE) LINE ITEMS ===
+SKU: 51080161034404 | Store: store-04 | Qty returned: 6.000 | Reason: Wrong size
+SKU: MMW-4481-M-JEANS | Store: store-04 | Qty returned: 1.000 | Reason: Customer requested
+SKU: MMW-4481-M-JEANS | Store: store-04 | Qty returned: 1.000 | Reason: Customer changed mind
+SKU: 51080161034404 | Store: store-04 | Qty returned: 1.000 | Reason: Customer changed mind
+SKU: MMW-4480-L-SHIRT | Store: store-04 | Qty returned: 1.000 | Reason: Wrong size
+
+=== EXPECTED RESTOCKED AMOUNTS ===
+SKU_ID: 7c83db5b-fac2-49f2-8bef-bc249938c0c1 | Store_ID: 7aea1d0b-2a9e-49c6-8411-2fc969d38ed9 | Total should be restocked: 7.000 | Current balance: 19.000
+SKU_ID: 3cd6a981-48d4-4bb3-b52c-16e30a5494db | Store_ID: 7aea1d0b-2a9e-49c6-8411-2fc969d38ed9 | Total should be restocked: 2.000 | Current balance: 0.000
+  -> FIXED: Set balance to 2.000
+SKU_ID: 0b0a6cd7-2831-4610-b369-f2459e7a2754 | Store_ID: 7aea1d0b-2a9e-49c6-8411-2fc969d38ed9 | Total should be restocked: 1.000 | Current balance: 0.000
+  -> FIXED: Set balance to 1.000
+
+=== FINAL BALANCES AT STORE ===
+51150559871140 | cond=new | hand=20.000 | avail=20.000
+MMW-4471-S-BRITO | cond=new | hand=0.000 | avail=0.000
+51080161034404 | cond=damaged | hand=2.000 | avail=2.000
+MMW-4479-M-KURTHI | cond=new | hand=0.000 | avail=0.000
+MMW-2818-2XL-CL | cond=new | hand=0.000 | avail=0.000
+51080161034404 | cond=new | hand=19.000 | avail=19.000
+MMW-4481-M-JEANS | cond=new | hand=2.000 | avail=2.000
+MMW-4480-L-SHIRT | cond=new | hand=1.000 | avail=1.000

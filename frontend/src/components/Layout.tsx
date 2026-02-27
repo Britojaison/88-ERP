@@ -146,6 +146,7 @@ export default function Layout() {
                 key={item.text}
                 component={NavLink}
                 to={item.path}
+                end
                 sx={{
                   borderRadius: 2,
                   mb: 0.5,
