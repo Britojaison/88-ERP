@@ -28,7 +28,6 @@ import {
   Menu as MenuIcon,
   Settings as SettingsIcon,
   ShoppingCart as ShopifyIcon,
-  Tune as MetadataIcon,
   LocalOffer as BarcodeIcon,
   People as PeopleIcon,
   Storefront as StoreIcon,
@@ -83,7 +82,6 @@ const navSections = [
   {
     heading: 'Platform',
     items: [
-      { text: 'Metadata', icon: <MetadataIcon />, path: '/metadata' },
       { text: 'Shopify', icon: <ShopifyIcon />, path: '/shopify' },
       { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
     ],

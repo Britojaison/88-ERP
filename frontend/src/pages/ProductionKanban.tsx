@@ -21,11 +21,13 @@ import {
     DialogContent,
     DialogActions,
     TablePagination,
-    InputAdornment
+    InputAdornment,
+    Autocomplete
 } from '@mui/material'
-import { CloudUpload, Search, LocalShipping } from '@mui/icons-material'
+import { CloudUpload, Search, LocalShipping, Add } from '@mui/icons-material'
 import PageHeader from '../components/ui/PageHeader'
 import { productionKanbanService, ProductionKanbanItem } from '../services/inventory.service'
+import { mdmService, SKU } from '../services/mdm.service'
 
 const STAGES = [
     { id: 'in_production', title: 'In Production', color: 'primary' as const },
@@ -61,6 +63,13 @@ export default function ProductionKanban() {
     const [attachment, setAttachment] = useState<File | null>(null)
     const [locations, setLocations] = useState<any[]>([])
 
+    // "New Batch" modal state
+    const [newBatchModalOpen, setNewBatchModalOpen] = useState(false)
+    const [skuSearch, setSkuSearch] = useState('')
+    const [skuList, setSkuList] = useState<SKU[]>([])
+    const [selectedSku, setSelectedSku] = useState<SKU | null>(null)
+    const [batchMoving, setBatchMoving] = useState(false)
+
     // Which items are being moved (could be array of 1 for single row, or many for bulk)
     const [actionItems, setActionItems] = useState<(ProductionKanbanItem & { currentStage: string })[]>([])
 
@@ -94,6 +103,18 @@ export default function ProductionKanban() {
     useEffect(() => {
         fetchBoard()
     }, [])
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (newBatchModalOpen) {
+                mdmService.getSKUs({ search: skuSearch }).then(res => {
+                    const skus = Array.isArray(res) ? res : (res as any).results
+                    setSkuList(skus || [])
+                }).catch(() => { })
+            }
+        }, 500)
+        return () => clearTimeout(timer)
+    }, [skuSearch, newBatchModalOpen])
 
     useEffect(() => {
         let results = items
@@ -171,6 +192,25 @@ export default function ProductionKanban() {
         }
     }
 
+    const confirmNewBatch = async () => {
+        if (!selectedSku) return
+        setBatchMoving(true)
+        try {
+            await productionKanbanService.moveItem(
+                selectedSku.id,
+                'in_production',
+                `Started new production batch for ${selectedSku.code}`,
+            )
+            setNewBatchModalOpen(false)
+            setSelectedSku(null)
+            fetchBoard()
+        } catch (err: any) {
+            alert(err.message || 'Error creating new batch')
+        } finally {
+            setBatchMoving(false)
+        }
+    }
+
     const displayedRows = filteredItems.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
 
     return (
@@ -198,7 +238,14 @@ export default function ProductionKanban() {
                     }}
                 />
 
-                <Box>
+                <Box sx={{ display: 'flex', gap: 2 }}>
+                    <Button
+                        variant="outlined"
+                        onClick={() => setNewBatchModalOpen(true)}
+                        startIcon={<Add />}
+                    >
+                        New Production Batch
+                    </Button>
                     <Button
                         variant="contained"
                         disabled={selectedIds.length === 0}
@@ -411,6 +458,51 @@ export default function ProductionKanban() {
                     <Button onClick={() => setModalOpen(false)} disabled={moving}>Cancel</Button>
                     <Button onClick={confirmMove} variant="contained" disabled={moving || !targetStage}>
                         {moving ? 'Processing...' : 'Confirm Update'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* New Batch Modal */}
+            <Dialog open={newBatchModalOpen} onClose={() => !batchMoving && setNewBatchModalOpen(false)} maxWidth="sm" fullWidth>
+                <DialogTitle>Start Production Batch (Existing SKU)</DialogTitle>
+                <DialogContent dividers>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                        Select an existing SKU to move it completely back into "In Production". This is used when you are manufacturing older products again and want to track their WIP progress before receipt.
+                    </Typography>
+
+                    <Autocomplete
+                        options={skuList}
+                        getOptionLabel={(option) => `${option.code} - ${option.name}${option.size ? ` (${option.size})` : ''}`}
+                        value={selectedSku}
+                        onInputChange={(_, value) => setSkuSearch(value)}
+                        onChange={(_event, newValue) => setSelectedSku(newValue)}
+                        renderInput={(params) => (
+                            <TextField
+                                {...params}
+                                label="Search SKU *"
+                                required
+                                placeholder="Type to search SKU..."
+                            />
+                        )}
+                        renderOption={(props, option) => (
+                            <li {...props} key={option.id}>
+                                <Box>
+                                    <Typography variant="body2" fontWeight={500}>{option.code}</Typography>
+                                    <Typography variant="caption" color="text.secondary">
+                                        {option.name} • ₹{option.base_price} {option.lifecycle_status === 'active' ? ' (Active)' : ''}
+                                    </Typography>
+                                </Box>
+                            </li>
+                        )}
+                        isOptionEqualToValue={(option, value) => option.id === value.id}
+                        noOptionsText="No SKUs available"
+                        fullWidth
+                    />
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setNewBatchModalOpen(false)} disabled={batchMoving}>Cancel</Button>
+                    <Button onClick={confirmNewBatch} variant="contained" disabled={batchMoving || !selectedSku}>
+                        {batchMoving ? 'Starting...' : 'Start Manufacturing'}
                     </Button>
                 </DialogActions>
             </Dialog>

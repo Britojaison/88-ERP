@@ -1,0 +1,1 @@
+src/pages/ProductionKanban.tsx(492,86): error TS2339: Property 'lifecycle_status' does not exist on type 'SKU'.

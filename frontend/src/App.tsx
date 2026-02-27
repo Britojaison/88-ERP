@@ -19,7 +19,6 @@ import Stores from './pages/Stores'
 import Warehouse from './pages/Warehouse'
 import Reports from './pages/Reports'
 import Settings from './pages/Settings'
-import MetadataManagement from './pages/MetadataManagement'
 import ShopifyIntegration from './pages/ShopifyIntegration'
 import DailySalesReport from './pages/DailySalesReport'
 import WeeklyStockReport from './pages/WeeklyStockReport'
@@ -86,7 +85,6 @@ function App() {
           <Route path="reports/monthly-margin" element={<MonthlyMarginReport />} />
           <Route path="reports/channel-comparison" element={<ChannelComparisonReport />} />
           <Route path="settings" element={<Settings />} />
-          <Route path="metadata" element={<MetadataManagement />} />
           <Route path="shopify" element={<ShopifyIntegration />} />
         </Route>
       </Routes>

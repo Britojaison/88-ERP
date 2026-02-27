@@ -31,6 +31,7 @@ export interface SKU {
   offer_mode?: string
   is_serialized: boolean
   is_batch_tracked: boolean
+  lifecycle_status?: string
   status: string
   created_at: string
   updated_at: string

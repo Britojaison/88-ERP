@@ -1,4 +1,4 @@
-import api, { extractListData } from './api'
+import api from './api'
 import { PaginatedResponse } from './mdm.service'
 
 export interface InventoryBalance {
@@ -88,7 +88,7 @@ export const inventoryService = {
 
   getStockAlerts: async () => {
     const response = await api.get('/inventory/movements/alerts/')
-    return extractListData(response.data)
+    return response.data
   },
 
   getGoodsReceiptScans: async (params?: any) => {

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Alert,
   Box,
@@ -41,6 +41,32 @@ function TabPanel(props: TabPanelProps) {
   )
 }
 
+const defaultSettings = {
+  companyName: '88 ERP',
+  taxId: '',
+  address: '',
+  phone: '',
+  email: '',
+  twoFactor: true,
+  strongPassword: true,
+  sessionTimeout: false,
+  logActivity: true,
+  emailNotif: true,
+  lowStockAlert: true,
+  orderStatusUpdate: true,
+  weeklyReports: false,
+  systemMaintenance: true,
+  darkMode: false,
+  compactView: true,
+  showAnimations: true,
+  language: 'en',
+  timezone: 'UTC',
+  dateFormat: 'MM/DD/YYYY',
+  currency: 'INR'
+}
+
+type SettingsType = typeof defaultSettings
+
 export default function Settings() {
   const [tabValue, setTabValue] = useState(0)
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
@@ -49,10 +75,25 @@ export default function Settings() {
     severity: 'info',
   })
 
+  const [settings, setSettings] = useState<SettingsType>(() => {
+    const saved = localStorage.getItem('erp_settings')
+    if (saved) {
+      try {
+        return { ...defaultSettings, ...JSON.parse(saved) }
+      } catch (e) {
+        return defaultSettings
+      }
+    }
+    return defaultSettings
+  })
+
+  const handleChange = (field: keyof SettingsType, value: any) => {
+    setSettings((prev) => ({ ...prev, [field]: value }))
+  }
+
   const handleSave = (section: string) => {
-    const key = `settings:last_saved:${section.toLowerCase().replace(/\s+/g, '_')}`
-    localStorage.setItem(key, new Date().toISOString())
-    setSnackbar({ open: true, message: `${section} settings saved.`, severity: 'success' })
+    localStorage.setItem('erp_settings', JSON.stringify(settings))
+    setSnackbar({ open: true, message: `${section} settings saved successfully.`, severity: 'success' })
   }
 
   return (
@@ -63,7 +104,7 @@ export default function Settings() {
       />
 
       <Paper sx={{ width: '100%' }}>
-        <Tabs value={tabValue} onChange={(_, v) => setTabValue(v)}>
+        <Tabs value={tabValue} onChange={(_, v) => setTabValue(v)} variant="scrollable" scrollButtons="auto">
           <Tab icon={<Business />} label="Company" iconPosition="start" />
           <Tab icon={<Security />} label="Security" iconPosition="start" />
           <Tab icon={<Notifications />} label="Notifications" iconPosition="start" />
@@ -72,7 +113,7 @@ export default function Settings() {
         </Tabs>
 
         <TabPanel value={tabValue} index={0}>
-          <Box sx={{ maxWidth: 800, mx: 'auto' }}>
+          <Box sx={{ maxWidth: 800, mx: 'auto', px: { xs: 2, sm: 0 } }}>
             <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
               Company Information
             </Typography>
@@ -81,14 +122,16 @@ export default function Settings() {
                 <TextField
                   fullWidth
                   label="Company Name"
-                  defaultValue="88 ERP"
+                  value={settings.companyName}
+                  onChange={(e) => handleChange('companyName', e.target.value)}
                 />
               </Grid>
               <Grid item xs={12} md={6}>
                 <TextField
                   fullWidth
                   label="Tax ID"
-                  defaultValue=""
+                  value={settings.taxId}
+                  onChange={(e) => handleChange('taxId', e.target.value)}
                 />
               </Grid>
               <Grid item xs={12}>
@@ -97,14 +140,16 @@ export default function Settings() {
                   label="Address"
                   multiline
                   rows={3}
-                  defaultValue=""
+                  value={settings.address}
+                  onChange={(e) => handleChange('address', e.target.value)}
                 />
               </Grid>
               <Grid item xs={12} md={6}>
                 <TextField
                   fullWidth
                   label="Phone"
-                  defaultValue=""
+                  value={settings.phone}
+                  onChange={(e) => handleChange('phone', e.target.value)}
                 />
               </Grid>
               <Grid item xs={12} md={6}>
@@ -112,7 +157,8 @@ export default function Settings() {
                   fullWidth
                   label="Email"
                   type="email"
-                  defaultValue=""
+                  value={settings.email}
+                  onChange={(e) => handleChange('email', e.target.value)}
                 />
               </Grid>
               <Grid item xs={12}>
@@ -129,29 +175,29 @@ export default function Settings() {
         </TabPanel>
 
         <TabPanel value={tabValue} index={1}>
-          <Box sx={{ maxWidth: 800, mx: 'auto' }}>
+          <Box sx={{ maxWidth: 800, mx: 'auto', px: { xs: 2, sm: 0 } }}>
             <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
               Security Settings
             </Typography>
             <Card sx={{ mt: 2 }}>
               <CardContent>
                 <FormControlLabel
-                  control={<Switch defaultChecked />}
+                  control={<Switch checked={settings.twoFactor} onChange={(e) => handleChange('twoFactor', e.target.checked)} />}
                   label="Enable Two-Factor Authentication"
                 />
                 <Divider sx={{ my: 2 }} />
                 <FormControlLabel
-                  control={<Switch defaultChecked />}
+                  control={<Switch checked={settings.strongPassword} onChange={(e) => handleChange('strongPassword', e.target.checked)} />}
                   label="Require Strong Passwords"
                 />
                 <Divider sx={{ my: 2 }} />
                 <FormControlLabel
-                  control={<Switch />}
+                  control={<Switch checked={settings.sessionTimeout} onChange={(e) => handleChange('sessionTimeout', e.target.checked)} />}
                   label="Enable Session Timeout"
                 />
                 <Divider sx={{ my: 2 }} />
                 <FormControlLabel
-                  control={<Switch defaultChecked />}
+                  control={<Switch checked={settings.logActivity} onChange={(e) => handleChange('logActivity', e.target.checked)} />}
                   label="Log All User Activities"
                 />
               </CardContent>
@@ -169,34 +215,34 @@ export default function Settings() {
         </TabPanel>
 
         <TabPanel value={tabValue} index={2}>
-          <Box sx={{ maxWidth: 800, mx: 'auto' }}>
+          <Box sx={{ maxWidth: 800, mx: 'auto', px: { xs: 2, sm: 0 } }}>
             <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
               Notification Preferences
             </Typography>
             <Card sx={{ mt: 2 }}>
               <CardContent>
                 <FormControlLabel
-                  control={<Switch defaultChecked />}
+                  control={<Switch checked={settings.emailNotif} onChange={(e) => handleChange('emailNotif', e.target.checked)} />}
                   label="Email Notifications"
                 />
                 <Divider sx={{ my: 2 }} />
                 <FormControlLabel
-                  control={<Switch defaultChecked />}
+                  control={<Switch checked={settings.lowStockAlert} onChange={(e) => handleChange('lowStockAlert', e.target.checked)} />}
                   label="Low Stock Alerts"
                 />
                 <Divider sx={{ my: 2 }} />
                 <FormControlLabel
-                  control={<Switch defaultChecked />}
+                  control={<Switch checked={settings.orderStatusUpdate} onChange={(e) => handleChange('orderStatusUpdate', e.target.checked)} />}
                   label="Order Status Updates"
                 />
                 <Divider sx={{ my: 2 }} />
                 <FormControlLabel
-                  control={<Switch />}
+                  control={<Switch checked={settings.weeklyReports} onChange={(e) => handleChange('weeklyReports', e.target.checked)} />}
                   label="Weekly Reports"
                 />
                 <Divider sx={{ my: 2 }} />
                 <FormControlLabel
-                  control={<Switch defaultChecked />}
+                  control={<Switch checked={settings.systemMaintenance} onChange={(e) => handleChange('systemMaintenance', e.target.checked)} />}
                   label="System Maintenance Alerts"
                 />
               </CardContent>
@@ -214,24 +260,24 @@ export default function Settings() {
         </TabPanel>
 
         <TabPanel value={tabValue} index={3}>
-          <Box sx={{ maxWidth: 800, mx: 'auto' }}>
+          <Box sx={{ maxWidth: 800, mx: 'auto', px: { xs: 2, sm: 0 } }}>
             <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
               Appearance Settings
             </Typography>
             <Card sx={{ mt: 2 }}>
               <CardContent>
                 <FormControlLabel
-                  control={<Switch />}
+                  control={<Switch checked={settings.darkMode} onChange={(e) => handleChange('darkMode', e.target.checked)} />}
                   label="Dark Mode"
                 />
                 <Divider sx={{ my: 2 }} />
                 <FormControlLabel
-                  control={<Switch defaultChecked />}
+                  control={<Switch checked={settings.compactView} onChange={(e) => handleChange('compactView', e.target.checked)} />}
                   label="Compact View"
                 />
                 <Divider sx={{ my: 2 }} />
                 <FormControlLabel
-                  control={<Switch defaultChecked />}
+                  control={<Switch checked={settings.showAnimations} onChange={(e) => handleChange('showAnimations', e.target.checked)} />}
                   label="Show Animations"
                 />
               </CardContent>
@@ -249,7 +295,7 @@ export default function Settings() {
         </TabPanel>
 
         <TabPanel value={tabValue} index={4}>
-          <Box sx={{ maxWidth: 800, mx: 'auto' }}>
+          <Box sx={{ maxWidth: 800, mx: 'auto', px: { xs: 2, sm: 0 } }}>
             <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
               Localization Settings
             </Typography>
@@ -259,7 +305,8 @@ export default function Settings() {
                   fullWidth
                   select
                   label="Language"
-                  defaultValue="en"
+                  value={settings.language}
+                  onChange={(e) => handleChange('language', e.target.value)}
                   SelectProps={{
                     native: true,
                   }}
@@ -275,7 +322,8 @@ export default function Settings() {
                   fullWidth
                   select
                   label="Timezone"
-                  defaultValue="UTC"
+                  value={settings.timezone}
+                  onChange={(e) => handleChange('timezone', e.target.value)}
                   SelectProps={{
                     native: true,
                   }}
@@ -291,7 +339,8 @@ export default function Settings() {
                   fullWidth
                   select
                   label="Date Format"
-                  defaultValue="MM/DD/YYYY"
+                  value={settings.dateFormat}
+                  onChange={(e) => handleChange('dateFormat', e.target.value)}
                   SelectProps={{
                     native: true,
                   }}
@@ -306,7 +355,8 @@ export default function Settings() {
                   fullWidth
                   select
                   label="Currency"
-                  defaultValue="INR"
+                  value={settings.currency}
+                  onChange={(e) => handleChange('currency', e.target.value)}
                   SelectProps={{
                     native: true,
                   }}

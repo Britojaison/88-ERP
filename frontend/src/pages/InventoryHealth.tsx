@@ -111,7 +111,7 @@ export default function InventoryHealth() {
                 <Grid item xs={12} md={3}>
                     <MetricCard
                         label="Critical Low Stock"
-                        value={alertData?.summary.critical_count.toString() || '0'}
+                        value={alertData?.summary?.critical_count?.toString() || '0'}
                         icon={<ErrorIcon />}
                         tone="error"
                         note="Best Sellers below minimum level."
@@ -120,7 +120,7 @@ export default function InventoryHealth() {
                 <Grid item xs={12} md={3}>
                     <MetricCard
                         label="Fast Moving SKUs"
-                        value={velocityData?.summary.fast_count.toString() || '0'}
+                        value={velocityData?.summary?.fast_count?.toString() || '0'}
                         icon={<FlashOn />}
                         tone="success"
                         note="High sales velocity last 30 days."
@@ -129,7 +129,7 @@ export default function InventoryHealth() {
                 <Grid item xs={12} md={3}>
                     <MetricCard
                         label="Dead Stock Items"
-                        value={velocityData?.summary.dead_count.toString() || '0'}
+                        value={velocityData?.summary?.dead_count?.toString() || '0'}
                         icon={<Opacity />}
                         tone="warning"
                         note="Zero sales recorded in the period."
@@ -138,7 +138,7 @@ export default function InventoryHealth() {
                 <Grid item xs={12} md={3}>
                     <MetricCard
                         label="Standard Alerts"
-                        value={alertData?.summary.standard_count.toString() || '0'}
+                        value={alertData?.summary?.standard_count?.toString() || '0'}
                         icon={<Warning />}
                         tone="info"
                         note="Regular items below reorder point."
@@ -166,7 +166,7 @@ export default function InventoryHealth() {
                                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                                     These items are marked as "Best Sellers" and have fallen below their per-SKU minimum stock level.
                                 </Typography>
-                                {alertData?.critical_best_sellers.length === 0 ? (
+                                {(!alertData?.critical_best_sellers || alertData.critical_best_sellers.length === 0) ? (
                                     <Alert severity="success">No critical alerts for best sellers!</Alert>
                                 ) : (
                                     <TableContainer>
@@ -182,7 +182,7 @@ export default function InventoryHealth() {
                                                 </TableRow>
                                             </TableHead>
                                             <TableBody>
-                                                {alertData?.critical_best_sellers.map((alert) => (
+                                                {alertData?.critical_best_sellers?.map((alert) => (
                                                     <TableRow key={alert.id}>
                                                         <TableCell sx={{ fontWeight: 600 }}>{alert.sku_code}</TableCell>
                                                         <TableCell>{alert.sku_name}</TableCell>
@@ -209,7 +209,7 @@ export default function InventoryHealth() {
                                 <Typography variant="h6" gutterBottom color="info.main" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                     <Warning /> Standard Threshold Alerts
                                 </Typography>
-                                {alertData?.standard_alerts.length === 0 ? (
+                                {(!alertData?.standard_alerts || alertData.standard_alerts.length === 0) ? (
                                     <Alert severity="info">No regular stock alerts.</Alert>
                                 ) : (
                                     <TableContainer>
@@ -225,7 +225,7 @@ export default function InventoryHealth() {
                                                 </TableRow>
                                             </TableHead>
                                             <TableBody>
-                                                {alertData?.standard_alerts.map((alert) => (
+                                                {alertData?.standard_alerts?.map((alert) => (
                                                     <TableRow key={alert.id}>
                                                         <TableCell>{alert.sku_code}</TableCell>
                                                         <TableCell>{alert.sku_name}</TableCell>
@@ -266,7 +266,7 @@ export default function InventoryHealth() {
                                             </TableRow>
                                         </TableHead>
                                         <TableBody>
-                                            {velocityData?.fast_moving.map((item) => (
+                                            {velocityData?.fast_moving?.map((item) => (
                                                 <TableRow key={item.sku_id}>
                                                     <TableCell>
                                                         <Typography variant="body2" fontWeight={600}>{item.sku_code}</Typography>
@@ -300,7 +300,7 @@ export default function InventoryHealth() {
                                             </TableRow>
                                         </TableHead>
                                         <TableBody>
-                                            {velocityData?.slow_moving.map((item) => (
+                                            {velocityData?.slow_moving?.map((item) => (
                                                 <TableRow key={item.sku_id}>
                                                     <TableCell>
                                                         <Typography variant="body2" fontWeight={600}>{item.sku_code}</Typography>
@@ -342,7 +342,7 @@ export default function InventoryHealth() {
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
-                                    {velocityData?.dead_stock.map((item) => (
+                                    {velocityData?.dead_stock?.map((item) => (
                                         <TableRow key={item.sku_id}>
                                             <TableCell sx={{ fontWeight: 600 }}>{item.sku_code}</TableCell>
                                             <TableCell>{item.sku_name}</TableCell>
@@ -352,7 +352,7 @@ export default function InventoryHealth() {
                                             <TableCell>Multiple</TableCell>
                                         </TableRow>
                                     ))}
-                                    {velocityData?.dead_stock.length === 0 && (
+                                    {(!velocityData?.dead_stock || velocityData.dead_stock.length === 0) && (
                                         <TableRow>
                                             <TableCell colSpan={4} align="center">No dead stock found!</TableCell>
                                         </TableRow>

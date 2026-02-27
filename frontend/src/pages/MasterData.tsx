@@ -318,6 +318,8 @@ export default function MasterData() {
         is_batch_tracked: false,
       })
 
+      setOpenProductDialog(false)
+
       setSnackbar({ open: true, message: 'Product created successfully.', severity: 'success' })
 
       // Small delay to ensure database transactions are committed before fetching

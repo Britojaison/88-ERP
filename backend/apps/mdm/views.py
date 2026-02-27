@@ -212,8 +212,6 @@ class ProductViewSet(TenantScopedViewSet):
         created_skus = []
         skipped_sizes = []
         
-        offer_tag = request.data.get('offer_tag', 'none')
-        
         for size in sizes:
             # Generate SKU code in MMW format
             sku_code = generate_mmw_sku_code(product.name, size)
@@ -231,7 +229,6 @@ class ProductViewSet(TenantScopedViewSet):
                 size=size,
                 base_price=selling_price,
                 cost_price=mrp,
-                offer_tag=offer_tag,
                 company_id=request.user.company_id,
                 status='active'
             )
