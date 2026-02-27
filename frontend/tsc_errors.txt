@@ -1,0 +1,1 @@
+src/pages/Settings.tsx(1,10): error TS6133: 'useEffect' is declared but its value is never read.

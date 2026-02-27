@@ -103,6 +103,15 @@ class ShopifyAPIClient:
         response = self._make_request('PUT', f'products/{product_id}.json', json={'product': product_data})
         return response.get('product', {})
 
+    def delete_product(self, product_id: int) -> None:
+        """Delete a product from Shopify."""
+        self._make_request('DELETE', f'products/{product_id}.json')
+
+    def create_variant(self, product_id: int, variant_data: Dict) -> Dict:
+        """Create a new variant for an existing product."""
+        response = self._make_request('POST', f'products/{product_id}/variants.json', json={'variant': variant_data})
+        return response.get('variant', {})
+
     def get_product_count(self) -> int:
         """Get total product count."""
         response = self._make_request('GET', 'products/count.json')
@@ -361,11 +370,12 @@ class ShopifyService:
                 shopify_variant_id=variant_id,
                 defaults={
                     'shopify_title': shopify_data.get('title', ''),
-                    'shopify_sku': variant.get('sku', ''),
-                    'shopify_barcode': variant.get('barcode', ''),
+                    'shopify_sku': variant.get('sku', '') or '',
+                    'shopify_barcode': variant.get('barcode', '') or '',
                     'shopify_price': variant.get('price'),
                     'shopify_inventory_quantity': variant.get('inventory_quantity', 0),
-                    'shopify_product_type': shopify_data.get('product_type', ''),
+                    'shopify_inventory_item_id': variant.get('inventory_item_id'),
+                    'shopify_product_type': shopify_data.get('product_type', '') or '',
                     'shopify_vendor': shopify_data.get('vendor', ''),
                     'shopify_tags': shopify_data.get('tags', ''),
                     'shopify_image_url': (shopify_data.get('image') or {}).get('src', '') if shopify_data.get('image') else '',
@@ -378,11 +388,12 @@ class ShopifyService:
             else:
                 # Update existing
                 shopify_product.shopify_title = shopify_data.get('title', '')
-                shopify_product.shopify_sku = variant.get('sku', '')
-                shopify_product.shopify_barcode = variant.get('barcode', '')
+                shopify_product.shopify_sku = variant.get('sku', '') or ''
+                shopify_product.shopify_barcode = variant.get('barcode', '') or ''
                 shopify_product.shopify_price = variant.get('price')
                 shopify_product.shopify_inventory_quantity = variant.get('inventory_quantity', 0)
-                shopify_product.shopify_product_type = shopify_data.get('product_type', '')
+                shopify_product.shopify_inventory_item_id = variant.get('inventory_item_id')
+                shopify_product.shopify_product_type = shopify_data.get('product_type', '') or ''
                 shopify_product.shopify_vendor = shopify_data.get('vendor', '')
                 shopify_product.shopify_tags = shopify_data.get('tags', '')
                 shopify_product.shopify_image_url = (shopify_data.get('image') or {}).get('src', '') if shopify_data.get('image') else ''
@@ -504,30 +515,51 @@ class ShopifyService:
         inventory_item_id = level_data.get('inventory_item_id')
         available = level_data.get('available', 0) or 0
         
-        # Find matching ShopifyProduct by looking up the variant's inventory_item_id
-        # Shopify variants have an inventory_item_id field in the full product data
-        shopify_products = ShopifyProduct.objects.filter(store=store)
+        # Find matching ShopifyProduct
+        # We now use the shopify_inventory_item_id field for direct matching
+        shopify_products = ShopifyProduct.objects.filter(
+            store=store,
+            shopify_inventory_item_id=inventory_item_id
+        )
         
+        # If no direct match by field (e.g. not populated yet), fallback to JSON search
+        if not shopify_products.exists():
+            all_products = ShopifyProduct.objects.filter(store=store)
+            matched_pks = []
+            for sp in all_products:
+                variant_data = sp.shopify_data.get('variants', [])
+                # Handle both list (Product JSON) and dict (Variant JSON)
+                if isinstance(sp.shopify_data, dict) and sp.shopify_data.get('inventory_item_id') == inventory_item_id:
+                     matched_pks.append(sp.pk)
+                else:
+                    for v in variant_data:
+                        if v.get('inventory_item_id') == inventory_item_id:
+                            matched_pks.append(sp.pk)
+                            break
+            shopify_products = ShopifyProduct.objects.filter(pk__in=matched_pks)
+
         for sp in shopify_products:
-            variant_data = sp.shopify_data.get('variants', [])
-            for v in variant_data:
-                if v.get('inventory_item_id') == inventory_item_id:
-                    inv_level, created = ShopifyInventoryLevel.objects.update_or_create(
-                        shopify_product=sp,
-                        shopify_location_id=location_id,
-                        defaults={
-                            'store': store,
-                            'shopify_location_name': location_name,
-                            'available': available,
-                            'on_hand': level_data.get('on_hand', available),
-                            'committed': level_data.get('committed', 0) or 0,
-                        }
-                    )
-                    
-                    # Update the cached quantity on the product mapping
-                    sp.shopify_inventory_quantity = available
-                    sp.save(update_fields=['shopify_inventory_quantity'])
-                    break
+            # Update the field if it was missing
+            if not sp.shopify_inventory_item_id:
+                sp.shopify_inventory_item_id = inventory_item_id
+                sp.save(update_fields=['shopify_inventory_item_id'])
+
+            inv_level, created = ShopifyInventoryLevel.objects.update_or_create(
+                shopify_product=sp,
+                shopify_location_id=location_id,
+                defaults={
+                    'store': store,
+                    'shopify_location_name': location_name,
+                    'available': available,
+                    'on_hand': level_data.get('on_hand', available),
+                    'committed': level_data.get('committed', 0) or 0,
+                }
+            )
+            
+            # Update the cached quantity on the product mapping
+            sp.shopify_inventory_quantity = available
+            sp.save(update_fields=['shopify_inventory_quantity'])
+            break
         
         job.processed_items += 1
         job.save(update_fields=['processed_items', 'failed_items'])
@@ -538,23 +570,29 @@ class ShopifyService:
         sku = SKU.objects.select_related('product').get(id=sku_id)
         client = ShopifyAPIClient(store)
         
-        # Check if already mapped
+        # 1. Check if this specific SKU is already mapped
         existing = ShopifyProduct.objects.filter(
             store=store,
             erp_sku=sku
         ).first()
         
         if existing and existing.shopify_product_id:
-            # Update existing Shopify product
+            # Update existing Shopify product/variant
+            variant_data = {
+                'id': existing.shopify_variant_id,
+                'sku': sku.code,
+                'price': str(sku.base_price),
+                'inventory_management': 'shopify',
+            }
+            if sku.size:
+                variant_data['option1'] = sku.size
+
+            # We update via the product endpoint to ensure title/etc are synced if needed,
+            # but specifically centering on our variant.
             product_data = {
                 'id': existing.shopify_product_id,
                 'title': sku.product.name,
-                'variants': [{
-                    'id': existing.shopify_variant_id,
-                    'sku': sku.code,
-                    'price': str(sku.base_price),
-                    'inventory_management': 'shopify',
-                }]
+                'variants': [variant_data]
             }
             
             result = client.update_product(existing.shopify_product_id, product_data)
@@ -570,81 +608,141 @@ class ShopifyService:
             return {
                 'action': 'updated',
                 'shopify_product_id': result.get('id'),
-                'message': f'Updated product {sku.code} on Shopify'
-            }
-        else:
-            # Create new product on Shopify
-            # Get barcode if available
-            barcode_value = ''
-            try:
-                from apps.mdm.models import SKUBarcode
-                barcode = SKUBarcode.objects.filter(
-                    sku=sku, is_primary=True, status='active'
-                ).first()
-                if barcode:
-                    barcode_value = barcode.barcode_value
-            except Exception:
-                pass
-
-            product_data = {
-                'title': sku.product.name,
-                'body_html': sku.product.description or '',
-                'vendor': '',
-                'product_type': '',
-                'variants': [{
-                    'sku': sku.code,
-                    'price': str(sku.base_price),
-                    'barcode': barcode_value,
-                    'inventory_management': 'shopify',
-                    'weight': float(sku.weight) if sku.weight else 0,
-                    'weight_unit': 'kg',
-                }]
+                'message': f'Updated variant {sku.code} on Shopify product {result.get("id")}'
             }
 
-            # Add image if available
-            if sku.product.image:
-                try:
-                    import base64
-                    with sku.product.image.open('rb') as image_file:
-                        encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
-                        product_data['images'] = [{
-                            'attachment': encoded_string,
-                            'filename': f"{sku.code}.jpg"
-                        }]
-                except Exception as e:
-                    logger.error(f"Failed to encode product image for Shopify: {e}")
+        # 2. Check if another SKU from the same ERP Product is already mapped
+        # to a Shopify Product in this store.
+        product_mapping = ShopifyProduct.objects.filter(
+            store=store,
+            erp_product=sku.product,
+            shopify_product_id__isnull=False
+        ).first()
+
+        barcode_value = ''
+        try:
+            from apps.mdm.models import SKUBarcode
+            barcode = SKUBarcode.objects.filter(
+                sku=sku, is_primary=True, status='active'
+            ).first()
+            if barcode:
+                barcode_value = barcode.barcode_value
+        except Exception:
+            pass
+
+        if product_mapping:
+            # Add this SKU as a new variant to the existing Shopify product
+            shopify_product_id = product_mapping.shopify_product_id
             
-            # Add size as option if present
+            variant_data = {
+                'sku': sku.code,
+                'price': str(sku.base_price),
+                'barcode': barcode_value,
+                'inventory_management': 'shopify',
+                'weight': float(sku.weight) if sku.weight else 0,
+                'weight_unit': 'kg',
+            }
             if sku.size:
-                product_data['options'] = [{'name': 'Size'}]
-                product_data['variants'][0]['option1'] = sku.size
+                variant_data['option1'] = sku.size
             
-            result = client.create_product(product_data)
-            
-            # Create mapping
-            variant = result.get('variants', [{}])[0] if result.get('variants') else {}
-            
-            ShopifyProduct.objects.create(
-                store=store,
-                shopify_product_id=result['id'],
-                shopify_variant_id=variant.get('id'),
-                shopify_title=result.get('title', ''),
-                shopify_sku=sku.code,
-                shopify_barcode=barcode_value,
-                shopify_price=sku.base_price,
-                shopify_inventory_quantity=0,
-                shopify_data=result,
-                erp_product=sku.product,
-                erp_sku=sku,
-                sync_status='synced',
-                last_synced_at=timezone.now(),
-            )
-            
-            return {
-                'action': 'created',
-                'shopify_product_id': result.get('id'),
-                'message': f'Created product {sku.code} on Shopify'
-            }
+            try:
+                # Add variant to product
+                result = client.create_variant(shopify_product_id, variant_data)
+                
+                # Add variant to product
+                variant_res = client.create_variant(shopify_product_id, variant_data)
+                
+                # Fetch full product to have consistent shopify_data
+                full_product = client.get_product(shopify_product_id)
+                
+                # Create mapping for this SKU
+                ShopifyProduct.objects.create(
+                    store=store,
+                    shopify_product_id=shopify_product_id,
+                    shopify_variant_id=variant_res['id'],
+                    shopify_inventory_item_id=variant_res.get('inventory_item_id'),
+                    shopify_title=product_mapping.shopify_title,
+                    shopify_sku=sku.code,
+                    shopify_barcode=barcode_value,
+                    shopify_price=sku.base_price,
+                    shopify_inventory_quantity=0,
+                    shopify_data=full_product, 
+                    erp_product=sku.product,
+                    erp_sku=sku,
+                    sync_status='synced',
+                    last_synced_at=timezone.now(),
+                )
+                
+                return {
+                    'action': 'variant_added',
+                    'shopify_product_id': shopify_product_id,
+                    'message': f'Added SKU {sku.code} as variant to Shopify product {shopify_product_id}'
+                }
+            except Exception as e:
+                # If it failed, maybe because SKU already exists on Shopify but not mapped?
+                # We could try to fetch and map, but for now simple error.
+                logger.error(f"Failed to add variant {sku.code} to Shopify product {shopify_product_id}: {e}")
+                raise
+
+        # 3. Create new product on Shopify
+        product_data = {
+            'title': sku.product.name,
+            'body_html': sku.product.description or '',
+            'variants': [{
+                'sku': sku.code,
+                'price': str(sku.base_price),
+                'barcode': barcode_value,
+                'inventory_management': 'shopify',
+                'weight': float(sku.weight) if sku.weight else 0,
+                'weight_unit': 'kg',
+            }]
+        }
+
+        # Add image if available
+        if sku.product.image:
+            try:
+                import base64
+                with sku.product.image.open('rb') as image_file:
+                    encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
+                    product_data['images'] = [{
+                        'attachment': encoded_string,
+                        'filename': f"{sku.code}.jpg"
+                    }]
+            except Exception as e:
+                logger.error(f"Failed to encode product image for Shopify: {e}")
+        
+        # Add size as option if present
+        if sku.size:
+            product_data['options'] = [{'name': 'Size'}]
+            product_data['variants'][0]['option1'] = sku.size
+        
+        result = client.create_product(product_data)
+        
+        # Create mapping
+        variant = result.get('variants', [{}])[0] if result.get('variants') else {}
+        
+        ShopifyProduct.objects.create(
+            store=store,
+            shopify_product_id=result['id'],
+            shopify_variant_id=variant.get('id'),
+            shopify_inventory_item_id=variant.get('inventory_item_id'),
+            shopify_title=result.get('title', ''),
+            shopify_sku=sku.code,
+            shopify_barcode=barcode_value,
+            shopify_price=sku.base_price,
+            shopify_inventory_quantity=0,
+            shopify_data=result,
+            erp_product=sku.product,
+            erp_sku=sku,
+            sync_status='synced',
+            last_synced_at=timezone.now(),
+        )
+        
+        return {
+            'action': 'created',
+            'shopify_product_id': result.get('id'),
+            'message': f'Created product {sku.code} on Shopify'
+        }
 
     @staticmethod
     def push_inventory_to_shopify(
@@ -666,24 +764,33 @@ class ShopifyService:
         if not mapping:
             raise ValueError(f"SKU {sku_id} is not mapped to a Shopify product.")
         
-        # Get the inventory_item_id from variant data
-        variant_data = mapping.shopify_data.get('variants', [])
-        inventory_item_id = None
-        for v in variant_data:
-            if v.get('id') == mapping.shopify_variant_id:
-                inventory_item_id = v.get('inventory_item_id')
-                break
+        # Use our new field if available, otherwise fallback to old logic
+        inventory_item_id = mapping.shopify_inventory_item_id
         
         if not inventory_item_id:
-            # Fetch from Shopify
-            product = client.get_product(mapping.shopify_product_id)
-            for v in product.get('variants', []):
+            # Fallback: Get the inventory_item_id from variant data
+            variant_data = mapping.shopify_data.get('variants', [])
+            for v in variant_data:
                 if v.get('id') == mapping.shopify_variant_id:
                     inventory_item_id = v.get('inventory_item_id')
                     break
+            
+            if not inventory_item_id:
+                # Still not found? Fetch from Shopify
+                product = client.get_product(mapping.shopify_product_id)
+                variants = product.get('variants', [])
+                for v in variants:
+                    if v.get('id') == mapping.shopify_variant_id:
+                        inventory_item_id = v.get('inventory_item_id')
+                        break
+                
+                # Update mapping with inventory_item_id for next time
+                if inventory_item_id:
+                    mapping.shopify_inventory_item_id = inventory_item_id
+                    mapping.save(update_fields=['shopify_inventory_item_id'])
         
         if not inventory_item_id:
-            raise ValueError("Could not find inventory_item_id for this variant.")
+            raise ValueError(f"Could not determine inventory_item_id for SKU {sku_id}")
         
         # If no location specified, try to find where this item is already tracked on Shopify
         if not location_id:

@@ -93,6 +93,7 @@ class ShopifyProduct(BaseModel):
     # Shopify IDs
     shopify_product_id = models.BigIntegerField(db_index=True)
     shopify_variant_id = models.BigIntegerField(db_index=True, null=True, blank=True)
+    shopify_inventory_item_id = models.BigIntegerField(db_index=True, null=True, blank=True)
     
     # ERP mapping
     erp_product = models.ForeignKey(
