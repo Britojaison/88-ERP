@@ -167,6 +167,7 @@ class SalesTransactionLine(BaseModel):
     # Returns
     is_returned = models.BooleanField(default=False)
     return_reason = models.CharField(max_length=255, blank=True)
+    return_condition = models.CharField(max_length=50, blank=True)
     
     objects = models.Manager()
     

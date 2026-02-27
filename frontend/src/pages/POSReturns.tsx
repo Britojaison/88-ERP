@@ -14,8 +14,18 @@ import {
     ListItemText,
     Alert,
     CircularProgress,
-    Chip
+    Chip,
+    TableContainer,
+    Table,
+    TableHead,
+    TableRow,
+    TableCell,
+    TableBody,
+    ToggleButtonGroup,
+    ToggleButton
 } from '@mui/material'
+
+import { useEffect, useMemo } from 'react'
 
 export default function POSReturns() {
     const [transactionNumber, setTransactionNumber] = useState('')
@@ -25,12 +35,35 @@ export default function POSReturns() {
     const [success, setSuccess] = useState('')
 
     const [returnItems, setReturnItems] = useState<any[]>([])
+    const [records, setRecords] = useState<any[]>([])
+    const [recordFilter, setRecordFilter] = useState<'all' | 'sellable' | 'damaged'>('all')
 
     const token = localStorage.getItem('token')
     const headers = {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
     }
+
+    const fetchRecords = async () => {
+        try {
+            const res = await fetch(`http://localhost:8000/api/sales/returns/records/`, { headers })
+            if (res.ok) {
+                const data = await res.json()
+                setRecords(data)
+            }
+        } catch (err) {
+            console.error('Failed to fetch return records', err)
+        }
+    }
+
+    useEffect(() => {
+        fetchRecords()
+    }, [])
+
+    const filteredRecords = useMemo(() => {
+        if (recordFilter === 'all') return records
+        return records.filter(r => r.condition === recordFilter)
+    }, [records, recordFilter])
 
     const handleSearch = async () => {
         if (!transactionNumber) return
@@ -80,7 +113,16 @@ export default function POSReturns() {
 
     const updateReturnItem = (lineId: number, field: string, value: string) => {
         setReturnItems(prev =>
-            prev.map(i => i.line_id === lineId ? { ...i, [field]: value } : i)
+            prev.map(i => {
+                if (i.line_id === lineId) {
+                    const updated = { ...i, [field]: value }
+                    if (field === 'return_reason') {
+                        updated.condition = (value === 'Damaged / Defective') ? 'damaged' : 'sellable'
+                    }
+                    return updated
+                }
+                return i
+            })
         )
     }
 
@@ -116,6 +158,9 @@ export default function POSReturns() {
             setTransaction(null)
             setReturnItems([])
             setTransactionNumber('')
+
+            // Refresh the records
+            fetchRecords()
         } catch (err: any) {
             setError(err.message || 'Error processing return')
         } finally {
@@ -225,36 +270,24 @@ export default function POSReturns() {
                                                     <Grid item xs={12} sm={6}>
                                                         {isSelected && !returnedAlready && (
                                                             <Grid container spacing={1}>
-                                                                <Grid item xs={6}>
+                                                                <Grid item xs={12}>
                                                                     <TextField
                                                                         select
                                                                         fullWidth
                                                                         size="small"
-                                                                        label="Reason"
+                                                                        label="Reason for Return"
                                                                         value={returnItems.find(i => i.line_id === line.id)?.return_reason || ''}
                                                                         onChange={(e) => updateReturnItem(line.id, 'return_reason', e.target.value)}
                                                                     >
                                                                         <MenuItem value="Customer changed mind">Customer changed mind</MenuItem>
                                                                         <MenuItem value="Wrong size">Wrong size</MenuItem>
-                                                                        <MenuItem value="Defective product">Defective product</MenuItem>
+                                                                        <MenuItem value="Wrong product">Wrong product</MenuItem>
+                                                                        <MenuItem value="Damaged / Defective">Damaged / Defective (No Restock)</MenuItem>
                                                                         <MenuItem value="Gift Return">Gift Return</MenuItem>
                                                                         <MenuItem value="Not as Pictured">Not as Pictured</MenuItem>
                                                                         <MenuItem value="Arrived Late">Arrived Late</MenuItem>
                                                                         <MenuItem value="Better price elsewhere">Better price elsewhere</MenuItem>
                                                                         <MenuItem value="Other">Other</MenuItem>
-                                                                    </TextField>
-                                                                </Grid>
-                                                                <Grid item xs={6}>
-                                                                    <TextField
-                                                                        select
-                                                                        fullWidth
-                                                                        size="small"
-                                                                        label="Condition"
-                                                                        value={returnItems.find(i => i.line_id === line.id)?.condition || ''}
-                                                                        onChange={(e) => updateReturnItem(line.id, 'condition', e.target.value)}
-                                                                    >
-                                                                        <MenuItem value="sellable">Sellable (Return to Stock)</MenuItem>
-                                                                        <MenuItem value="damaged">Damaged (Do not Restock)</MenuItem>
                                                                     </TextField>
                                                                 </Grid>
                                                             </Grid>
@@ -289,6 +322,69 @@ export default function POSReturns() {
                 </Grid>
 
             </Grid>
+
+            {/* Return Records Section */}
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', mt: 6, mb: 2 }}>
+                <Typography variant="h5" sx={{ fontWeight: 700 }}>Return & Damage Records</Typography>
+                <ToggleButtonGroup
+                    value={recordFilter}
+                    exclusive
+                    onChange={(_, val) => val && setRecordFilter(val)}
+                    size="small"
+                >
+                    <ToggleButton value="all">All Records</ToggleButton>
+                    <ToggleButton value="sellable">Restocked Only</ToggleButton>
+                    <ToggleButton value="damaged">Damaged Only</ToggleButton>
+                </ToggleButtonGroup>
+            </Box>
+
+            <Card>
+                <TableContainer component={Box}>
+                    <Table size="small">
+                        <TableHead sx={{ bgcolor: 'background.default' }}>
+                            <TableRow>
+                                <TableCell>Date</TableCell>
+                                <TableCell>Receipt</TableCell>
+                                <TableCell>SKU</TableCell>
+                                <TableCell>Product Name</TableCell>
+                                <TableCell align="center">Qty</TableCell>
+                                <TableCell>Reason</TableCell>
+                                <TableCell>Condition</TableCell>
+                            </TableRow>
+                        </TableHead>
+                        <TableBody>
+                            {filteredRecords.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={7} align="center" sx={{ py: 3, color: 'text.secondary' }}>
+                                        No return records found matching the filter.
+                                    </TableCell>
+                                </TableRow>
+                            ) : (
+                                filteredRecords.map((rec) => (
+                                    <TableRow key={rec.id}>
+                                        <TableCell>{new Date(rec.date).toLocaleString()}</TableCell>
+                                        <TableCell>{rec.transaction_number}</TableCell>
+                                        <TableCell>{rec.sku_code}</TableCell>
+                                        <TableCell>{rec.sku_name}</TableCell>
+                                        <TableCell align="center">{rec.quantity}</TableCell>
+                                        <TableCell>{rec.reason}</TableCell>
+                                        <TableCell>
+                                            <Chip
+                                                label={rec.condition === 'sellable' ? 'Restocked' : 'Damaged / No Restock'}
+                                                size="small"
+                                                color={rec.condition === 'sellable' ? 'success' : 'error'}
+                                                variant="outlined"
+                                                sx={{ fontWeight: 'bold' }}
+                                            />
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            )}
+                        </TableBody>
+                    </Table>
+                </TableContainer>
+            </Card>
+
         </Box>
     )
 }

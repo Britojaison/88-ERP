@@ -376,20 +376,25 @@ class ReturnTransactionViewSet(viewsets.ModelViewSet):
                     
                     line.is_returned = True
                     line.return_reason = reason
+                    line.return_condition = condition
                     line.save()
 
                     total_refund += line.line_total
 
-                    if condition == 'sellable':
-                        inv_balance, _ = InventoryBalance.objects.get_or_create(
-                            company_id=request.user.company_id,
-                            sku=line.sku,
-                            location=store,
-                            defaults={'quantity_on_hand': 0, 'quantity_reserved': 0, 'quantity_available': 0}
-                        )
-                        inv_balance.quantity_on_hand += line.quantity
-                        inv_balance.quantity_available = inv_balance.quantity_on_hand - inv_balance.quantity_reserved
-                        inv_balance.save()
+                    # Update Inventory Balance based on condition
+                    # Sellable items go back to 'new' condition, damaged items go to 'damaged'
+                    inv_condition = InventoryBalance.CONDITION_DAMAGED if condition == 'damaged' else InventoryBalance.CONDITION_NEW
+                    
+                    inv_balance, _ = InventoryBalance.objects.get_or_create(
+                        company_id=request.user.company_id,
+                        sku=line.sku,
+                        location=store,
+                        condition=inv_condition,
+                        defaults={'quantity_on_hand': 0, 'quantity_reserved': 0, 'quantity_available': 0}
+                    )
+                    inv_balance.quantity_on_hand += line.quantity
+                    inv_balance.quantity_available = inv_balance.quantity_on_hand - inv_balance.quantity_reserved
+                    inv_balance.save()
 
                 ret_tx.refund_amount = total_refund
                 ret_tx.save()
@@ -401,6 +406,32 @@ class ReturnTransactionViewSet(viewsets.ModelViewSet):
                 }, status=status.HTTP_201_CREATED)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['get'], url_path='records')
+    def records(self, request):
+        """Fetch detailed history of returned products and their conditions."""
+        from apps.sales.models import SalesTransactionLine
+        returned_lines = SalesTransactionLine.objects.filter(
+            transaction__company_id=request.user.company_id,
+            is_returned=True
+        ).select_related('sku', 'transaction', 'transaction__store').order_by('-updated_at')
+
+        data = []
+        for line in returned_lines:
+            data.append({
+                'id': str(line.id),
+                'transaction_number': line.transaction.transaction_number,
+                'store': line.transaction.store.name if line.transaction.store else 'Unknown',
+                'date': line.updated_at.isoformat(),
+                'sku_code': line.sku.code,
+                'sku_name': line.sku.name,
+                'quantity': str(line.quantity),
+                'amount': str(line.line_total),
+                'reason': line.return_reason,
+                'condition': line.return_condition or 'sellable',
+            })
+
+        return Response(data)
 
 
 class StoreFootTrafficViewSet(viewsets.ModelViewSet):

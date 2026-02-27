@@ -21,12 +21,18 @@ import {
     Chip,
     FormControlLabel,
     Switch,
+    Table,
+    TableBody,
+    TableCell,
+    TableContainer,
+    TableHead,
+    TableRow,
 } from '@mui/material'
 import { Storefront, DeleteOutline, PointOfSale, Search, LocalOffer, Refresh } from '@mui/icons-material'
 import PageHeader from '../components/ui/PageHeader'
 import { mdmService, Location, SKU } from '../services/mdm.service'
 import { inventoryService, InventoryBalance } from '../services/inventory.service'
-import { salesService } from '../services/sales.service'
+import { salesService, SalesTransaction } from '../services/sales.service'
 import { StoreInvoice } from '../components/pos/StoreInvoice'
 
 interface CartItem {
@@ -49,6 +55,9 @@ export default function POSCheckout() {
     const [loading, setLoading] = useState(false)
     const [showInStockOnly, setShowInStockOnly] = useState(true)
 
+    // Recent Transactions
+    const [recentTransactions, setRecentTransactions] = useState<SalesTransaction[]>([])
+
     const [cart, setCart] = useState<CartItem[]>([])
     const [checkingOut, setCheckingOut] = useState(false)
     const [feedback, setFeedback] = useState<{ type: 'success' | 'error', msg: string } | null>(null)
@@ -63,9 +72,23 @@ export default function POSCheckout() {
         documentTitle: `Receipt-${new Date().getTime()}`,
     })
 
+    const fetchTransactions = async () => {
+        if (!selectedStore) {
+            setRecentTransactions([])
+            return
+        }
+        try {
+            const data = await salesService.getTransactions({ store: selectedStore })
+            setRecentTransactions(data)
+        } catch (err) {
+            console.error('Failed to fetch transactions', err)
+        }
+    }
+
     useEffect(() => {
         fetchStores()
         fetchSKUs()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
     const fetchBalances = async () => {
@@ -80,7 +103,14 @@ export default function POSCheckout() {
     }
 
     useEffect(() => {
-        fetchBalances()
+        if (selectedStore) {
+            fetchBalances()
+            fetchTransactions()
+        } else {
+            setStoreBalances([])
+            setRecentTransactions([])
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedStore])
 
     const fetchStores = async () => {
@@ -269,13 +299,17 @@ export default function POSCheckout() {
             setFeedback({ type: 'success', msg: 'Sale recorded! Preparing receipt...' })
 
             // Clear current cart immediately for next customer
-            setCart([])
-            setCustomerMobile('')
-            setCustomerEmail('')
-            setBillDiscount('')
+            setTimeout(() => {
+                setCart([])
+                setCustomerMobile('')
+                setCustomerEmail('')
+                setBillDiscount('')
+                setPaymentMethod('cash')
+                // Refresh store inventory and transactions to reflect deductions
+                fetchBalances()
+                fetchTransactions()
+            }, 100)
 
-            // Refresh store inventory to reflect deductions
-            fetchBalances()
 
             // Automatically prompt for print after react renders the new state
             setTimeout(() => {
@@ -704,6 +738,58 @@ export default function POSCheckout() {
                 </Grid>
 
             </Grid>
+
+            {/* Checkouts History Table */}
+            {selectedStore && (
+                <Box mt={6}>
+                    <Typography variant="h6" fontWeight="bold" mb={2}>Recent Checkouts</Typography>
+                    <Card variant="outlined">
+                        <TableContainer>
+                            <Table size="small">
+                                <TableHead sx={{ bgcolor: 'background.default' }}>
+                                    <TableRow>
+                                        <TableCell>Date</TableCell>
+                                        <TableCell>Receipt #</TableCell>
+                                        <TableCell>Customer Phone</TableCell>
+                                        <TableCell>Payment Method</TableCell>
+                                        <TableCell>Items</TableCell>
+                                        <TableCell>Total</TableCell>
+                                        <TableCell>Status</TableCell>
+                                    </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                    {recentTransactions.map((tx) => (
+                                        <TableRow key={tx.id}>
+                                            <TableCell>{new Date(tx.transaction_date).toLocaleString()}</TableCell>
+                                            <TableCell sx={{ fontWeight: 600 }}>{tx.transaction_number}</TableCell>
+                                            <TableCell>{tx.customer || 'Walk-in'}</TableCell>
+                                            <TableCell sx={{ textTransform: 'capitalize' }}>{tx.payment_method}</TableCell>
+                                            <TableCell>{tx.item_count}</TableCell>
+                                            <TableCell>₹{parseFloat(tx.total_amount).toFixed(2)}</TableCell>
+                                            <TableCell>
+                                                <Chip
+                                                    label="Completed"
+                                                    size="small"
+                                                    color="success"
+                                                    variant="outlined"
+                                                />
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                    {recentTransactions.length === 0 && (
+                                        <TableRow>
+                                            <TableCell colSpan={7} align="center" sx={{ py: 3 }}>
+                                                No recent checkouts found for this store.
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </TableContainer>
+                    </Card>
+                </Box>
+            )}
+
         </Box>
     )
 }
