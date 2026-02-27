@@ -38,7 +38,9 @@ class InventoryBalanceViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, 
 
     def get_queryset(self):
         queryset = InventoryBalance.objects.filter(
-            company_id=self.request.user.company_id, status="active"
+            company_id=self.request.user.company_id, 
+            status="active",
+            condition=InventoryBalance.CONDITION_NEW
         ).select_related("sku", "location")
 
         sku_id = self.request.query_params.get("sku")
