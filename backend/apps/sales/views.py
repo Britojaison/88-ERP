@@ -59,30 +59,113 @@ class SalesTransactionViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='summary')
     def summary(self, request):
-        """Get sales summary statistics"""
-        queryset = self.get_queryset()
+        """Get sales summary statistics including Shopify orders"""
+        from apps.integrations.shopify_models import ShopifyOrder
         
-        summary = queryset.aggregate(
+        # POS Stats
+        pos_summary = self.get_queryset().aggregate(
             total_sales=Sum('total_amount'),
             total_transactions=Count('id'),
-            avg_transaction_value=Avg('total_amount'),
             total_items=Sum('item_count'),
         )
         
-        return Response(summary)
+        # Shopify Stats
+        from apps.integrations.shopify_models import ShopifyOrder
+        shopify_qs = ShopifyOrder.objects.filter(
+            store__company_id=request.user.company_id
+        )
+        
+        date_from = self.request.query_params.get('date_from')
+        date_to = self.request.query_params.get('date_to')
+        
+        if date_from:
+            shopify_qs = shopify_qs.filter(processed_at__gte=date_from)
+        if date_to:
+            shopify_qs = shopify_qs.filter(processed_at__lte=date_to)
+
+        shopify_summary = shopify_qs.aggregate(
+            total_sales=Sum('total_price'),
+            total_transactions=Count('id'),
+        )
+        
+        # Returns Stats
+        from apps.sales.models import ReturnTransaction
+        returns_qs = ReturnTransaction.objects.filter(
+            company_id=request.user.company_id,
+            status='active'
+        )
+        if date_from:
+            returns_qs = returns_qs.filter(return_date__gte=date_from)
+        if date_to:
+            returns_qs = returns_qs.filter(return_date__lte=date_to)
+            
+        returns_summary = returns_qs.aggregate(
+            total_refunds=Sum('refund_amount'),
+            count=Count('id')
+        )
+        
+        total_sales = float(pos_summary['total_sales'] or 0) + float(shopify_summary['total_sales'] or 0)
+        total_transactions = (pos_summary['total_transactions'] or 0) + (shopify_summary['total_transactions'] or 0)
+        total_refunds = float(returns_summary['total_refunds'] or 0)
+        
+        return Response({
+            'total_sales': total_sales,
+            'net_sales': total_sales - total_refunds,
+            'total_transactions': total_transactions,
+            'avg_transaction_value': total_sales / total_transactions if total_transactions > 0 else 0,
+            'total_items': (pos_summary['total_items'] or 0), 
+            'pos_sales': float(pos_summary['total_sales'] or 0),
+            'online_sales': float(shopify_summary['total_sales'] or 0),
+            'total_refunds': total_refunds,
+            'return_count': returns_summary['count'] or 0,
+        })
 
     @action(detail=False, methods=['get'], url_path='by-channel')
     def by_channel(self, request):
-        """Sales breakdown by channel"""
-        queryset = self.get_queryset()
+        """Sales breakdown by channel (POS + Shopify)"""
+        from apps.integrations.shopify_models import ShopifyOrder
         
-        by_channel = queryset.values('sales_channel').annotate(
+        # 1. POS Channels
+        pos_by_channel = list(self.get_queryset().values('sales_channel').annotate(
             total_sales=Sum('total_amount'),
             transaction_count=Count('id'),
-            avg_value=Avg('total_amount'),
-        ).order_by('-total_sales')
+        ))
         
-        return Response(by_channel)
+        # Ensure floating point
+        for c in pos_by_channel:
+            c['total_sales'] = float(c['total_sales'] or 0)
+            c['avg_value'] = c['total_sales'] / c['transaction_count'] if c['transaction_count'] > 0 else 0
+            
+        # 2. Shopify Channel
+        shopify_stats = ShopifyOrder.objects.filter(
+            store__company_id=request.user.company_id
+        ).aggregate(
+            total_sales=Sum('total_price'),
+            transaction_count=Count('id'),
+        )
+        
+        online_rev = float(shopify_stats['total_sales'] or 0)
+        online_count = shopify_stats['transaction_count'] or 0
+        
+        # Merge Shopify into 'online' if exists, else add new
+        found = False
+        for c in pos_by_channel:
+            if c['sales_channel'] == 'online':
+                c['total_sales'] += online_rev
+                c['transaction_count'] += online_count
+                c['avg_value'] = c['total_sales'] / c['transaction_count'] if c['transaction_count'] > 0 else 0
+                found = True
+                break
+        
+        if not found and online_count > 0:
+            pos_by_channel.append({
+                'sales_channel': 'online',
+                'total_sales': online_rev,
+                'transaction_count': online_count,
+                'avg_value': online_rev / online_count if online_count > 0 else 0
+            })
+            
+        return Response(sorted(pos_by_channel, key=lambda x: x['total_sales'], reverse=True))
 
     @action(detail=False, methods=['get'], url_path='by-store')
     def by_store(self, request):
@@ -116,13 +199,26 @@ class SalesTransactionViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='channel-comparison')
     def channel_comparison(self, request):
-        """Compare Store vs Online sales over time (last 30 days)"""
-        from datetime import timedelta
+        """Compare Store vs Online sales over time"""
+        from datetime import timedelta, date as date_type
         from django.utils import timezone
         
-        thirty_days_ago = timezone.now().date() - timedelta(days=30)
-        
-        queryset = self.get_queryset().filter(transaction_date__gte=thirty_days_ago)
+        end_date_str = request.query_params.get('end_date')
+        start_date_str = request.query_params.get('start_date')
+
+        if end_date_str:
+            end_date = date_type.fromisoformat(end_date_str)
+        else:
+            end_date = timezone.localtime().date()
+
+        if start_date_str:
+            start_date = date_type.fromisoformat(start_date_str)
+        else:
+            start_date = end_date - timedelta(days=30)
+            
+        day_count = (end_date - start_date).days + 1
+            
+        queryset = self.get_queryset().filter(transaction_date__gte=start_date, transaction_date__lte=end_date + timedelta(days=1))
         
         daily_sales = queryset.annotate(
             date=TruncDate('transaction_date')
@@ -131,19 +227,42 @@ class SalesTransactionViewSet(viewsets.ModelViewSet):
         ).order_by('date')
         
         date_map = {}
-        for d in range(31):
-            date_str = (thirty_days_ago + timedelta(days=d)).strftime('%Y-%m-%d')
+        for d in range(day_count):
+            date_str = (start_date + timedelta(days=d)).strftime('%Y-%m-%d')
             date_map[date_str] = {'date': date_str, 'store': 0, 'online': 0}
             
+        # POS Transactions
         for sale in daily_sales:
             if not sale['date']:
                 continue
             date_str = sale['date'].strftime('%Y-%m-%d')
+            if date_str not in date_map:
+                continue
             channel = sale['sales_channel']
             if channel == SalesTransaction.CHANNEL_STORE:
                 date_map[date_str]['store'] += float(sale['total_amount'] or 0)
             else:
                 date_map[date_str]['online'] += float(sale['total_amount'] or 0)
+        
+        # Shopify Orders (Direct sync)
+        from apps.integrations.shopify_models import ShopifyOrder
+        # Use timezone aware date logic for Shopify filtering
+        shopify_daily = ShopifyOrder.objects.filter(
+            store__company_id=request.user.company_id,
+            processed_at__gte=start_date,
+            processed_at__lt=end_date + timedelta(days=1)
+        ).annotate(
+            date=TruncDate('processed_at')
+        ).values('date').annotate(
+            total=Sum('total_price')
+        )
+        
+        for sale in shopify_daily:
+            if not sale['date']:
+                continue
+            date_str = sale['date'].strftime('%Y-%m-%d')
+            if date_str in date_map:
+                date_map[date_str]['online'] += float(sale['total'] or 0)
                 
         data = sorted(list(date_map.values()), key=lambda x: x['date'])
         

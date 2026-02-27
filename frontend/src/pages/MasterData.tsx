@@ -600,7 +600,7 @@ export default function MasterData() {
                       <TableCell>{sku.product_name || sku.product_code || sku.product}</TableCell>
                       <TableCell>{sku.style_code || '-'}</TableCell>
                       <TableCell>{sku.status}</TableCell>
-                      <TableCell>{sku.base_price}</TableCell>
+                      <TableCell>₹{sku.base_price}</TableCell>
                       <TableCell>{new Date(sku.created_at).toLocaleDateString()}</TableCell>
                     </TableRow>
                   ))

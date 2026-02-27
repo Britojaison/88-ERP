@@ -143,7 +143,15 @@ export const salesService = {
   },
 
   getChannelComparison: async () => {
-    const response = await api.get('/sales/transactions/channel-comparison/')
+    const endDt = new Date();
+    const startDt = new Date();
+    startDt.setDate(startDt.getDate() - 30);
+
+    // YYYY-MM-DD
+    const endStr = `${endDt.getFullYear()}-${String(endDt.getMonth() + 1).padStart(2, '0')}-${String(endDt.getDate()).padStart(2, '0')}`;
+    const startStr = `${startDt.getFullYear()}-${String(startDt.getMonth() + 1).padStart(2, '0')}-${String(startDt.getDate()).padStart(2, '0')}`;
+
+    const response = await api.get(`/sales/transactions/channel-comparison/?start_date=${startStr}&end_date=${endStr}`);
     return response.data as Array<{ date: string; store: number; online: number }>
   },
 
