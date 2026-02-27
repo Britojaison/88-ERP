@@ -1,5 +1,6 @@
 import logging
 import threading
+from django.db import transaction
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from apps.inventory.models import InventoryBalance
@@ -21,8 +22,8 @@ def sync_inventory_to_shopify_on_save(sender, instance, **kwargs):
 
         from django.db.models import Sum
         
-        # Calculate total available inventory only in "warehouse" locations.
-        # This keeps Shopify's stock separate from Offline "store" stock.
+        # We calculate the total warehouse stock to push to Shopify.
+        # This calculation happens NOW, within the current transaction.
         warehouse_qty = InventoryBalance.objects.filter(
             sku=instance.sku,
             location__location_type='warehouse',
@@ -32,12 +33,14 @@ def sync_inventory_to_shopify_on_save(sender, instance, **kwargs):
         qty = int(warehouse_qty)
         
         for store in stores:
-            logger.info(f"Triggering background Shopify inventory sync for SKU: {instance.sku.code}")
-            # Spawn a background thread to prevent blocking the HTTP response
-            threading.Thread(
-                target=lambda s=store, i=instance.sku.id, q=qty: push_inventory(s, i, q),
-                daemon=True
-            ).start()
+            logger.info(f"Scheduling background Shopify inventory sync for SKU: {instance.sku.code}")
+            # Use on_commit to ensure the thread only starts after the DB transaction is successful.
+            transaction.on_commit(
+                lambda s=store, i=instance.sku.id, q=qty: threading.Thread(
+                    target=lambda: push_inventory(s, i, q),
+                    daemon=True
+                ).start()
+            )
     except Exception as e:
         logger.error(f"Failed to schedule Shopify inventory sync for SKU {instance.sku.code}: {e}")
 

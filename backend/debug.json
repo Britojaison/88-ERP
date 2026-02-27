@@ -1,0 +1,44 @@
+[
+  {
+    "sku": "short kurthi - XS",
+    "code": "MMW-4485-XS-KURTHI",
+    "bal": []
+  },
+  {
+    "sku": "short kurthi - M",
+    "code": "MMW-4486-M-KURTHI",
+    "bal": [
+      {
+        "location__name": "ABCD",
+        "location__location_type": "store",
+        "quantity_available": "5.000"
+      },
+      {
+        "location__name": "mg road branch",
+        "location__location_type": "store",
+        "quantity_available": "5.000"
+      },
+      {
+        "location__name": "Shopify Warehouse",
+        "location__location_type": "warehouse",
+        "quantity_available": "5.000"
+      }
+    ]
+  },
+  {
+    "sku": "short kurthi - S",
+    "code": "MMW-4484-S-KURTHI",
+    "bal": []
+  },
+  {
+    "sku": "kurthi - M",
+    "code": "MMW-4479-M-KURTHI",
+    "bal": [
+      {
+        "location__name": "ABCD",
+        "location__location_type": "store",
+        "quantity_available": "0.000"
+      }
+    ]
+  }
+]
