@@ -749,6 +749,7 @@ export default function POSCheckout() {
                                 <TableHead sx={{ bgcolor: 'background.default' }}>
                                     <TableRow>
                                         <TableCell>Date</TableCell>
+                                        <TableCell>Store</TableCell>
                                         <TableCell>Receipt #</TableCell>
                                         <TableCell>Customer Phone</TableCell>
                                         <TableCell>Payment Method</TableCell>
@@ -761,6 +762,7 @@ export default function POSCheckout() {
                                     {recentTransactions.map((tx) => (
                                         <TableRow key={tx.id}>
                                             <TableCell>{new Date(tx.transaction_date).toLocaleString()}</TableCell>
+                                            <TableCell>{tx.store_name || tx.store_code || '-'}</TableCell>
                                             <TableCell sx={{ fontWeight: 600 }}>{tx.transaction_number}</TableCell>
                                             <TableCell>{tx.customer || 'Walk-in'}</TableCell>
                                             <TableCell sx={{ textTransform: 'capitalize' }}>{tx.payment_method}</TableCell>
@@ -778,7 +780,7 @@ export default function POSCheckout() {
                                     ))}
                                     {recentTransactions.length === 0 && (
                                         <TableRow>
-                                            <TableCell colSpan={7} align="center" sx={{ py: 3 }}>
+                                            <TableCell colSpan={8} align="center" sx={{ py: 3 }}>
                                                 No recent checkouts found for this store.
                                             </TableCell>
                                         </TableRow>

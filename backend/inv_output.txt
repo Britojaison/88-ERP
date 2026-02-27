@@ -1,0 +1,7 @@
+51150559871140 | hand=20.000 | avail=20.000
+MMW-4471-S-BRITO | hand=0.000 | avail=0.000
+51080161034404 | hand=20.000 | avail=20.000
+MMW-4479-M-KURTHI | hand=0.000 | avail=0.000
+MMW-4480-L-SHIRT | hand=0.000 | avail=0.000
+MMW-2818-2XL-CL | hand=0.000 | avail=0.000
+MMW-4481-M-JEANS | hand=0.000 | avail=0.000

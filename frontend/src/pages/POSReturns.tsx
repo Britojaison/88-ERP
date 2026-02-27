@@ -344,6 +344,7 @@ export default function POSReturns() {
                         <TableHead sx={{ bgcolor: 'background.default' }}>
                             <TableRow>
                                 <TableCell>Date</TableCell>
+                                <TableCell>Store</TableCell>
                                 <TableCell>Receipt</TableCell>
                                 <TableCell>SKU</TableCell>
                                 <TableCell>Product Name</TableCell>
@@ -355,7 +356,7 @@ export default function POSReturns() {
                         <TableBody>
                             {filteredRecords.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={7} align="center" sx={{ py: 3, color: 'text.secondary' }}>
+                                    <TableCell colSpan={8} align="center" sx={{ py: 3, color: 'text.secondary' }}>
                                         No return records found matching the filter.
                                     </TableCell>
                                 </TableRow>
@@ -363,6 +364,7 @@ export default function POSReturns() {
                                 filteredRecords.map((rec) => (
                                     <TableRow key={rec.id}>
                                         <TableCell>{new Date(rec.date).toLocaleString()}</TableCell>
+                                        <TableCell>{rec.store}</TableCell>
                                         <TableCell>{rec.transaction_number}</TableCell>
                                         <TableCell>{rec.sku_code}</TableCell>
                                         <TableCell>{rec.sku_name}</TableCell>

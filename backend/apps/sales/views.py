@@ -258,6 +258,7 @@ class SalesTransactionViewSet(viewsets.ModelViewSet):
                         company_id=request.user.company_id,
                         sku=sku,
                         location=store,
+                        condition=InventoryBalance.CONDITION_NEW,
                         defaults={'quantity_on_hand': 0, 'quantity_reserved': 0, 'quantity_available': 0}
                     )
                     inv_balance.quantity_on_hand -= quantity
