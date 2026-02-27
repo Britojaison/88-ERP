@@ -118,11 +118,11 @@ export default function VisualDashboard() {
                                 <Box display="flex" gap={2}>
                                     <Box display="flex" alignItems="center" gap={0.5}>
                                         <Box sx={{ width: 12, height: 12, bgcolor: theme.palette.primary.main, borderRadius: '50%' }} />
-                                        <Typography variant="body2">Store (${storeTotal.toFixed(0)})</Typography>
+                                        <Typography variant="body2">Store (₹{storeTotal.toFixed(0)})</Typography>
                                     </Box>
                                     <Box display="flex" alignItems="center" gap={0.5}>
                                         <Box sx={{ width: 12, height: 12, bgcolor: theme.palette.secondary.main, borderRadius: '50%' }} />
-                                        <Typography variant="body2">Online (${onlineTotal.toFixed(0)})</Typography>
+                                        <Typography variant="body2">Online (₹{onlineTotal.toFixed(0)})</Typography>
                                     </Box>
                                 </Box>
                             </Box>

@@ -88,7 +88,8 @@ function formatChannel(channel: string) {
 }
 
 export default function DailySalesReport() {
-    const today = new Date().toISOString().split('T')[0]
+    const todayObj = new Date()
+    const today = `${todayObj.getFullYear()}-${String(todayObj.getMonth() + 1).padStart(2, '0')}-${String(todayObj.getDate()).padStart(2, '0')}`
     const [selectedDate, setSelectedDate] = useState(today)
     const [selectedStore, setSelectedStore] = useState('')
     const [stores, setStores] = useState<Location[]>([])

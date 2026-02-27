@@ -75,15 +75,35 @@ class InventoryBalanceViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, 
             total_quantity=Sum('quantity_on_hand')
         )
         
-        # 2. Get sales in period
-        sales = SalesTransactionLine.objects.filter(
+        # 2. Get sales in period (Unified: POS + Shopify)
+        from apps.documents.models import DocumentLine
+        from apps.sales.models import SalesTransactionLine
+        
+        # POS sales
+        pos_sales = SalesTransactionLine.objects.filter(
             sku__company_id=request.user.company_id,
             transaction__transaction_date__gte=period_ago,
             transaction__status='active'
         ).values('sku__id').annotate(
             sold_in_period=Sum('quantity')
         )
-        sales_dict = {item['sku__id']: item['sold_in_period'] for item in sales}
+        
+        # Shopify/Sales Order sales
+        order_sales = DocumentLine.objects.filter(
+            sku__company_id=request.user.company_id,
+            document__document_type__code='sales_order',
+            document__document_date__gte=period_ago.date(),
+            status='active'
+        ).values('sku__id').annotate(
+            sold_in_period=Sum('quantity')
+        )
+
+        sales_dict = {}
+        for item in pos_sales:
+            sales_dict[item['sku__id']] = float(item['sold_in_period'] or 0)
+        for item in order_sales:
+            sku_id = item['sku__id']
+            sales_dict[sku_id] = sales_dict.get(sku_id, 0) + float(item['sold_in_period'] or 0)
 
         fast, slow, dead = [], [], []
         sku_updates = []
@@ -292,23 +312,58 @@ class InventoryMovementViewSet(viewsets.ModelViewSet):
             if min_level > 0 and current_qty <= min_level:
                 alert_data = {
                     "id": str(item.id),
+                    "sku_id": item.sku_id,
                     "sku_code": item.sku.code,
                     "sku_name": item.sku.name,
-                    "location": item.location.code,
-                    "available_quantity": str(current_qty),
+                    "location_code": item.location.code,
+                    "location_name": item.location.name,
+                    "quantity_on_hand": str(item.quantity_on_hand),
                     "min_stock_level": str(min_level),
+                    "classification": item.sku.movement_classification,
                     "is_best_seller": item.sku.is_best_seller,
                     "updated_at": timezone.localtime(item.updated_at).isoformat(),
                 }
                 
-                if item.sku.is_best_seller:
+                # Critical if marked as best seller OR classified as 'fast' moving
+                if item.sku.is_best_seller or item.sku.movement_classification == 'fast':
+                    critical_alerts.append(alert_data)
+                else:
+                    standard_alerts.append(alert_data)
+                    
+        # Include Shopify integrations inventory
+        from apps.integrations.shopify_models import ShopifyProduct
+        shopify_products = ShopifyProduct.objects.filter(
+            store__company_id=request.user.company_id,
+            erp_sku__isnull=False
+        ).select_related("erp_sku")
+        
+        for sp in shopify_products:
+            min_level = sp.erp_sku.min_stock_level
+            current_qty = sp.shopify_inventory_quantity
+            
+            if min_level > 0 and current_qty <= min_level:
+                alert_data = {
+                    "id": f"shopify_{sp.id}",
+                    "sku_id": sp.erp_sku_id,
+                    "sku_code": sp.erp_sku.code,
+                    "sku_name": sp.erp_sku.name,
+                    "location_code": "ONLINE",
+                    "location_name": "Shopify Online Store",
+                    "quantity_on_hand": str(current_qty),
+                    "min_stock_level": str(min_level),
+                    "classification": sp.erp_sku.movement_classification,
+                    "is_best_seller": sp.erp_sku.is_best_seller,
+                    "updated_at": timezone.localtime(sp.last_synced_at or sp.updated_at).isoformat(),
+                }
+                
+                if sp.erp_sku.is_best_seller or sp.erp_sku.movement_classification == 'fast':
                     critical_alerts.append(alert_data)
                 else:
                     standard_alerts.append(alert_data)
 
         # Sort: lowest stock relative to min_level first
-        standard_alerts.sort(key=lambda x: float(x['available_quantity']))
-        critical_alerts.sort(key=lambda x: float(x['available_quantity']))
+        standard_alerts.sort(key=lambda x: float(x['quantity_on_hand']))
+        critical_alerts.sort(key=lambda x: float(x['quantity_on_hand']))
 
         return Response({
             "critical_best_sellers": critical_alerts,
@@ -1454,6 +1509,7 @@ class DailyStockReportViewSet(viewsets.ViewSet):
         Returns per-SKU and aggregate turnover ratio, margin %, COGS, revenue.
         """
         from apps.sales.models import SalesTransactionLine, SalesTransaction
+        from apps.documents.models import DocumentLine
         from datetime import date
         import calendar
 
@@ -1470,7 +1526,9 @@ class DailyStockReportViewSet(viewsets.ViewSet):
         start_date = date(year, month, 1)
         end_date = date(year, month, last_day)
 
-        # Sales lines in this month
+        # Sales lines in this month (Unified: POS + Shopify)
+        
+        # 1. POS Lines
         sale_filter = {
             'transaction__company_id': request.user.company_id,
             'transaction__transaction_date__date__gte': start_date,
@@ -1480,17 +1538,72 @@ class DailyStockReportViewSet(viewsets.ViewSet):
         if location_id:
             sale_filter['transaction__store_id'] = location_id
 
-        lines = SalesTransactionLine.objects.filter(
-            **sale_filter
-        ).values(
-            'sku__id', 'sku__code', 'sku__name', 'sku__product__name',
-            'sku__product__product_type'
+        lines_qs = SalesTransactionLine.objects.filter(**sale_filter).values(
+            'sku__id', 'sku__code', 'sku__name', 'sku__product__name', 'sku__product__product_type'
         ).annotate(
             qty_sold=Sum('quantity'),
             revenue=Sum('line_total'),
-            cogs=Sum(models.F('unit_cost') * models.F('quantity')),
+            cogs=Sum(models.F('quantity') * models.F('unit_cost')),
             total_discount=Sum('discount_amount'),
-        ).order_by('-revenue')
+        )
+        
+        # 2. Document Lines (Shopify/Sales orders)
+        doc_filter = {
+            'document__company_id': request.user.company_id,
+            'document__document_date__gte': start_date,
+            'document__document_date__lte': end_date,
+            'document__document_type__code': 'sales_order',
+            'status': 'active',
+        }
+        if location_id:
+            doc_filter['document__from_location_id'] = location_id
+            
+        doc_lines = DocumentLine.objects.filter(**doc_filter).values(
+            'sku__id', 'sku__code', 'sku__name', 'sku__product__name', 'sku__product__product_type'
+        ).annotate(
+            qty_sold=Sum('quantity'),
+            revenue=Sum('line_amount'),
+            # COGS from average cost if unit_cost not in DocumentLine
+            cogs=Sum(models.F('quantity') * models.F('sku__inventory_balances__average_cost')),
+            total_discount=Sum(Decimal('0')),
+        )
+        
+        # Merge lines (convert QuerySet to dict by SKU)
+        merged_lines = {}
+        for l in lines_qs:
+            sku_id = l['sku__id']
+            merged_lines[sku_id] = {
+                'sku__id': sku_id,
+                'sku__code': l['sku__code'],
+                'sku__name': l['sku__name'],
+                'sku__product__name': l['sku__product__name'],
+                'sku__product__product_type': l['sku__product__product_type'],
+                'qty_sold': float(l['qty_sold'] or 0),
+                'revenue': float(l['revenue'] or 0),
+                'cogs': float(l['cogs'] or 0),
+                'total_discount': float(l['total_discount'] or 0),
+            }
+            
+        for l in doc_lines:
+            sku_id = l['sku__id']
+            if sku_id in merged_lines:
+                merged_lines[sku_id]['qty_sold'] += float(l['qty_sold'] or 0)
+                merged_lines[sku_id]['revenue'] += float(l['revenue'] or 0)
+                merged_lines[sku_id]['cogs'] += float(l['cogs'] or 0)
+            else:
+                merged_lines[sku_id] = {
+                    'sku__id': sku_id,
+                    'sku__code': l['sku__code'],
+                    'sku__name': l['sku__name'],
+                    'sku__product__name': l['sku__product__name'],
+                    'sku__product__product_type': l['sku__product__product_type'],
+                    'qty_sold': float(l['qty_sold'] or 0),
+                    'revenue': float(l['revenue'] or 0),
+                    'cogs': float(l['cogs'] or 0),
+                    'total_discount': 0,
+                }
+        
+        lines = sorted(list(merged_lines.values()), key=lambda x: x['revenue'], reverse=True)
 
         # Average inventory for turnover
         balance_filter = {
@@ -1638,6 +1751,27 @@ class DailyStockReportViewSet(viewsets.ViewSet):
                 date_map[ds]['store_revenue'] += float(row['revenue'] or 0)
                 date_map[ds]['store_orders'] += row['orders'] or 0
             else:
+                date_map[ds]['online_revenue'] += float(row['revenue'] or 0)
+                date_map[ds]['online_orders'] += row['orders'] or 0
+
+        # Shopify Orders (Unified accuracy)
+        from apps.integrations.shopify_models import ShopifyOrder
+        shopify_sales = ShopifyOrder.objects.filter(
+            store__company_id=request.user.company_id,
+            processed_at__date__gte=start_date,
+            processed_at__date__lte=end_date
+        ).annotate(
+            date=TruncDate('processed_at')
+        ).values('date').annotate(
+            revenue=Sum('total_price'),
+            orders=Count('id')
+        )
+        
+        for row in shopify_sales:
+            if not row['date']:
+                continue
+            ds = row['date'].strftime('%Y-%m-%d')
+            if ds in date_map:
                 date_map[ds]['online_revenue'] += float(row['revenue'] or 0)
                 date_map[ds]['online_orders'] += row['orders'] or 0
 
