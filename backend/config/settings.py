@@ -139,13 +139,11 @@ elif DB_ENGINE == 'django.db.backends.postgresql' and DB_HOST:
         }
     }
 else:
-    # Fallback to SQLite for development
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
-    }
+    from django.core.exceptions import ImproperlyConfigured
+    raise ImproperlyConfigured(
+        "No database configured. Set DATABASE_URL or DB_ENGINE/DB_HOST "
+        "environment variables in your .env file."
+    )
 
 # Use schemas for logical separation
 DATABASE_ROUTERS = ['config.db_router.LogicalDatabaseRouter']

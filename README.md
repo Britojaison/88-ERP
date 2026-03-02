@@ -35,7 +35,7 @@ This ERP platform is built on the principle of **configuration over customizatio
 
 ### Backend
 - Django 4.2 + Django REST Framework
-- PostgreSQL (with SQLite fallback)
+- PostgreSQL
 - Celery + Redis for async tasks
 - Elasticsearch for search
 - JSONLogic for rule evaluation
@@ -52,7 +52,7 @@ This ERP platform is built on the principle of **configuration over customizatio
 
 - Python 3.9+
 - Node.js 18+
-- PostgreSQL 13+ (optional, SQLite fallback available)
+- PostgreSQL 13+
 
 ## Quick Start
 
