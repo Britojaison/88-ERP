@@ -42,49 +42,54 @@ import {
 } from '@mui/icons-material'
 import { logout } from '../store/slices/authSlice'
 import { authService } from '../services/auth.service'
+import { usePermissions } from '../hooks/usePermissions'
 
 const drawerWidth = 272
 
 const navSections = [
   {
     heading: 'Operations',
+    visible: true,
     items: [
-      { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
-      { text: 'Master Data', icon: <PeopleIcon />, path: '/master-data' },
-      { text: 'Documents', icon: <DocumentIcon />, path: '/documents' },
-      { text: 'Inventory', icon: <InventoryIcon />, path: '/inventory' },
-      { text: 'Barcodes', icon: <BarcodeIcon />, path: '/inventory/barcodes' },
-      { text: 'Receiving', icon: <ReceivingIcon />, path: '/inventory/receiving' },
-      { text: 'Warehouses', icon: <WarehouseIcon />, path: '/warehouses' },
-      { text: 'Stores', icon: <StoreIcon />, path: '/stores' },
-      { text: 'Transfers', icon: <TransferIcon />, path: '/inventory/stock-transfers' },
-      { text: 'Store POS', icon: <StoreIcon />, path: '/pos' },
-      { text: 'POS Returns', icon: <StoreIcon />, path: '/pos/returns' },
-      { text: 'Reports', icon: <ReportIcon />, path: '/reports' },
+      { text: 'Dashboard', icon: <DashboardIcon />, path: '/', permission: 'dashboard.view' },
+      { text: 'Master Data', icon: <PeopleIcon />, path: '/master-data', permission: 'mdm.product.view' },
+      { text: 'Documents', icon: <DocumentIcon />, path: '/documents', permission: 'mdm.documents.view' },
+      { text: 'Inventory', icon: <InventoryIcon />, path: '/inventory', permission: 'inv.view' },
+      { text: 'Barcodes', icon: <BarcodeIcon />, path: '/inventory/barcodes', permission: 'inv.barcodes' },
+      { text: 'Receiving', icon: <ReceivingIcon />, path: '/inventory/receiving', permission: 'inv.receiving' },
+      { text: 'Warehouses', icon: <WarehouseIcon />, path: '/warehouses', permission: 'org.warehouses.view' },
+      { text: 'Stores', icon: <StoreIcon />, path: '/stores', permission: 'org.stores.view' },
+      { text: 'Transfers', icon: <TransferIcon />, path: '/inventory/stock-transfers', permission: 'inv.transfer' },
+      { text: 'Store POS', icon: <StoreIcon />, path: '/pos', permission: 'pos.checkout' },
+      { text: 'POS Returns', icon: <StoreIcon />, path: '/pos/returns', permission: 'pos.returns' },
+      { text: 'Reports', icon: <ReportIcon />, path: '/reports', permission: 'report.sales' },
     ],
   },
   {
     heading: 'Design & Production',
+    visible: true,
     items: [
-      { text: 'Designer Workbench', icon: <DesignerIcon />, path: '/inventory/design-approvals' },
-      { text: 'Production Kanban', icon: <KanbanIcon />, path: '/inventory/production-kanban' },
-      { text: 'Product Journey', icon: <BarcodeIcon />, path: '/inventory/product-journey' },
+      { text: 'Designer Workbench', icon: <DesignerIcon />, path: '/inventory/design-approvals', permission: 'inv.journey' },
+      { text: 'Production Kanban', icon: <KanbanIcon />, path: '/inventory/production-kanban', permission: 'inv.kanban' },
+      { text: 'Product Journey', icon: <BarcodeIcon />, path: '/inventory/product-journey', permission: 'inv.journey' },
     ],
   },
   {
     heading: 'Reports Detailed',
+    visible: true,
     items: [
-      { text: 'Daily Sales', icon: <DailySalesIcon />, path: '/reports/daily' },
-      { text: 'Stock Velocity', icon: <VelocityIcon />, path: '/reports/weekly-stock' },
-      { text: 'Margin Analysis', icon: <MarginIcon />, path: '/reports/monthly-margin' },
-      { text: 'Store vs Online', icon: <CompareIcon />, path: '/reports/channel-comparison' },
+      { text: 'Daily Sales', icon: <DailySalesIcon />, path: '/reports/daily', permission: 'report.sales' },
+      { text: 'Stock Velocity', icon: <VelocityIcon />, path: '/reports/weekly-stock', permission: 'report.stock' },
+      { text: 'Margin Analysis', icon: <MarginIcon />, path: '/reports/monthly-margin', permission: 'report.margin' },
+      { text: 'Store vs Online', icon: <CompareIcon />, path: '/reports/channel-comparison', permission: 'report.channel' },
     ],
   },
   {
     heading: 'Platform',
+    visible: true,
     items: [
-      { text: 'Shopify', icon: <ShopifyIcon />, path: '/shopify' },
-      { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
+      { text: 'Shopify', icon: <ShopifyIcon />, path: '/shopify', permission: 'integration.shopify' },
+      { text: 'Settings', icon: <SettingsIcon />, path: '/settings', permission: 'admin.config' },
     ],
   },
 ]
@@ -96,14 +101,25 @@ export default function Layout() {
   const location = useLocation()
   const dispatch = useDispatch()
 
+  const { hasPermission } = usePermissions()
+
+  const filteredNavSections = useMemo(() => {
+    return navSections
+      .map((section) => ({
+        ...section,
+        items: section.items.filter((item) => hasPermission(item.permission)),
+      }))
+      .filter((section) => section.items.length > 0)
+  }, [hasPermission])
+
   const activeTitle = useMemo(() => {
-    const matched = navSections
-      .flatMap((section) => section.items)
-      .find((item) =>
+    const matched = filteredNavSections
+      .flatMap((section: any) => section.items)
+      .find((item: any) =>
         item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path),
       )
     return matched?.text ?? 'ERP Platform'
-  }, [location.pathname])
+  }, [location.pathname, filteredNavSections])
 
   const handleMenu = (event: MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget)
@@ -132,7 +148,7 @@ export default function Layout() {
       </Toolbar>
       <Divider />
       <List sx={{ px: 1.5, py: 2 }}>
-        {navSections.map((section) => (
+        {filteredNavSections.map((section) => (
           <Box key={section.heading} sx={{ mb: 1.5 }}>
             <Typography
               variant="caption"

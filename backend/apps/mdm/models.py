@@ -191,6 +191,7 @@ class User(AbstractBaseUser, PermissionsMixin, BaseModel):
     username = models.CharField(max_length=150, unique=True, db_index=True)
     first_name = models.CharField(max_length=150, blank=True)
     last_name = models.CharField(max_length=150, blank=True)
+    role = models.CharField(max_length=50, default='User')
     
     company = models.ForeignKey(
         Company,

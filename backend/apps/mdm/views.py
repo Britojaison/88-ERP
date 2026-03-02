@@ -2,11 +2,11 @@
 API Views for Master Data Management.
 """
 import re
-from rest_framework import viewsets
+from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from .models import Company, BusinessUnit, Location, Customer, Vendor, Product, Style, SKU, SKUBarcode, Fabric
+from .models import Company, BusinessUnit, Location, Customer, Vendor, Product, Style, SKU, SKUBarcode, Fabric, User
 from .serializers import (
     CompanySerializer,
     BusinessUnitSerializer,
@@ -18,9 +18,39 @@ from .serializers import (
     SKUSerializer,
     SKUBarcodeSerializer,
     FabricSerializer,
+    UserSerializer,
 )
 from rest_framework.pagination import PageNumberPagination
 from .barcode_service import BarcodeService
+
+
+class IsAdminUser(IsAuthenticated):
+    """Only allow access to users whose role is 'admin' or who are superusers."""
+    def has_permission(self, request, view):
+        if not super().has_permission(request, view):
+            return False
+        return request.user.is_superuser or (request.user.role or '').lower() == 'admin'
+
+
+class UserViewSet(viewsets.ModelViewSet):
+    """Admin-only user management — list, create, edit users and set passwords."""
+    serializer_class = UserSerializer
+    permission_classes = [IsAdminUser]
+    pagination_class = None
+
+    def get_queryset(self):
+        return User.objects.all().order_by('email')
+
+    @action(detail=True, methods=['post'], url_path='set-password')
+    def set_password(self, request, pk=None):
+        user = self.get_object()
+        password = request.data.get('password', '')
+        if not password or len(password) < 6:
+            return Response({'error': 'Password must be at least 6 characters.'}, status=status.HTTP_400_BAD_REQUEST)
+        user.set_password(password)
+        user.save()
+        return Response({'detail': f'Password updated for {user.email}.'})
+
 
 
 def _get_next_mmw_number():
