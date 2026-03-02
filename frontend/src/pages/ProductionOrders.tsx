@@ -7,7 +7,7 @@ import {
 } from '@mui/material'
 import {
     Add, CheckCircle, PlayArrow, Inventory as InventoryIcon, Close as CloseIcon,
-    Cancel, Warning, LocalShipping, Factory as FactoryIcon, ArrowBack,
+    Cancel, Warning, ArrowBack,
 } from '@mui/icons-material'
 import PageHeader from '../components/ui/PageHeader'
 import {
@@ -62,14 +62,14 @@ export default function ProductionOrders() {
         order_date: string
         expected_delivery: string
         notes: string
-        lines: { sku: string; planned_quantity: number; unit_cost: number }[]
+        lines: { sku: string; planned_quantity: number }[]
     }>({
         order_type: 'new_production',
         destination: '',
         order_date: new Date().toISOString().split('T')[0],
         expected_delivery: '',
         notes: '',
-        lines: [{ sku: '', planned_quantity: 1, unit_cost: 0 }],
+        lines: [{ sku: '', planned_quantity: 1 }],
     })
 
     // Receive form state
@@ -214,7 +214,7 @@ export default function ProductionOrders() {
     const addLine = () => {
         setCreateForm(prev => ({
             ...prev,
-            lines: [...prev.lines, { sku: '', planned_quantity: 1, unit_cost: 0 }],
+            lines: [...prev.lines, { sku: '', planned_quantity: 1 }],
         }))
     }
 
@@ -229,155 +229,179 @@ export default function ProductionOrders() {
 
     // Detail view
     if (selectedOrder) {
+        const pct = selectedOrder.fulfillment_pct
+        const pctColor = pct >= 100 ? '#16a34a' : pct >= 50 ? '#d97706' : '#dc2626'
+
         return (
             <Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
-                    <IconButton onClick={() => setSelectedOrder(null)}><ArrowBack /></IconButton>
-                    <Box>
-                        <Typography variant="h5" fontWeight={700}>{selectedOrder.order_number}</Typography>
+                {/* Header bar */}
+                <Paper
+                    elevation={0}
+                    sx={{
+                        p: 2.5, mb: 3, borderRadius: 4,
+                        border: '1px solid rgba(15,23,42,0.08)',
+                        display: 'flex', alignItems: 'center', gap: 2,
+                    }}
+                >
+                    <IconButton onClick={() => setSelectedOrder(null)} sx={{ bgcolor: 'action.hover' }}><ArrowBack /></IconButton>
+                    <Box sx={{ flex: 1 }}>
+                        <Typography variant="h5" fontWeight={800} sx={{ letterSpacing: '-0.02em' }}>{selectedOrder.order_number}</Typography>
                         <Box sx={{ display: 'flex', gap: 1, mt: 0.5 }}>
-                            <Chip label={STATUS_LABELS[selectedOrder.po_status]} color={STATUS_COLORS[selectedOrder.po_status]} size="small" />
-                            <Chip label={TYPE_LABELS[selectedOrder.order_type]} variant="outlined" size="small" />
-                            {selectedOrder.is_overdue && <Chip label="⏰ OVERDUE" color="error" size="small" />}
+                            <Chip label={STATUS_LABELS[selectedOrder.po_status]} color={STATUS_COLORS[selectedOrder.po_status]} size="small" sx={{ fontWeight: 700, borderRadius: 1.5 }} />
+                            <Chip label={TYPE_LABELS[selectedOrder.order_type]} variant="outlined" size="small" sx={{ borderRadius: 1.5 }} />
+                            {selectedOrder.is_overdue && <Chip label="OVERDUE" color="error" size="small" sx={{ fontWeight: 700, borderRadius: 1.5 }} />}
                         </Box>
                     </Box>
-                    <Box sx={{ ml: 'auto', display: 'flex', gap: 1 }}>
+                    <Box sx={{ display: 'flex', gap: 1 }}>
                         {selectedOrder.po_status === 'draft' && (
                             <>
-                                <Button variant="contained" color="info" startIcon={<CheckCircle />} onClick={() => void handleConfirm(selectedOrder.id)}>Confirm</Button>
-                                <Button variant="outlined" color="error" startIcon={<Cancel />} onClick={() => void handleCancel(selectedOrder.id)}>Cancel</Button>
+                                <Button variant="contained" color="info" size="small" startIcon={<CheckCircle />} onClick={() => void handleConfirm(selectedOrder.id)}>Confirm</Button>
+                                <Button variant="outlined" color="error" size="small" startIcon={<Cancel />} onClick={() => void handleCancel(selectedOrder.id)}>Cancel</Button>
                             </>
                         )}
                         {selectedOrder.po_status === 'confirmed' && (
-                            <Button variant="contained" color="primary" startIcon={<PlayArrow />} onClick={() => void handleStart(selectedOrder.id)}>Start Production</Button>
+                            <Button variant="contained" color="primary" size="small" startIcon={<PlayArrow />} onClick={() => void handleStart(selectedOrder.id)}>Start Production</Button>
                         )}
                         {['in_production', 'partially_received', 'confirmed'].includes(selectedOrder.po_status) && (
-                            <Button variant="contained" color="success" startIcon={<InventoryIcon />} onClick={() => openReceive(selectedOrder)}>Receive Goods</Button>
+                            <Button variant="contained" color="success" size="small" startIcon={<InventoryIcon />} onClick={() => openReceive(selectedOrder)}>Receive Goods</Button>
                         )}
                         {['partially_received', 'in_production'].includes(selectedOrder.po_status) && (
-                            <Button variant="outlined" color="warning" startIcon={<Warning />} onClick={() => void handleShortClose(selectedOrder.id)}>Short Close</Button>
+                            <Button variant="outlined" color="warning" size="small" startIcon={<Warning />} onClick={() => void handleShortClose(selectedOrder.id)}>Short Close</Button>
                         )}
                     </Box>
-                </Box>
+                </Paper>
 
-                {/* Summary cards */}
-                <Grid container spacing={2} sx={{ mb: 3 }}>
+                {/* Metrics row */}
+                <Grid container spacing={2.5} sx={{ mb: 3 }}>
                     <Grid item xs={6} sm={3}>
-                        <Card><CardContent>
-                            <Typography variant="overline" color="text.secondary">Planned</Typography>
-                            <Typography variant="h4" fontWeight={700}>{selectedOrder.total_planned}</Typography>
-                        </CardContent></Card>
+                        <Paper elevation={0} sx={{ p: 3, borderRadius: 4, border: '1px solid rgba(15,23,42,0.08)', bgcolor: '#f8fafc' }}>
+                            <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Planned</Typography>
+                            <Typography variant="h3" sx={{ fontWeight: 800, mt: 0.5, color: '#1e293b' }}>{selectedOrder.total_planned}</Typography>
+                        </Paper>
                     </Grid>
                     <Grid item xs={6} sm={3}>
-                        <Card><CardContent>
-                            <Typography variant="overline" color="text.secondary">Received</Typography>
-                            <Typography variant="h4" fontWeight={700} color="success.main">{selectedOrder.total_received}</Typography>
-                        </CardContent></Card>
+                        <Paper elevation={0} sx={{ p: 3, borderRadius: 4, border: '1px solid rgba(15,23,42,0.08)', bgcolor: '#f0fdf4' }}>
+                            <Typography variant="caption" sx={{ fontWeight: 700, color: '#16a34a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Received</Typography>
+                            <Typography variant="h3" sx={{ fontWeight: 800, mt: 0.5, color: '#16a34a' }}>{selectedOrder.total_received}</Typography>
+                        </Paper>
                     </Grid>
                     <Grid item xs={6} sm={3}>
-                        <Card><CardContent>
-                            <Typography variant="overline" color="text.secondary">Rejected</Typography>
-                            <Typography variant="h4" fontWeight={700} color="error.main">{selectedOrder.total_rejected}</Typography>
-                        </CardContent></Card>
+                        <Paper elevation={0} sx={{ p: 3, borderRadius: 4, border: '1px solid rgba(15,23,42,0.08)', bgcolor: selectedOrder.total_rejected > 0 ? '#fef2f2' : '#f8fafc' }}>
+                            <Typography variant="caption" sx={{ fontWeight: 700, color: selectedOrder.total_rejected > 0 ? '#dc2626' : 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Rejected</Typography>
+                            <Typography variant="h3" sx={{ fontWeight: 800, mt: 0.5, color: selectedOrder.total_rejected > 0 ? '#dc2626' : '#94a3b8' }}>{selectedOrder.total_rejected}</Typography>
+                        </Paper>
                     </Grid>
                     <Grid item xs={6} sm={3}>
-                        <Card><CardContent>
-                            <Typography variant="overline" color="text.secondary">Fulfillment</Typography>
-                            <Typography variant="h4" fontWeight={700} color={selectedOrder.fulfillment_pct >= 100 ? 'success.main' : selectedOrder.fulfillment_pct >= 50 ? 'warning.main' : 'error.main'}>
-                                {selectedOrder.fulfillment_pct}%
-                            </Typography>
+                        <Paper elevation={0} sx={{ p: 3, borderRadius: 4, border: `2px solid ${pctColor}20`, bgcolor: `${pctColor}08` }}>
+                            <Typography variant="caption" sx={{ fontWeight: 700, color: pctColor, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Fulfillment</Typography>
+                            <Typography variant="h3" sx={{ fontWeight: 800, mt: 0.5, color: pctColor }}>{pct}%</Typography>
                             <LinearProgress
                                 variant="determinate"
-                                value={Math.min(selectedOrder.fulfillment_pct, 100)}
-                                color={selectedOrder.fulfillment_pct >= 100 ? 'success' : selectedOrder.fulfillment_pct >= 50 ? 'warning' : 'error'}
-                                sx={{ mt: 1, height: 6, borderRadius: 3 }}
+                                value={Math.min(pct, 100)}
+                                sx={{ mt: 1.5, height: 4, borderRadius: 2, bgcolor: `${pctColor}15`, '& .MuiLinearProgress-bar': { bgcolor: pctColor, borderRadius: 2 } }}
                             />
-                        </CardContent></Card>
+                        </Paper>
                     </Grid>
                 </Grid>
 
-                {/* Order info */}
-                <Paper sx={{ p: 2, mb: 3 }}>
-                    <Grid container spacing={2}>
-                        <Grid item xs={6} sm={3}>
-                            <Typography variant="caption" color="text.secondary">Destination</Typography>
-                            <Typography fontWeight={600}>{selectedOrder.destination_name}</Typography>
-                        </Grid>
-                        <Grid item xs={6} sm={3}>
-                            <Typography variant="caption" color="text.secondary">Factory</Typography>
-                            <Typography fontWeight={600}>{selectedOrder.factory_name || '—'}</Typography>
-                        </Grid>
-                        <Grid item xs={6} sm={3}>
-                            <Typography variant="caption" color="text.secondary">Order Date</Typography>
-                            <Typography fontWeight={600}>{selectedOrder.order_date}</Typography>
-                        </Grid>
-                        <Grid item xs={6} sm={3}>
-                            <Typography variant="caption" color="text.secondary">Expected Delivery</Typography>
-                            <Typography fontWeight={600}>{selectedOrder.expected_delivery || '—'}</Typography>
-                        </Grid>
+                {/* Order details */}
+                <Paper elevation={0} sx={{ p: 3, mb: 3, borderRadius: 4, border: '1px solid rgba(15,23,42,0.08)' }}>
+                    <Grid container spacing={3}>
+                        {[
+                            { label: 'Destination', value: selectedOrder.destination_name },
+                            { label: 'Factory', value: selectedOrder.factory_name || '—' },
+                            { label: 'Order Date', value: selectedOrder.order_date },
+                            { label: 'Expected Delivery', value: selectedOrder.expected_delivery || '—' },
+                        ].map((item) => (
+                            <Grid item xs={6} sm={3} key={item.label}>
+                                <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', mb: 0.5 }}>{item.label}</Typography>
+                                <Typography sx={{ fontWeight: 600, color: '#1e293b' }}>{item.value}</Typography>
+                            </Grid>
+                        ))}
                     </Grid>
                     {selectedOrder.notes && (
-                        <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: 'divider' }}>
-                            <Typography variant="caption" color="text.secondary">Notes</Typography>
-                            <Typography>{selectedOrder.notes}</Typography>
+                        <Box sx={{ mt: 2.5, pt: 2, borderTop: '1px solid rgba(15,23,42,0.06)' }}>
+                            <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', mb: 0.5 }}>Notes</Typography>
+                            <Typography variant="body2" sx={{ color: '#475569' }}>{selectedOrder.notes}</Typography>
                         </Box>
                     )}
                 </Paper>
 
-                {/* Lines table */}
-                <Paper>
-                    <Typography variant="h6" sx={{ p: 2, pb: 0 }}>Order Lines</Typography>
+                {/* Order lines */}
+                <Paper elevation={0} sx={{ borderRadius: 4, border: '1px solid rgba(15,23,42,0.08)', overflow: 'hidden' }}>
+                    <Box sx={{ px: 3, py: 2, bgcolor: '#f8fafc', borderBottom: '1px solid rgba(15,23,42,0.06)' }}>
+                        <Typography variant="subtitle1" fontWeight={800} sx={{ color: '#1e293b' }}>Order Lines</Typography>
+                    </Box>
                     <TableContainer>
                         <Table>
                             <TableHead>
                                 <TableRow>
-                                    <TableCell>SKU</TableCell>
-                                    <TableCell>Product</TableCell>
-                                    <TableCell align="center">Planned</TableCell>
-                                    <TableCell align="center">Received</TableCell>
-                                    <TableCell align="center">Rejected</TableCell>
-                                    <TableCell align="center">Shortfall</TableCell>
-                                    <TableCell>Fulfillment</TableCell>
-                                    <TableCell>Status</TableCell>
+                                    <TableCell sx={{ fontWeight: 800, color: '#64748b' }}>SKU</TableCell>
+                                    <TableCell sx={{ fontWeight: 800, color: '#64748b' }}>Product</TableCell>
+                                    <TableCell sx={{ fontWeight: 800, color: '#64748b' }} align="center">Planned</TableCell>
+                                    <TableCell sx={{ fontWeight: 800, color: '#64748b' }} align="center">Received</TableCell>
+                                    <TableCell sx={{ fontWeight: 800, color: '#64748b' }} align="center">Rejected</TableCell>
+                                    <TableCell sx={{ fontWeight: 800, color: '#64748b' }} align="center">Shortfall</TableCell>
+                                    <TableCell sx={{ fontWeight: 800, color: '#64748b' }}>Progress</TableCell>
+                                    <TableCell sx={{ fontWeight: 800, color: '#64748b' }}>Status</TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {selectedOrder.lines.map((line) => (
-                                    <TableRow key={line.id}>
-                                        <TableCell>
-                                            <Typography fontWeight={600}>{line.sku_code}</Typography>
-                                        </TableCell>
-                                        <TableCell>{line.product_name || line.sku_name}</TableCell>
-                                        <TableCell align="center">{line.planned_quantity}</TableCell>
-                                        <TableCell align="center">
-                                            <Typography color="success.main" fontWeight={600}>{line.received_quantity}</Typography>
-                                        </TableCell>
-                                        <TableCell align="center">
-                                            <Typography color={line.rejected_quantity > 0 ? 'error.main' : 'text.secondary'}>{line.rejected_quantity}</Typography>
-                                        </TableCell>
-                                        <TableCell align="center">
-                                            <Typography color={line.shortfall > 0 ? 'warning.main' : 'text.secondary'} fontWeight={line.shortfall > 0 ? 700 : 400}>
-                                                {line.shortfall > 0 ? `⚠️ ${line.shortfall}` : '—'}
-                                            </Typography>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 120 }}>
-                                                <LinearProgress
-                                                    variant="determinate"
-                                                    value={Math.min(line.fulfillment_pct, 100)}
-                                                    color={line.fulfillment_pct >= 100 ? 'success' : line.fulfillment_pct >= 50 ? 'warning' : 'error'}
-                                                    sx={{ flex: 1, height: 6, borderRadius: 3 }}
+                                {selectedOrder.lines.map((line) => {
+                                    const linePct = line.fulfillment_pct
+                                    const lineColor = linePct >= 100 ? '#16a34a' : linePct >= 50 ? '#d97706' : '#dc2626'
+                                    return (
+                                        <TableRow key={line.id} sx={{ '&:hover': { bgcolor: 'rgba(15,109,106,0.02)' } }}>
+                                            <TableCell>
+                                                <Typography sx={{ fontWeight: 700, color: '#0f6d6a', fontSize: '0.875rem' }}>{line.sku_code}</Typography>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Typography variant="body2" sx={{ color: '#475569' }}>{line.product_name || line.sku_name}</Typography>
+                                            </TableCell>
+                                            <TableCell align="center">
+                                                <Typography sx={{ fontWeight: 600 }}>{line.planned_quantity}</Typography>
+                                            </TableCell>
+                                            <TableCell align="center">
+                                                <Typography sx={{ fontWeight: 700, color: '#16a34a' }}>{line.received_quantity}</Typography>
+                                            </TableCell>
+                                            <TableCell align="center">
+                                                <Typography sx={{ fontWeight: 600, color: line.rejected_quantity > 0 ? '#dc2626' : '#94a3b8' }}>{line.rejected_quantity}</Typography>
+                                            </TableCell>
+                                            <TableCell align="center">
+                                                {line.shortfall > 0 ? (
+                                                    <Chip label={line.shortfall} size="small" sx={{ fontWeight: 700, bgcolor: '#fef3c7', color: '#92400e', borderRadius: 1.5 }} />
+                                                ) : (
+                                                    <Typography sx={{ color: '#94a3b8' }}>—</Typography>
+                                                )}
+                                            </TableCell>
+                                            <TableCell>
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 100 }}>
+                                                    <LinearProgress
+                                                        variant="determinate"
+                                                        value={Math.min(linePct, 100)}
+                                                        sx={{ flex: 1, height: 4, borderRadius: 2, bgcolor: `${lineColor}15`, '& .MuiLinearProgress-bar': { bgcolor: lineColor, borderRadius: 2 } }}
+                                                    />
+                                                    <Typography variant="caption" sx={{ fontWeight: 700, color: lineColor, minWidth: 36 }}>{linePct}%</Typography>
+                                                </Box>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Chip
+                                                    label={line.line_status.replace(/_/g, ' ')}
+                                                    size="small"
+                                                    sx={{
+                                                        fontWeight: 700,
+                                                        textTransform: 'capitalize',
+                                                        borderRadius: 1.5,
+                                                        ...(line.line_status === 'completed' ? { bgcolor: '#dcfce7', color: '#166534' } :
+                                                            line.line_status === 'partially_received' ? { bgcolor: '#fef3c7', color: '#92400e' } :
+                                                                line.line_status === 'short_closed' ? { bgcolor: '#fce7f3', color: '#9d174d' } :
+                                                                    { bgcolor: '#f1f5f9', color: '#475569' })
+                                                    }}
                                                 />
-                                                <Typography variant="caption" fontWeight={600}>{line.fulfillment_pct}%</Typography>
-                                            </Box>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Chip label={line.line_status.replace(/_/g, ' ')} size="small"
-                                                color={line.line_status === 'completed' ? 'success' : line.line_status === 'short_closed' ? 'warning' : 'default'}
-                                            />
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
+                                            </TableCell>
+                                        </TableRow>
+                                    )
+                                })}
                             </TableBody>
                         </Table>
                     </TableContainer>
@@ -466,7 +490,7 @@ export default function ProductionOrders() {
                             order_date: new Date().toISOString().split('T')[0],
                             expected_delivery: '',
                             notes: '',
-                            lines: [{ sku: '', planned_quantity: 1, unit_cost: 0 }],
+                            lines: [{ sku: '', planned_quantity: 1 }],
                         })
                         setOpenCreateDialog(true)
                     }}>
@@ -678,7 +702,7 @@ export default function ProductionOrders() {
 
                     {createForm.lines.map((line, idx) => (
                         <Grid container spacing={2} key={idx} sx={{ mb: 1 }}>
-                            <Grid item xs={12} sm={6}>
+                            <Grid item xs={12} sm={7}>
                                 <FormControl fullWidth size="small">
                                     <InputLabel>SKU</InputLabel>
                                     <Select
@@ -700,7 +724,7 @@ export default function ProductionOrders() {
                                     </Select>
                                 </FormControl>
                             </Grid>
-                            <Grid item xs={5} sm={2}>
+                            <Grid item xs={8} sm={4}>
                                 <TextField
                                     fullWidth size="small" type="number" label="Quantity"
                                     value={line.planned_quantity}
@@ -714,21 +738,7 @@ export default function ProductionOrders() {
                                     inputProps={{ min: 1 }}
                                 />
                             </Grid>
-                            <Grid item xs={5} sm={3}>
-                                <TextField
-                                    fullWidth size="small" type="number" label="Unit Cost (₹)"
-                                    value={line.unit_cost}
-                                    onChange={(e) => {
-                                        const val = parseFloat(e.target.value) || 0
-                                        setCreateForm(prev => ({
-                                            ...prev,
-                                            lines: prev.lines.map((l, i) => i === idx ? { ...l, unit_cost: val } : l),
-                                        }))
-                                    }}
-                                    inputProps={{ min: 0, step: 0.01 }}
-                                />
-                            </Grid>
-                            <Grid item xs={2} sm={1} sx={{ display: 'flex', alignItems: 'center' }}>
+                            <Grid item xs={4} sm={1} sx={{ display: 'flex', alignItems: 'center' }}>
                                 {createForm.lines.length > 1 && (
                                     <IconButton size="small" color="error" onClick={() => removeLine(idx)}>
                                         <CloseIcon fontSize="small" />
