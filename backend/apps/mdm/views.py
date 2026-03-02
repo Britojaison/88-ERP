@@ -133,11 +133,21 @@ class VendorViewSet(TenantScopedViewSet):
 
 class ProductViewSet(TenantScopedViewSet):
     serializer_class = ProductSerializer
+    from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_queryset(self):
         return Product.objects.filter(
             company_id=self.request.user.company_id, status="active"
         ).order_by("-created_at")
+
+    def create(self, request, *args, **kwargs):
+        print(f"[ProductViewSet] CREATE request data: {request.data}")
+        print(f"[ProductViewSet] FILES: {request.FILES}")
+        serializer = self.get_serializer(data=request.data)
+        if not serializer.is_valid():
+            print(f"[ProductViewSet] Validation errors: {serializer.errors}")
+        return super().create(request, *args, **kwargs)
     
     @action(detail=False, methods=["get"], url_path="next-sku-code")
     def next_sku_code(self, request):
