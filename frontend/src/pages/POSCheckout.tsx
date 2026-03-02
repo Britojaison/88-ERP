@@ -19,20 +19,24 @@ import {
     Paper,
     LinearProgress,
     Chip,
-    FormControlLabel,
-    Switch,
+    ToggleButton,
+    ToggleButtonGroup,
     Table,
     TableBody,
     TableCell,
     TableContainer,
     TableHead,
     TableRow,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
 } from '@mui/material'
-import { Storefront, DeleteOutline, PointOfSale, Search, LocalOffer, Refresh } from '@mui/icons-material'
+import { Storefront, DeleteOutline, PointOfSale, Search, LocalOffer, Refresh, Close, Receipt } from '@mui/icons-material'
 import PageHeader from '../components/ui/PageHeader'
 import { mdmService, Location, SKU } from '../services/mdm.service'
 import { inventoryService, InventoryBalance } from '../services/inventory.service'
-import { salesService, SalesTransaction } from '../services/sales.service'
+import { salesService, SalesTransaction, SalesTransactionLine } from '../services/sales.service'
 import { StoreInvoice } from '../components/pos/StoreInvoice'
 
 interface CartItem {
@@ -53,7 +57,7 @@ export default function POSCheckout() {
     const [storeBalances, setStoreBalances] = useState<InventoryBalance[]>([])
     const [searchQuery, setSearchQuery] = useState('')
     const [loading, setLoading] = useState(false)
-    const [showInStockOnly, setShowInStockOnly] = useState(true)
+    const [stockFilter, setStockFilter] = useState<'all' | 'in_stock' | 'out_of_stock'>('all')
 
     // Recent Transactions
     const [recentTransactions, setRecentTransactions] = useState<SalesTransaction[]>([])
@@ -66,6 +70,25 @@ export default function POSCheckout() {
     const [lastSale, setLastSale] = useState<any>(null)
     const [lastCart, setLastCart] = useState<CartItem[]>([])
     const invoiceRef = useRef<HTMLDivElement>(null)
+
+    // Transaction Detail Dialog
+    const [selectedTx, setSelectedTx] = useState<SalesTransaction | null>(null)
+    const [txDetailOpen, setTxDetailOpen] = useState(false)
+    const [txDetailLoading, setTxDetailLoading] = useState(false)
+
+    const handleOpenTxDetail = async (tx: SalesTransaction) => {
+        setTxDetailOpen(true)
+        setTxDetailLoading(true)
+        try {
+            const detail = await salesService.getTransaction(tx.id)
+            setSelectedTx(detail)
+        } catch (err) {
+            console.error('Failed to fetch transaction details', err)
+            setSelectedTx(tx)
+        } finally {
+            setTxDetailLoading(false)
+        }
+    }
 
     const handlePrint = useReactToPrint({
         contentRef: invoiceRef,
@@ -146,11 +169,13 @@ export default function POSCheckout() {
         )
         if (!matchesSearch) return false
 
-        if (showInStockOnly) {
+        if (stockFilter !== 'all') {
             const balance = storeBalances.find(b => b.sku === s.id)
             const available = balance ? parseFloat(balance.quantity_available.toString()) : 0
             const inCart = cart.find(c => c.sku.id === s.id)?.quantity || 0
-            if (available - inCart <= 0) return false
+            const netAvailable = available - inCart
+            if (stockFilter === 'in_stock' && netAvailable <= 0) return false
+            if (stockFilter === 'out_of_stock' && netAvailable > 0) return false
         }
 
         return true
@@ -623,16 +648,17 @@ export default function POSCheckout() {
                             </Box>
 
                             <Box display="flex" alignItems="center" gap={2}>
-                                <FormControlLabel
-                                    control={
-                                        <Switch
-                                            size="small"
-                                            checked={showInStockOnly}
-                                            onChange={(e) => setShowInStockOnly(e.target.checked)}
-                                        />
-                                    }
-                                    label={<Typography variant="body2" color="text.secondary">In Stock Only</Typography>}
-                                />
+                                <ToggleButtonGroup
+                                    size="small"
+                                    value={stockFilter}
+                                    exclusive
+                                    onChange={(_, val) => { if (val) setStockFilter(val) }}
+                                    sx={{ '& .MuiToggleButton-root': { textTransform: 'none', fontWeight: 600, px: 1.5, py: 0.5, fontSize: '0.8rem' } }}
+                                >
+                                    <ToggleButton value="all">All</ToggleButton>
+                                    <ToggleButton value="in_stock" color="success">In Stock</ToggleButton>
+                                    <ToggleButton value="out_of_stock" color="error">Out of Stock</ToggleButton>
+                                </ToggleButtonGroup>
 
                                 {activeStoreOffer !== 'none' && (
                                     <Chip
@@ -760,7 +786,12 @@ export default function POSCheckout() {
                                 </TableHead>
                                 <TableBody>
                                     {recentTransactions.map((tx) => (
-                                        <TableRow key={tx.id}>
+                                        <TableRow
+                                            key={tx.id}
+                                            hover
+                                            sx={{ cursor: 'pointer' }}
+                                            onClick={() => handleOpenTxDetail(tx)}
+                                        >
                                             <TableCell>{new Date(tx.transaction_date).toLocaleString()}</TableCell>
                                             <TableCell>{tx.store_name || tx.store_code || '-'}</TableCell>
                                             <TableCell sx={{ fontWeight: 600 }}>{tx.transaction_number}</TableCell>
@@ -791,6 +822,149 @@ export default function POSCheckout() {
                     </Card>
                 </Box>
             )}
+
+            {/* Transaction Detail Dialog */}
+            <Dialog
+                open={txDetailOpen}
+                onClose={() => { setTxDetailOpen(false); setSelectedTx(null) }}
+                maxWidth="md"
+                fullWidth
+                PaperProps={{ sx: { borderRadius: 3 } }}
+            >
+                <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1 }}>
+                    <Box display="flex" alignItems="center" gap={1}>
+                        <Receipt color="primary" />
+                        <Typography variant="h6" fontWeight={700}>
+                            {selectedTx?.transaction_number || 'Loading...'}
+                        </Typography>
+                    </Box>
+                    <IconButton onClick={() => { setTxDetailOpen(false); setSelectedTx(null) }} size="small">
+                        <Close />
+                    </IconButton>
+                </DialogTitle>
+                <DialogContent dividers>
+                    {txDetailLoading ? (
+                        <Box display="flex" justifyContent="center" py={6}>
+                            <CircularProgress />
+                        </Box>
+                    ) : selectedTx ? (
+                        <Box>
+                            {/* Transaction Summary */}
+                            <Grid container spacing={2} sx={{ mb: 3 }}>
+                                <Grid item xs={6} sm={3}>
+                                    <Typography variant="caption" color="text.secondary" fontWeight={600}>Date</Typography>
+                                    <Typography variant="body2" fontWeight={600}>
+                                        {new Date(selectedTx.transaction_date).toLocaleString()}
+                                    </Typography>
+                                </Grid>
+                                <Grid item xs={6} sm={3}>
+                                    <Typography variant="caption" color="text.secondary" fontWeight={600}>Store</Typography>
+                                    <Typography variant="body2" fontWeight={600}>
+                                        {selectedTx.store_name || selectedTx.store_code || '-'}
+                                    </Typography>
+                                </Grid>
+                                <Grid item xs={6} sm={3}>
+                                    <Typography variant="caption" color="text.secondary" fontWeight={600}>Payment</Typography>
+                                    <Typography variant="body2" fontWeight={600} sx={{ textTransform: 'capitalize' }}>
+                                        {selectedTx.payment_method}
+                                    </Typography>
+                                </Grid>
+                                <Grid item xs={6} sm={3}>
+                                    <Typography variant="caption" color="text.secondary" fontWeight={600}>Customer</Typography>
+                                    <Typography variant="body2" fontWeight={600}>
+                                        {selectedTx.customer || 'Walk-in'}
+                                    </Typography>
+                                </Grid>
+                            </Grid>
+
+                            <Divider sx={{ mb: 2 }} />
+
+                            {/* Line Items Table */}
+                            <Typography variant="subtitle2" fontWeight={700} mb={1}>Products Purchased</Typography>
+                            <TableContainer>
+                                <Table size="small">
+                                    <TableHead sx={{ bgcolor: 'grey.50' }}>
+                                        <TableRow>
+                                            <TableCell sx={{ fontWeight: 700 }}>#</TableCell>
+                                            <TableCell sx={{ fontWeight: 700 }}>SKU Code</TableCell>
+                                            <TableCell sx={{ fontWeight: 700 }}>Product Name</TableCell>
+                                            <TableCell sx={{ fontWeight: 700 }} align="center">Qty</TableCell>
+                                            <TableCell sx={{ fontWeight: 700 }} align="right">Unit Price</TableCell>
+                                            <TableCell sx={{ fontWeight: 700 }} align="right">Discount</TableCell>
+                                            <TableCell sx={{ fontWeight: 700 }} align="right">Total</TableCell>
+                                            <TableCell sx={{ fontWeight: 700 }} align="center">Status</TableCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {(selectedTx.lines || []).map((line) => (
+                                            <TableRow key={line.id}>
+                                                <TableCell>{line.line_number}</TableCell>
+                                                <TableCell sx={{ fontWeight: 600, color: 'primary.main', fontFamily: 'monospace' }}>
+                                                    {line.sku_code || '-'}
+                                                </TableCell>
+                                                <TableCell>{line.sku_name || '-'}</TableCell>
+                                                <TableCell align="center">{line.quantity}</TableCell>
+                                                <TableCell align="right">₹{parseFloat(line.unit_price).toFixed(2)}</TableCell>
+                                                <TableCell align="right">
+                                                    {parseFloat(line.discount_amount) > 0
+                                                        ? <Typography variant="body2" color="error.main">-₹{parseFloat(line.discount_amount).toFixed(2)}</Typography>
+                                                        : '-'
+                                                    }
+                                                </TableCell>
+                                                <TableCell align="right" sx={{ fontWeight: 700 }}>
+                                                    ₹{parseFloat(line.line_total).toFixed(2)}
+                                                </TableCell>
+                                                <TableCell align="center">
+                                                    {line.is_returned ? (
+                                                        <Chip label="Returned" size="small" color="warning" variant="outlined" sx={{ fontWeight: 600 }} />
+                                                    ) : (
+                                                        <Chip label="Sold" size="small" color="success" variant="outlined" sx={{ fontWeight: 600 }} />
+                                                    )}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                        {(selectedTx.lines || []).length === 0 && (
+                                            <TableRow>
+                                                <TableCell colSpan={8} align="center" sx={{ py: 3, color: 'text.secondary' }}>
+                                                    No line items found.
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </TableContainer>
+
+                            {/* Totals */}
+                            <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
+                                <Box display="flex" justifyContent="space-between" mb={0.5}>
+                                    <Typography variant="body2" color="text.secondary">Subtotal</Typography>
+                                    <Typography variant="body2">₹{parseFloat(selectedTx.subtotal || '0').toFixed(2)}</Typography>
+                                </Box>
+                                {parseFloat(selectedTx.discount_amount || '0') > 0 && (
+                                    <Box display="flex" justifyContent="space-between" mb={0.5}>
+                                        <Typography variant="body2" color="error.main">Total Discount</Typography>
+                                        <Typography variant="body2" color="error.main">
+                                            -₹{parseFloat(selectedTx.discount_amount).toFixed(2)}
+                                        </Typography>
+                                    </Box>
+                                )}
+                                <Divider sx={{ my: 1 }} />
+                                <Box display="flex" justifyContent="space-between">
+                                    <Typography variant="h6" fontWeight={700}>Total Paid</Typography>
+                                    <Typography variant="h6" fontWeight={700} color="primary">
+                                        ₹{parseFloat(selectedTx.total_amount).toFixed(2)}
+                                    </Typography>
+                                </Box>
+                            </Box>
+                        </Box>
+                    ) : null}
+                </DialogContent>
+                <DialogActions sx={{ px: 3, py: 2 }}>
+                    <Button onClick={() => { setTxDetailOpen(false); setSelectedTx(null) }} variant="outlined">
+                        Close
+                    </Button>
+                </DialogActions>
+            </Dialog>
 
         </Box>
     )
