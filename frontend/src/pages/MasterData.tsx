@@ -28,7 +28,7 @@ import {
   IconButton,
   Tooltip,
 } from '@mui/material'
-import { Add, CheckCircle, Cancel, PhotoCamera as PhotoCameraIcon, Collections as CollectionsIcon } from '@mui/icons-material'
+import { Add, CheckCircle, Cancel, Delete as DeleteIcon, PhotoCamera as PhotoCameraIcon, Collections as CollectionsIcon } from '@mui/icons-material'
 import PageHeader from '../components/ui/PageHeader'
 import { mdmService, type BusinessUnit, type Company, type Location, type Product, type SKU, type Fabric } from '../services/mdm.service'
 
@@ -71,6 +71,7 @@ export default function MasterData() {
   const [openWarehouseDialog, setOpenWarehouseDialog] = useState(false)
   const [rejectFabricId, setRejectFabricId] = useState('')
   const [rejectReason, setRejectReason] = useState('')
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; type: string; id: string; name: string }>({ open: false, type: '', id: '', name: '' })
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [variantForm, setVariantForm] = useState({
     sizes: [] as string[],
@@ -480,6 +481,23 @@ export default function MasterData() {
     }
   }
 
+  const handleDelete = async () => {
+    const { type, id } = deleteConfirm
+    try {
+      if (type === 'product') await mdmService.deleteProduct(id)
+      else if (type === 'sku') await mdmService.deleteSKU(id)
+      else if (type === 'fabric') await mdmService.deleteFabric(id)
+      else if (type === 'location' || type === 'warehouse' || type === 'store') await mdmService.deleteLocation(id)
+      setSnackbar({ open: true, message: `${type.charAt(0).toUpperCase() + type.slice(1)} deleted successfully.`, severity: 'success' })
+      setDeleteConfirm({ open: false, type: '', id: '', name: '' })
+      void loadData()
+    } catch (error: any) {
+      const msg = error?.response?.data?.detail || `Failed to delete ${type}. It may be referenced by other records.`
+      setSnackbar({ open: true, message: msg, severity: 'error' })
+      setDeleteConfirm({ open: false, type: '', id: '', name: '' })
+    }
+  }
+
   const filteredFabrics = fabricFilter === 'all' ? fabrics : fabrics.filter(f => f.approval_status === fabricFilter)
   const filteredWarehouses = locations.filter(loc => loc.location_type === 'warehouse')
   const filteredStores = locations.filter(loc => loc.location_type === 'store')
@@ -550,18 +568,25 @@ export default function MasterData() {
                       <TableCell>{product.status}</TableCell>
                       <TableCell>{new Date(product.created_at).toLocaleDateString()}</TableCell>
                       <TableCell>
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          onClick={() => {
-                            setSelectedProduct(product)
-                            setProductImagePreview(product.image_url || '')
-                            setProductImageFile(null)
-                            setOpenVariantsDialog(true)
-                          }}
-                        >
-                          Create Variants
-                        </Button>
+                        <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={() => {
+                              setSelectedProduct(product)
+                              setProductImagePreview(product.image_url || '')
+                              setProductImageFile(null)
+                              setOpenVariantsDialog(true)
+                            }}
+                          >
+                            Create Variants
+                          </Button>
+                          <Tooltip title="Delete product">
+                            <IconButton size="small" color="error" onClick={() => setDeleteConfirm({ open: true, type: 'product', id: product.id, name: product.name })}>
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
                       </TableCell>
                     </TableRow>
                   ))
@@ -582,6 +607,7 @@ export default function MasterData() {
                   <TableCell>Status</TableCell>
                   <TableCell>Stock</TableCell>
                   <TableCell>Created</TableCell>
+                  <TableCell>Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -602,6 +628,13 @@ export default function MasterData() {
                       <TableCell>{sku.status}</TableCell>
                       <TableCell>₹{sku.base_price}</TableCell>
                       <TableCell>{new Date(sku.created_at).toLocaleDateString()}</TableCell>
+                      <TableCell>
+                        <Tooltip title="Delete SKU">
+                          <IconButton size="small" color="error" onClick={() => setDeleteConfirm({ open: true, type: 'sku', id: sku.id, name: sku.code })}>
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </TableCell>
                     </TableRow>
                   ))
                 )}
@@ -687,20 +720,27 @@ export default function MasterData() {
                         )}
                       </TableCell>
                       <TableCell>
-                        {fabric.approval_status === 'pending' && (
-                          <Box sx={{ display: 'flex', gap: 0.5 }}>
-                            <Tooltip title="Approve">
-                              <IconButton size="small" color="success" onClick={() => void handleApproveFabric(fabric.id)}>
-                                <CheckCircle fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Reject">
-                              <IconButton size="small" color="error" onClick={() => { setRejectFabricId(fabric.id); setRejectReason(''); setOpenRejectDialog(true) }}>
-                                <Cancel fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          </Box>
-                        )}
+                        <Box sx={{ display: 'flex', gap: 0.5 }}>
+                          {fabric.approval_status === 'pending' && (
+                            <>
+                              <Tooltip title="Approve">
+                                <IconButton size="small" color="success" onClick={() => void handleApproveFabric(fabric.id)}>
+                                  <CheckCircle fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Reject">
+                                <IconButton size="small" color="error" onClick={() => { setRejectFabricId(fabric.id); setRejectReason(''); setOpenRejectDialog(true) }}>
+                                  <Cancel fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </>
+                          )}
+                          <Tooltip title="Delete fabric">
+                            <IconButton size="small" color="error" onClick={() => setDeleteConfirm({ open: true, type: 'fabric', id: fabric.id, name: fabric.name })}>
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
                       </TableCell>
                     </TableRow>
                   ))
@@ -754,6 +794,7 @@ export default function MasterData() {
                   <TableCell>Name</TableCell>
                   <TableCell>Type</TableCell>
                   <TableCell>Status</TableCell>
+                  <TableCell>Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -772,6 +813,13 @@ export default function MasterData() {
                       <TableCell>{location.name}</TableCell>
                       <TableCell>{location.location_type}</TableCell>
                       <TableCell>{location.status}</TableCell>
+                      <TableCell>
+                        <Tooltip title="Delete location">
+                          <IconButton size="small" color="error" onClick={() => setDeleteConfirm({ open: true, type: 'location', id: location.id, name: location.name })}>
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </TableCell>
                     </TableRow>
                   ))
                 )}
@@ -789,6 +837,7 @@ export default function MasterData() {
                   <TableCell>Warehouse Name</TableCell>
                   <TableCell>Contact Email</TableCell>
                   <TableCell>Opening Date</TableCell>
+                  <TableCell>Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -807,6 +856,13 @@ export default function MasterData() {
                       <TableCell>{wh.name}</TableCell>
                       <TableCell>{wh.email || '-'}</TableCell>
                       <TableCell>{wh.opening_date ? new Date(wh.opening_date).toLocaleDateString() : '-'}</TableCell>
+                      <TableCell>
+                        <Tooltip title="Delete warehouse">
+                          <IconButton size="small" color="error" onClick={() => setDeleteConfirm({ open: true, type: 'warehouse', id: wh.id, name: wh.name })}>
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </TableCell>
                     </TableRow>
                   ))
                 )}
@@ -824,6 +880,7 @@ export default function MasterData() {
                   <TableCell>Store Name</TableCell>
                   <TableCell>Store Email</TableCell>
                   <TableCell>Opening Date</TableCell>
+                  <TableCell>Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -842,6 +899,13 @@ export default function MasterData() {
                       <TableCell>{store.name}</TableCell>
                       <TableCell>{store.email || '-'}</TableCell>
                       <TableCell>{store.opening_date ? new Date(store.opening_date).toLocaleDateString() : '-'}</TableCell>
+                      <TableCell>
+                        <Tooltip title="Delete store">
+                          <IconButton size="small" color="error" onClick={() => setDeleteConfirm({ open: true, type: 'store', id: store.id, name: store.name })}>
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </TableCell>
                     </TableRow>
                   ))
                 )}
@@ -850,6 +914,23 @@ export default function MasterData() {
           </TableContainer>
         </TabPanel>
       </Paper>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteConfirm.open} onClose={() => setDeleteConfirm({ open: false, type: '', id: '', name: '' })}>
+        <DialogTitle>Delete {deleteConfirm.type}?</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to delete <strong>{deleteConfirm.name}</strong>? This action cannot be undone.
+          </Typography>
+          <Typography variant="body2" color="error.main" sx={{ mt: 1 }}>
+            If this item is referenced by other records (orders, inventory, etc.), the delete may fail.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteConfirm({ open: false, type: '', id: '', name: '' })}>Cancel</Button>
+          <Button variant="contained" color="error" onClick={() => void handleDelete()}>Delete</Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Product Dialog */}
       <Dialog open={openProductDialog} onClose={() => setOpenProductDialog(false)} maxWidth="sm" fullWidth>

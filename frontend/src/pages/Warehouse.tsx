@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import {
     Box,
     Chip,
@@ -27,7 +27,8 @@ import {
     Email,
     Badge,
     History,
-    ReceiptLong
+    ReceiptLong,
+    Search as SearchIcon
 } from '@mui/icons-material'
 import PageHeader from '../components/ui/PageHeader'
 import { mdmService, Location } from '../services/mdm.service'
@@ -42,6 +43,8 @@ export default function Warehouse() {
     const [scanLogs, setScanLogs] = useState<GoodsReceiptScanLog[]>([])
     const [fetchingLogs, setFetchingLogs] = useState(false)
     const [tabValue, setTabValue] = useState(0)
+    const [searchQuery, setSearchQuery] = useState('')
+    const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
     useEffect(() => {
         const fetchWarehouses = async () => {
@@ -63,6 +66,24 @@ export default function Warehouse() {
         fetchWarehouses()
     }, [])
 
+    const fetchBalances = useCallback(async (locationId: string, search?: string) => {
+        setFetchingBalances(true)
+        try {
+            const params: any = { location: locationId }
+            if (search?.trim()) {
+                params.search = search.trim()
+                params.page_size = 200
+            }
+            const data = await inventoryService.getBalances(params)
+            setBalances(Array.isArray(data) ? data : (data as any).results || [])
+        } catch (error) {
+            console.error('Error fetching balances:', error)
+            setBalances([])
+        } finally {
+            setFetchingBalances(false)
+        }
+    }, [])
+
     useEffect(() => {
         const fetchData = async () => {
             if (!selectedWarehouse) {
@@ -75,24 +96,31 @@ export default function Warehouse() {
             setFetchingLogs(true)
 
             try {
-                const [balanceData, logData] = await Promise.all([
-                    inventoryService.getBalances({ location: selectedWarehouse.id }),
+                const [, logData] = await Promise.all([
+                    fetchBalances(selectedWarehouse.id),
                     inventoryService.getGoodsReceiptScans({ location: selectedWarehouse.id })
                 ])
 
-                setBalances(Array.isArray(balanceData) ? balanceData : (balanceData as any).results || [])
                 setScanLogs(Array.isArray(logData) ? logData : (logData as any).results || [])
             } catch (error) {
                 console.error('Error fetching warehouse data:', error)
-                setBalances([])
                 setScanLogs([])
             } finally {
-                setFetchingBalances(false)
                 setFetchingLogs(false)
             }
         }
+        setSearchQuery('')
         fetchData()
-    }, [selectedWarehouse])
+    }, [selectedWarehouse, fetchBalances])
+
+    const handleSearch = (value: string) => {
+        setSearchQuery(value)
+        if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+        if (!selectedWarehouse) return
+        searchTimerRef.current = setTimeout(() => {
+            fetchBalances(selectedWarehouse.id, value)
+        }, 400)
+    }
 
     const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
         setTabValue(newValue)
@@ -215,6 +243,7 @@ export default function Warehouse() {
                                     </CardContent>
                                 </Card>
                             </Grid>
+
                             <Grid item xs={12} md={4}>
                                 <Card elevation={0} sx={{ borderRadius: 4, border: '1px solid rgba(15,23,42,0.08)', bgcolor: 'white' }}>
                                     <CardContent sx={{ p: 4 }}>
@@ -253,7 +282,7 @@ export default function Warehouse() {
                                 boxShadow: '0 10px 40px rgba(0,0,0,0.03)'
                             }}
                         >
-                            <Box sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: '#f8fafc', px: 2 }}>
+                            <Box sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: '#f8fafc', px: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                 <Tabs value={tabValue} onChange={handleTabChange} sx={{ minHeight: 64 }}>
                                     <Tab
                                         icon={<Inventory2 sx={{ fontSize: 20 }} />}
@@ -268,6 +297,23 @@ export default function Warehouse() {
                                         sx={{ minHeight: 64, fontWeight: 700 }}
                                     />
                                 </Tabs>
+                                {tabValue === 0 && (
+                                    <TextField
+                                        size="small"
+                                        placeholder="Search by SKU or product name..."
+                                        value={searchQuery}
+                                        onChange={(e) => handleSearch(e.target.value)}
+                                        InputProps={{
+                                            startAdornment: (
+                                                <InputAdornment position="start">
+                                                    <SearchIcon sx={{ fontSize: 18, color: 'text.disabled' }} />
+                                                </InputAdornment>
+                                            ),
+                                            sx: { borderRadius: 3, bgcolor: 'white', fontSize: '0.875rem' }
+                                        }}
+                                        sx={{ width: 280 }}
+                                    />
+                                )}
                             </Box>
 
                             {tabValue === 0 && (
@@ -280,7 +326,7 @@ export default function Warehouse() {
                                         <Box sx={{ textAlign: 'center', py: 10 }}>
                                             <Inventory2 sx={{ fontSize: 48, color: 'text.disabled', mb: 2 }} />
                                             <Typography variant="body1" color="text.secondary" fontWeight={500}>
-                                                No inventory records found for this warehouse.
+                                                {searchQuery ? 'No items match your search.' : 'No inventory records found for this warehouse.'}
                                             </Typography>
                                         </Box>
                                     ) : (
@@ -290,6 +336,7 @@ export default function Warehouse() {
                                                     <TableRow>
                                                         <TableCell sx={{ fontWeight: 800 }}>SKU Code</TableCell>
                                                         <TableCell sx={{ fontWeight: 800 }}>Product Name</TableCell>
+                                                        <TableCell sx={{ fontWeight: 800 }}>Variant</TableCell>
                                                         <TableCell sx={{ fontWeight: 800 }}>Condition</TableCell>
                                                         <TableCell sx={{ fontWeight: 800 }} align="right">On Hand</TableCell>
                                                         <TableCell sx={{ fontWeight: 800 }} align="right">Available</TableCell>
@@ -303,10 +350,13 @@ export default function Warehouse() {
                                                             sx={{ '&:hover': { bgcolor: 'rgba(15, 109, 106, 0.02)' } }}
                                                         >
                                                             <TableCell sx={{ fontWeight: 600, color: 'primary.main' }}>
-                                                                {row.sku_code || 'MMW-UNK'}
+                                                                {row.sku_code || '—'}
                                                             </TableCell>
-                                                            <TableCell sx={{ fontWeight: 500 }}>
-                                                                {row.sku_code ? row.sku_code.split('-').slice(0, 2).join(' ') : 'Unknown Item'}
+                                                            <TableCell sx={{ fontWeight: 600 }}>
+                                                                {(row as any).product_name || row.sku_name || '—'}
+                                                            </TableCell>
+                                                            <TableCell sx={{ color: '#475569', fontSize: '0.85rem' }}>
+                                                                {row.sku_name || '—'}
                                                             </TableCell>
                                                             <TableCell>
                                                                 <Chip

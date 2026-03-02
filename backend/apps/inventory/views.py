@@ -41,7 +41,7 @@ class InventoryBalanceViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, 
             company_id=self.request.user.company_id, 
             status="active",
             condition=InventoryBalance.CONDITION_NEW
-        ).select_related("sku", "location")
+        ).select_related("sku", "sku__product", "location")
 
         sku_id = self.request.query_params.get("sku")
         if sku_id:
@@ -51,7 +51,16 @@ class InventoryBalanceViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, 
         if location_id:
             queryset = queryset.filter(location_id=location_id)
 
-        return queryset.order_by("sku__code")
+        search = self.request.query_params.get("search")
+        if search:
+            from django.db.models import Q
+            queryset = queryset.filter(
+                Q(sku__code__icontains=search) |
+                Q(sku__name__icontains=search) |
+                Q(sku__product__name__icontains=search)
+            )
+
+        return queryset.order_by("-updated_at")
 
     @action(detail=False, methods=['get'], url_path='velocity')
     def stock_velocity(self, request):
@@ -607,6 +616,68 @@ class GoodsReceiptScanViewSet(viewsets.GenericViewSet):
 
             # Apply movement to inventory balance
             InventoryMovementViewSet()._apply_movement(movement, request.user.company_id)
+
+            # ── Sync with Production Orders ──
+            # If there's an active PO for this SKU, update its received count
+            try:
+                from .models import ProductionOrder, ProductionOrderLine, ProductJourneyCheckpoint
+                active_po_lines = ProductionOrderLine.objects.filter(
+                    production_order__company_id=request.user.company_id,
+                    sku=sku,
+                    production_order__po_status__in=[
+                        ProductionOrder.STATUS_DRAFT,
+                        ProductionOrder.STATUS_CONFIRMED,
+                        ProductionOrder.STATUS_IN_PRODUCTION,
+                        ProductionOrder.STATUS_PARTIALLY_RECEIVED,
+                    ],
+                    line_status__in=['pending', 'in_production', 'partially_received'],
+                ).select_related('production_order').order_by('production_order__created_at')
+
+                remaining_qty = quantity
+                for po_line in active_po_lines:
+                    if remaining_qty <= 0:
+                        break
+
+                    can_receive = po_line.planned_quantity - po_line.received_quantity
+                    if can_receive <= 0:
+                        continue
+
+                    apply_qty = min(remaining_qty, can_receive)
+                    po_line.received_quantity += apply_qty
+                    remaining_qty -= apply_qty
+
+                    if po_line.received_quantity >= po_line.planned_quantity:
+                        po_line.line_status = 'completed'
+                    else:
+                        po_line.line_status = 'partially_received'
+                    po_line.save(update_fields=['received_quantity', 'line_status', 'updated_at'])
+
+                    # Update PO status
+                    po = po_line.production_order
+                    all_lines = po.lines.all()
+                    if all(l.line_status == 'completed' for l in all_lines):
+                        po.po_status = ProductionOrder.STATUS_COMPLETED
+                        po.actual_delivery = timezone.now().date()
+                    elif any(l.received_quantity > 0 for l in all_lines):
+                        po.po_status = ProductionOrder.STATUS_PARTIALLY_RECEIVED
+                    po.save(update_fields=['po_status', 'actual_delivery', 'updated_at'])
+
+                    # Journey checkpoint
+                    user_name = request.user.get_full_name() or request.user.username
+                    ProductJourneyCheckpoint.objects.create(
+                        company_id=request.user.company_id,
+                        sku=sku,
+                        stage=ProductJourneyCheckpoint.STAGE_RECEIVED,
+                        status=ProductJourneyCheckpoint.STATUS_COMPLETED,
+                        notes=f"Received {int(apply_qty)} units via scan. PO {po.order_number} updated ({po_line.received_quantity}/{po_line.planned_quantity}).",
+                        user_name=user_name,
+                        location=location,
+                        timestamp=timezone.now(),
+                        expected_time=timezone.now(),
+                    )
+            except Exception as po_err:
+                import logging
+                logging.getLogger(__name__).warning(f"PO sync on receive failed: {po_err}")
 
             # Log successful scan
             log = GoodsReceiptScan.objects.create(

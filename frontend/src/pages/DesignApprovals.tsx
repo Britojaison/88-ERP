@@ -45,7 +45,6 @@ export default function DesignApprovals() {
         expectedDays: 14,
         productionQuantity: 0,
         destinationId: '',
-        unitCost: 0,
     })
     const [submitting, setSubmitting] = useState(false)
     const [successMsg, setSuccessMsg] = useState<string | null>(null)
@@ -86,7 +85,6 @@ export default function DesignApprovals() {
             expectedDays: 14,
             productionQuantity: 0,
             destinationId: warehouses.length > 0 ? warehouses[0].id : '',
-            unitCost: 0,
         })
         setAttachment(null)
         setApprovalModalOpen(true)
@@ -103,7 +101,6 @@ export default function DesignApprovals() {
                 attachment || undefined,
                 approvalForm.productionQuantity > 0 ? approvalForm.productionQuantity : undefined,
                 approvalForm.destinationId || undefined,
-                approvalForm.unitCost > 0 ? approvalForm.unitCost : undefined,
             )
             let msg = 'Design successfully approved and sent to production!'
             if (result.production_order?.order_number) {
@@ -347,7 +344,7 @@ export default function DesignApprovals() {
                             Specify a quantity to automatically create a draft Production Order. You can leave this at 0 to skip.
                         </Typography>
                         <Grid container spacing={2}>
-                            <Grid item xs={12} sm={4}>
+                            <Grid item xs={12} sm={6}>
                                 <TextField
                                     fullWidth
                                     type="number"
@@ -359,7 +356,7 @@ export default function DesignApprovals() {
                                     helperText="Units to produce"
                                 />
                             </Grid>
-                            <Grid item xs={12} sm={4}>
+                            <Grid item xs={12} sm={6}>
                                 <FormControl fullWidth size="small">
                                     <InputLabel>Warehouse</InputLabel>
                                     <Select
@@ -372,17 +369,6 @@ export default function DesignApprovals() {
                                         ))}
                                     </Select>
                                 </FormControl>
-                            </Grid>
-                            <Grid item xs={12} sm={4}>
-                                <TextField
-                                    fullWidth
-                                    type="number"
-                                    label="Unit Cost (₹)"
-                                    size="small"
-                                    value={approvalForm.unitCost}
-                                    onChange={(e) => setApprovalForm({ ...approvalForm, unitCost: Number(e.target.value) })}
-                                    inputProps={{ min: 0, step: 0.01 }}
-                                />
                             </Grid>
                         </Grid>
                     </Box>

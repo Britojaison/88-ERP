@@ -311,4 +311,17 @@ export const mdmService = {
     const response = await api.post(`/mdm/fabrics/${id}/reject/`, { reason })
     return response.data as Fabric
   },
+
+  // Delete operations
+  deleteLocation: async (id: string) => {
+    await api.delete(`/mdm/locations/${id}/`)
+  },
+
+  deleteSKU: async (id: string) => {
+    await api.delete(`/mdm/skus/${id}/`)
+  },
+
+  deleteFabric: async (id: string) => {
+    await api.delete(`/mdm/fabrics/${id}/`)
+  },
 }

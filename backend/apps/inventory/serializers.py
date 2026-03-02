@@ -9,6 +9,7 @@ from .models import InventoryBalance, InventoryMovement, GoodsReceiptScan, Damag
 class InventoryBalanceSerializer(serializers.ModelSerializer):
     sku_code = serializers.CharField(source="sku.code", read_only=True)
     sku_name = serializers.CharField(source="sku.name", read_only=True)
+    product_name = serializers.SerializerMethodField()
     location_code = serializers.CharField(source="location.code", read_only=True)
 
     class Meta:
@@ -19,6 +20,7 @@ class InventoryBalanceSerializer(serializers.ModelSerializer):
             "sku",
             "sku_code",
             "sku_name",
+            "product_name",
             "location",
             "location_code",
             "quantity_on_hand",
@@ -42,6 +44,11 @@ class InventoryBalanceSerializer(serializers.ModelSerializer):
             "status", 
             "updated_at"
         ]
+
+    def get_product_name(self, obj):
+        if hasattr(obj.sku, 'product') and obj.sku.product:
+            return obj.sku.product.name
+        return obj.sku.name
 
 
 class InventoryMovementSerializer(serializers.ModelSerializer):
