@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { useSelector } from 'react-redux'
+import { RootState } from '../../store'
 import {
   Alert,
   Box,
@@ -26,81 +28,22 @@ import {
   Info,
 } from '@mui/icons-material'
 
-interface Role {
-  code: string
-  name: string
-  permissions: string[]
-}
-
-const permissionCategories = [
-  {
-    category: 'Master Data',
-    permissions: [
-      { code: 'mdm.product.view', name: 'View Products' },
-      { code: 'mdm.product.create', name: 'Create Products' },
-      { code: 'mdm.product.edit', name: 'Edit Products' },
-      { code: 'mdm.product.delete', name: 'Delete Products' },
-      { code: 'mdm.sku.view', name: 'View SKUs' },
-      { code: 'mdm.sku.create', name: 'Create SKUs' },
-      { code: 'mdm.sku.edit', name: 'Edit SKUs' },
-      { code: 'mdm.sku.delete', name: 'Delete SKUs' },
-    ],
-  },
-  {
-    category: 'Documents',
-    permissions: [
-      { code: 'doc.view', name: 'View Documents' },
-      { code: 'doc.create', name: 'Create Documents' },
-      { code: 'doc.edit', name: 'Edit Documents' },
-      { code: 'doc.delete', name: 'Delete Documents' },
-      { code: 'doc.approve', name: 'Approve Documents' },
-      { code: 'doc.post', name: 'Post Documents' },
-    ],
-  },
-  {
-    category: 'Inventory',
-    permissions: [
-      { code: 'inv.view', name: 'View Inventory' },
-      { code: 'inv.adjust', name: 'Adjust Inventory' },
-      { code: 'inv.transfer', name: 'Transfer Inventory' },
-      { code: 'inv.count', name: 'Count Inventory' },
-    ],
-  },
-  {
-    category: 'Reports',
-    permissions: [
-      { code: 'report.view', name: 'View Reports' },
-      { code: 'report.create', name: 'Create Reports' },
-      { code: 'report.export', name: 'Export Reports' },
-    ],
-  },
-  {
-    category: 'Administration',
-    permissions: [
-      { code: 'admin.users', name: 'Manage Users' },
-      { code: 'admin.roles', name: 'Manage Roles' },
-      { code: 'admin.config', name: 'System Configuration' },
-      { code: 'admin.audit', name: 'View Audit Logs' },
-    ],
-  },
-]
-
-const defaultRoles: Role[] = [
-  { code: 'admin', name: 'Administrator', permissions: [] },
-  { code: 'manager', name: 'Manager', permissions: [] },
-  { code: 'user', name: 'User', permissions: [] },
-  { code: 'viewer', name: 'Viewer', permissions: [] },
-]
+import {
+  PERMISSION_CATEGORIES,
+  ALL_PERMISSION_CODES,
+  DEFAULT_ROLES,
+  Role,
+} from '../../constants/permissions'
 
 export default function PermissionDesigner() {
   const [roles, setRoles] = useState<Role[]>(() => {
     const saved = localStorage.getItem('metadata_permission_roles')
-    if (!saved) return defaultRoles
+    if (!saved) return DEFAULT_ROLES
     try {
       const parsed = JSON.parse(saved)
-      return Array.isArray(parsed) ? parsed : defaultRoles
+      return Array.isArray(parsed) ? parsed : DEFAULT_ROLES
     } catch {
-      return defaultRoles
+      return DEFAULT_ROLES
     }
   })
   const [newRoleName, setNewRoleName] = useState('')
@@ -110,7 +53,11 @@ export default function PermissionDesigner() {
     severity: 'info',
   })
 
+  const currentUser = useSelector((state: RootState) => state.auth.user)
+  const isAdmin = currentUser?.role?.toLowerCase() === 'admin'
+
   const handleTogglePermission = (roleCode: string, permissionCode: string) => {
+    if (!isAdmin) return
     setRoles(
       roles.map((role) => {
         if (role.code === roleCode) {
@@ -128,7 +75,7 @@ export default function PermissionDesigner() {
   }
 
   const handleAddRole = () => {
-    if (!newRoleName.trim()) return
+    if (!isAdmin || !newRoleName.trim()) return
     const code = newRoleName.toLowerCase().replace(/\s+/g, '_')
     if (roles.some((role) => role.code === code)) {
       setSnackbar({ open: true, message: 'Role already exists.', severity: 'error' })
@@ -140,20 +87,23 @@ export default function PermissionDesigner() {
   }
 
   const handleRemoveRole = (roleCode: string) => {
+    if (!isAdmin) return
     setRoles(roles.filter((r) => r.code !== roleCode))
     setSnackbar({ open: true, message: 'Role removed.', severity: 'info' })
   }
 
   const handleSave = () => {
+    if (!isAdmin) return
     localStorage.setItem('metadata_permission_roles', JSON.stringify(roles))
     setSnackbar({ open: true, message: 'Permissions saved.', severity: 'success' })
   }
 
   const handleSelectAll = (roleCode: string, category: string) => {
-    const categoryPerms = permissionCategories.find((c) => c.category === category)
+    if (!isAdmin) return
+    const categoryPerms = PERMISSION_CATEGORIES.find((c: any) => c.category === category)
     if (!categoryPerms) return
 
-    const allPermCodes = categoryPerms.permissions.map((p) => p.code)
+    const allPermCodes = categoryPerms.permissions.map((p: any) => p.code)
     setRoles(
       roles.map((role) => {
         if (role.code === roleCode) {
@@ -180,11 +130,18 @@ export default function PermissionDesigner() {
           variant="contained"
           startIcon={<Save />}
           onClick={handleSave}
-          sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
+          disabled={!isAdmin}
+          sx={{ background: isAdmin ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'grey' }}
         >
           Save Permissions
         </Button>
       </Box>
+
+      {!isAdmin && (
+        <Alert severity="warning" sx={{ mb: 3 }}>
+          You do not have permission to modify the access control matrix. Only administrators can perform these actions.
+        </Alert>
+      )}
 
       <Paper sx={{ p: 3, mb: 3 }}>
         <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
@@ -202,7 +159,13 @@ export default function PermissionDesigner() {
             />
           </Grid>
           <Grid item xs={12} md={4}>
-            <Button fullWidth variant="outlined" startIcon={<Add />} onClick={handleAddRole}>
+            <Button
+              fullWidth
+              variant="outlined"
+              startIcon={<Add />}
+              onClick={handleAddRole}
+              disabled={!isAdmin}
+            >
               Add Role
             </Button>
           </Grid>
@@ -239,6 +202,7 @@ export default function PermissionDesigner() {
                         size="small"
                         onClick={() => handleRemoveRole(role.code)}
                         sx={{ ml: 0.5 }}
+                        disabled={!isAdmin}
                       >
                         <Delete fontSize="small" />
                       </IconButton>
@@ -248,7 +212,7 @@ export default function PermissionDesigner() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {permissionCategories.map((category) => (
+              {PERMISSION_CATEGORIES.map((category: any) => (
                 <>
                   <TableRow key={category.category}>
                     <TableCell
@@ -276,6 +240,7 @@ export default function PermissionDesigner() {
                             checked={hasAll}
                             indeterminate={hasSome && !hasAll}
                             onChange={() => handleSelectAll(role.code, category.category)}
+                            disabled={!isAdmin}
                           />
                         </TableCell>
                       )
@@ -294,6 +259,7 @@ export default function PermissionDesigner() {
                           <Checkbox
                             checked={role.permissions.includes(permission.code)}
                             onChange={() => handleTogglePermission(role.code, permission.code)}
+                            disabled={!isAdmin}
                           />
                         </TableCell>
                       ))}

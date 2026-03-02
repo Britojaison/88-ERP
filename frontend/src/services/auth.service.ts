@@ -22,6 +22,7 @@ export const authService = {
     if (response.data.access) {
       localStorage.setItem('token', response.data.access)
       localStorage.setItem('refreshToken', response.data.refresh)
+      localStorage.setItem('user', JSON.stringify(response.data.user))
     }
     return response.data
   },
@@ -29,6 +30,7 @@ export const authService = {
   logout: () => {
     localStorage.removeItem('token')
     localStorage.removeItem('refreshToken')
+    localStorage.removeItem('user')
   },
 
   refreshToken: async (): Promise<string> => {

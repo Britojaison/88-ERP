@@ -12,8 +12,9 @@ interface AuthState {
   isAuthenticated: boolean
 }
 
+const savedUser = localStorage.getItem('user')
 const initialState: AuthState = {
-  user: null,
+  user: savedUser ? JSON.parse(savedUser) : null,
   token: localStorage.getItem('token'),
   isAuthenticated: Boolean(localStorage.getItem('token')),
 }

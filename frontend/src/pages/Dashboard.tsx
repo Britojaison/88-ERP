@@ -13,12 +13,13 @@ import {
 } from '@mui/icons-material'
 import PageHeader from '../components/ui/PageHeader'
 import MetricCard from '../components/ui/MetricCard'
+import { usePermissions } from '../hooks/usePermissions'
 
 const quickActions = [
-  { label: 'Create Product', path: '/master-data' },
-  { label: 'New POS Sale', path: '/pos' },
-  { label: 'Inventory Check', path: '/inventory' },
-  { label: 'Generate Report', path: '/reports' },
+  { label: 'Create Product', path: '/master-data', permission: 'mdm.product.edit' },
+  { label: 'New POS Sale', path: '/pos', permission: 'pos.checkout' },
+  { label: 'Inventory Check', path: '/inventory', permission: 'inv.view' },
+  { label: 'Generate Report', path: '/reports', permission: 'report.sales' },
 ]
 
 import { mdmService } from '../services/mdm.service'
@@ -26,6 +27,7 @@ import { inventoryService } from '../services/inventory.service'
 import { salesService } from '../services/sales.service'
 
 export default function Dashboard() {
+  const { hasPermission, hasAnyPermission } = usePermissions()
   const navigate = useNavigate()
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>(
     { open: false, message: '', severity: 'info' },
@@ -110,9 +112,11 @@ export default function Dashboard() {
             <Button variant="outlined" onClick={() => void loadDashboardData()} disabled={loading}>
               Refresh
             </Button>
-            <Button variant="contained" onClick={() => navigate('/reports')}>
-              View Analytics
-            </Button>
+            {hasAnyPermission(['report.sales', 'report.stock', 'report.margin', 'report.channel']) && (
+              <Button variant="contained" onClick={() => navigate('/reports')}>
+                View Analytics
+              </Button>
+            )}
           </Stack>
         }
       />
@@ -124,41 +128,49 @@ export default function Dashboard() {
       ) : (
         <Grid container spacing={2.5}>
           {/* Top Metric Cards */}
-          <Grid item xs={12} sm={6} lg={3}>
-            <MetricCard
-              label="Products Catalog"
-              value={metrics.totalProducts.toString()}
-              icon={<Inventory />}
-              note="Total registered SKUs"
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} lg={3}>
-            <MetricCard
-              label="Active Locations"
-              value={metrics.activeLocations.toString()}
-              icon={<Storefront />}
-              note="Warehouses & Stores"
-              tone="info"
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} lg={3}>
-            <MetricCard
-              label="Fast Moving Items"
-              value={metrics.fastMovingSkus.toString()}
-              icon={<TrendingUp />}
-              note="High sales velocity past 30 days"
-              tone="success"
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} lg={3}>
-            <MetricCard
-              label="Stock Alerts"
-              value={metrics.criticalAlerts.toString()}
-              icon={metrics.criticalAlerts > 0 ? <WarningIcon /> : <PendingActions />}
-              note={metrics.criticalAlerts > 0 ? "Critical lowest stock!" : "Inventory level healthy"}
-              tone={metrics.criticalAlerts > 0 ? "error" : "success"}
-            />
-          </Grid>
+          {hasPermission('mdm.product.view') && (
+            <Grid item xs={12} sm={6} lg={3}>
+              <MetricCard
+                label="Products Catalog"
+                value={metrics.totalProducts.toString()}
+                icon={<Inventory />}
+                note="Total registered SKUs"
+              />
+            </Grid>
+          )}
+          {hasPermission('org.stores.view') && (
+            <Grid item xs={12} sm={6} lg={3}>
+              <MetricCard
+                label="Active Locations"
+                value={metrics.activeLocations.toString()}
+                icon={<Storefront />}
+                note="Warehouses & Stores"
+                tone="info"
+              />
+            </Grid>
+          )}
+          {hasPermission('report.sales') && (
+            <Grid item xs={12} sm={6} lg={3}>
+              <MetricCard
+                label="Fast Moving Items"
+                value={metrics.fastMovingSkus.toString()}
+                icon={<TrendingUp />}
+                note="High sales velocity past 30 days"
+                tone="success"
+              />
+            </Grid>
+          )}
+          {hasPermission('inv.health') && (
+            <Grid item xs={12} sm={6} lg={3}>
+              <MetricCard
+                label="Stock Alerts"
+                value={metrics.criticalAlerts.toString()}
+                icon={metrics.criticalAlerts > 0 ? <WarningIcon /> : <PendingActions />}
+                note={metrics.criticalAlerts > 0 ? "Critical lowest stock!" : "Inventory level healthy"}
+                tone={metrics.criticalAlerts > 0 ? "error" : "success"}
+              />
+            </Grid>
+          )}
 
           {/* Main Visual Data / Alerts Area */}
           <Grid item xs={12} md={7} lg={8}>
@@ -200,36 +212,38 @@ export default function Dashboard() {
             </Paper>
           </Grid>
 
-          <Grid item xs={12} md={5} lg={4}>
-            <Paper sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
-              <Typography variant="h6" gutterBottom>
-                Today's Operations
-              </Typography>
-              <Divider sx={{ mb: 2 }} />
-              <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', py: 3 }}>
-                <ReceiptLong sx={{ fontSize: 50, color: 'primary.main', opacity: 0.8, mb: 2 }} />
-                <Typography variant="h3" color="primary.main" fontWeight={700}>
-                  {metrics.totalTransactions}
+          {hasPermission('report.sales') && (
+            <Grid item xs={12} md={5} lg={4}>
+              <Paper sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <Typography variant="h6" gutterBottom>
+                  Today's Operations
                 </Typography>
-                <Typography variant="body1" color="text.secondary">
-                  Sales Transactions
-                </Typography>
-                <Typography variant="h5" sx={{ mt: 3, fontWeight: 600 }}>
-                  ₹{metrics.totalSales.toLocaleString()}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Gross Revenue (POS + Shopify)
-                </Typography>
-                {/* Net Sales */}
-                <Typography variant="h6" sx={{ mt: 1, color: 'success.main', fontWeight: 600 }}>
-                  ₹{(metrics as any).netSales?.toLocaleString() || metrics.totalSales.toLocaleString()}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Net Revenue (After Refunds)
-                </Typography>
-              </Box>
-            </Paper>
-          </Grid>
+                <Divider sx={{ mb: 2 }} />
+                <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', py: 3 }}>
+                  <ReceiptLong sx={{ fontSize: 50, color: 'primary.main', opacity: 0.8, mb: 2 }} />
+                  <Typography variant="h3" color="primary.main" fontWeight={700}>
+                    {metrics.totalTransactions}
+                  </Typography>
+                  <Typography variant="body1" color="text.secondary">
+                    Sales Transactions
+                  </Typography>
+                  <Typography variant="h5" sx={{ mt: 3, fontWeight: 600 }}>
+                    ₹{metrics.totalSales.toLocaleString()}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Gross Revenue (POS + Shopify)
+                  </Typography>
+                  {/* Net Sales */}
+                  <Typography variant="h6" sx={{ mt: 1, color: 'success.main', fontWeight: 600 }}>
+                    ₹{(metrics as any).netSales?.toLocaleString() || metrics.totalSales.toLocaleString()}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Net Revenue (After Refunds)
+                  </Typography>
+                </Box>
+              </Paper>
+            </Grid>
+          )}
 
           {/* Quick Actions Footer */}
           <Grid item xs={12}>
@@ -238,19 +252,21 @@ export default function Dashboard() {
                 Quick Actions
               </Typography>
               <Grid container spacing={1.5} sx={{ mt: 0.25 }}>
-                {quickActions.map((action) => (
-                  <Grid item xs={12} sm={6} md={3} key={action.label}>
-                    <Button
-                      variant="outlined"
-                      fullWidth
-                      endIcon={<SouthEast fontSize="small" />}
-                      onClick={() => navigate(action.path)}
-                      sx={{ justifyContent: 'space-between', py: 1.25 }}
-                    >
-                      {action.label}
-                    </Button>
-                  </Grid>
-                ))}
+                {quickActions
+                  .filter((action) => hasPermission(action.permission))
+                  .map((action) => (
+                    <Grid item xs={12} sm={6} md={3} key={action.label}>
+                      <Button
+                        variant="outlined"
+                        fullWidth
+                        endIcon={<SouthEast fontSize="small" />}
+                        onClick={() => navigate(action.path)}
+                        sx={{ justifyContent: 'space-between', py: 1.25 }}
+                      >
+                        {action.label}
+                      </Button>
+                    </Grid>
+                  ))}
               </Grid>
             </Paper>
           </Grid>

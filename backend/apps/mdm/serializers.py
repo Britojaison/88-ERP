@@ -29,7 +29,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             'id': str(self.user.id),
             'email': self.user.email,
             'name': self.user.get_full_name() or self.user.username,
-            'role': 'Admin' if self.user.is_superuser else 'User',
+            'role': self.user.role or ('Admin' if self.user.is_superuser else 'User'),
         }
         
         return data
@@ -40,6 +40,33 @@ class CompanySerializer(serializers.ModelSerializer):
         model = Company
         fields = '__all__'
 
+
+class UserSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, required=False, allow_blank=True)
+
+    class Meta:
+        model = User
+        fields = ['id', 'email', 'username', 'first_name', 'last_name', 'role', 'is_active', 'password']
+        read_only_fields = ['id']
+
+    def create(self, validated_data):
+        password = validated_data.pop('password', None)
+        user = User(**validated_data)
+        if password:
+            user.set_password(password)
+        else:
+            user.set_unusable_password()
+        user.save()
+        return user
+
+    def update(self, instance, validated_data):
+        password = validated_data.pop('password', None)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        if password:
+            instance.set_password(password)
+        instance.save()
+        return instance
 
 class BusinessUnitSerializer(serializers.ModelSerializer):
     class Meta:
