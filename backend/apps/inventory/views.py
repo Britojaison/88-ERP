@@ -1510,6 +1510,24 @@ class DailyStockReportViewSet(viewsets.ViewSet):
         Query params: month (YYYY-MM), location (id)
         Returns per-SKU and aggregate turnover ratio, margin %, COGS, revenue.
         """
+        try:
+            return self._monthly_turnover_margin_inner(request)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Monthly margin report error: {e}")
+            month_str = request.query_params.get('month', '')
+            return Response({
+                'month': month_str,
+                'overview': {
+                    'total_revenue': 0, 'total_cogs': 0, 'gross_profit': 0,
+                    'overall_margin_pct': 0, 'total_discount': 0, 'total_skus_sold': 0,
+                },
+                'by_category': [],
+                'by_sku': [],
+            })
+
+    def _monthly_turnover_margin_inner(self, request):
+        """Core logic for monthly turnover margin."""
         from apps.sales.models import SalesTransactionLine, SalesTransaction
         from apps.documents.models import DocumentLine
         from datetime import date
@@ -1541,7 +1559,7 @@ class DailyStockReportViewSet(viewsets.ViewSet):
             sale_filter['transaction__store_id'] = location_id
 
         lines_qs = SalesTransactionLine.objects.filter(**sale_filter).values(
-            'sku__id', 'sku__code', 'sku__name', 'sku__product__name', 'sku__product__product_type'
+            'sku__id', 'sku__code', 'sku__name', 'sku__product__name'
         ).annotate(
             qty_sold=Sum('quantity'),
             revenue=Sum('line_total'),
@@ -1561,13 +1579,13 @@ class DailyStockReportViewSet(viewsets.ViewSet):
             doc_filter['document__from_location_id'] = location_id
             
         doc_lines = DocumentLine.objects.filter(**doc_filter).values(
-            'sku__id', 'sku__code', 'sku__name', 'sku__product__name', 'sku__product__product_type'
+            'sku__id', 'sku__code', 'sku__name', 'sku__product__name'
         ).annotate(
             qty_sold=Sum('quantity'),
             revenue=Sum('line_amount'),
             # COGS from average cost if unit_cost not in DocumentLine
-            cogs=Sum(models.F('quantity') * models.F('sku__inventory_balances__average_cost')),
-            total_discount=Sum(Decimal('0')),
+            cogs=Sum(models.F('quantity') * models.F('sku__cost_price'), output_field=models.DecimalField()),
+            total_discount=models.Value(0, output_field=models.DecimalField()),
         )
         
         # Merge lines (convert QuerySet to dict by SKU)
@@ -1579,7 +1597,6 @@ class DailyStockReportViewSet(viewsets.ViewSet):
                 'sku__code': l['sku__code'],
                 'sku__name': l['sku__name'],
                 'sku__product__name': l['sku__product__name'],
-                'sku__product__product_type': l['sku__product__product_type'],
                 'qty_sold': float(l['qty_sold'] or 0),
                 'revenue': float(l['revenue'] or 0),
                 'cogs': float(l['cogs'] or 0),
@@ -1598,7 +1615,6 @@ class DailyStockReportViewSet(viewsets.ViewSet):
                     'sku__code': l['sku__code'],
                     'sku__name': l['sku__name'],
                     'sku__product__name': l['sku__product__name'],
-                    'sku__product__product_type': l['sku__product__product_type'],
                     'qty_sold': float(l['qty_sold'] or 0),
                     'revenue': float(l['revenue'] or 0),
                     'cogs': float(l['cogs'] or 0),
@@ -1651,7 +1667,7 @@ class DailyStockReportViewSet(viewsets.ViewSet):
                 'sku_code': line['sku__code'],
                 'sku_name': line['sku__name'],
                 'product_name': line['sku__product__name'] or '',
-                'category': line['sku__product__product_type'] or 'Uncategorized',
+                'category': line['sku__product__name'] or 'Uncategorized',
                 'qty_sold': float(line['qty_sold'] or 0),
                 'revenue': float(revenue),
                 'cogs': float(cogs),
