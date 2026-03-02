@@ -133,11 +133,14 @@ export const designApprovalService = {
     return response.data as DesignApprovalResponse
   },
 
-  approveDesign: async (id: string, notes: string, expectedDays: number, attachment?: File) => {
+  approveDesign: async (id: string, notes: string, expectedDays: number, attachment?: File, productionQuantity?: number, destinationId?: string, unitCost?: number) => {
     const formData = new FormData()
     formData.append('notes', notes)
     formData.append('expected_days', expectedDays.toString())
     if (attachment) formData.append('attachment', attachment)
+    if (productionQuantity && productionQuantity > 0) formData.append('production_quantity', productionQuantity.toString())
+    if (destinationId) formData.append('destination_id', destinationId)
+    if (unitCost && unitCost > 0) formData.append('unit_cost', unitCost.toString())
 
     const response = await api.post(`/inventory/design-approvals/${id}/approve/`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
@@ -240,5 +243,162 @@ export const productJourneyService = {
         measurement_unit: string,
       }[]
     }
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// Production Orders
+// ─────────────────────────────────────────────────────────
+
+export interface ProductionOrderLine {
+  id: string
+  production_order: string
+  sku: string
+  sku_code: string
+  sku_name: string
+  product_name: string
+  planned_quantity: number
+  received_quantity: number
+  rejected_quantity: number
+  unit_cost: string
+  line_status: string
+  notes: string
+  shortfall: number
+  fulfillment_pct: number
+  total_cost: string
+  created_at: string
+}
+
+export interface ProductionOrder {
+  id: string
+  order_number: string
+  order_type: 'new_production' | 'restock' | 'urgent_restock'
+  po_status: 'draft' | 'confirmed' | 'in_production' | 'partially_received' | 'completed' | 'short_closed' | 'cancelled'
+  factory: string | null
+  factory_name: string | null
+  destination: string
+  destination_name: string
+  order_date: string
+  expected_delivery: string | null
+  actual_delivery: string | null
+  triggered_by: string
+  notes: string
+  total_planned: number
+  total_received: number
+  total_rejected: number
+  total_shortfall: number
+  fulfillment_pct: number
+  is_overdue: boolean
+  lines: ProductionOrderLine[]
+  created_at: string
+  updated_at: string
+}
+
+export interface ProductionOrderDashboard {
+  active_orders: number
+  units_in_production: number
+  awaiting_receipt: number
+  overdue: number
+  recent_completed: ProductionOrder[]
+}
+
+export interface CreateProductionOrderPayload {
+  order_type: string
+  factory?: string | null
+  destination: string
+  order_date: string
+  expected_delivery?: string | null
+  triggered_by?: string
+  notes?: string
+  lines: {
+    sku: string
+    planned_quantity: number
+    unit_cost?: number
+    notes?: string
+  }[]
+}
+
+export interface ReceivePayload {
+  receipts: {
+    sku_id: string
+    quantity: number
+    rejected?: number
+  }[]
+}
+
+export const productionOrderService = {
+  getOrders: async (params?: any) => {
+    const response = await api.get('/inventory/production-orders/', { params })
+    return response.data
+  },
+
+  getOrder: async (id: string) => {
+    const response = await api.get(`/inventory/production-orders/${id}/`)
+    return response.data as ProductionOrder
+  },
+
+  createOrder: async (data: CreateProductionOrderPayload) => {
+    const response = await api.post('/inventory/production-orders/', data)
+    return response.data as ProductionOrder
+  },
+
+  confirmOrder: async (id: string) => {
+    const response = await api.post(`/inventory/production-orders/${id}/confirm/`)
+    return response.data as ProductionOrder
+  },
+
+  startProduction: async (id: string) => {
+    const response = await api.post(`/inventory/production-orders/${id}/start/`)
+    return response.data as ProductionOrder
+  },
+
+  receiveGoods: async (id: string, data: ReceivePayload) => {
+    const response = await api.post(`/inventory/production-orders/${id}/receive/`, data)
+    return response.data
+  },
+
+  shortClose: async (id: string) => {
+    const response = await api.post(`/inventory/production-orders/${id}/short_close/`)
+    return response.data as ProductionOrder
+  },
+
+  cancelOrder: async (id: string) => {
+    const response = await api.post(`/inventory/production-orders/${id}/cancel/`)
+    return response.data as ProductionOrder
+  },
+
+  getDashboard: async () => {
+    const response = await api.get('/inventory/production-orders/dashboard/')
+    return response.data as ProductionOrderDashboard
+  },
+
+  getRestockSuggestions: async () => {
+    const response = await api.get('/inventory/production-orders/restock_suggestions/')
+    return response.data as RestockSuggestionsResponse
+  },
+}
+
+export interface RestockSuggestion {
+  sku_id: string
+  sku_code: string
+  sku_name: string
+  product_name: string
+  location_id: string | null
+  location_name: string
+  current_stock: number
+  min_stock_level: number
+  suggested_quantity: number
+  is_best_seller: boolean
+  source: 'warehouse' | 'shopify'
+  already_in_production: boolean
+  urgency: 'critical' | 'standard'
+}
+
+export interface RestockSuggestionsResponse {
+  suggestions: RestockSuggestion[]
+  summary: {
+    total: number
+    critical: number
+    already_in_production: number
   }
 }

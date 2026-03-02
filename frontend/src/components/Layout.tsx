@@ -39,6 +39,7 @@ import {
   Brush as DesignerIcon,
   PrecisionManufacturing as KanbanIcon,
   SwapHoriz as TransferIcon,
+  LocalShipping as ProductionOrderIcon,
 } from '@mui/icons-material'
 import { logout } from '../store/slices/authSlice'
 import { authService } from '../services/auth.service'
@@ -68,6 +69,7 @@ const navSections = [
     items: [
       { text: 'Designer Workbench', icon: <DesignerIcon />, path: '/inventory/design-approvals' },
       { text: 'Production Kanban', icon: <KanbanIcon />, path: '/inventory/production-kanban' },
+      { text: 'Production Orders', icon: <ProductionOrderIcon />, path: '/inventory/production-orders' },
       { text: 'Product Journey', icon: <BarcodeIcon />, path: '/inventory/product-journey' },
     ],
   },

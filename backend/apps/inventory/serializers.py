@@ -216,3 +216,88 @@ class ProductJourneyCheckpointSerializer(serializers.ModelSerializer):
                 return request.build_absolute_uri(obj.attachment.url)
             return obj.attachment.url
         return None
+
+
+from .models import ProductionOrder, ProductionOrderLine
+
+
+class ProductionOrderLineSerializer(serializers.ModelSerializer):
+    sku_code = serializers.CharField(source='sku.code', read_only=True)
+    sku_name = serializers.CharField(source='sku.name', read_only=True)
+    product_name = serializers.SerializerMethodField()
+    shortfall = serializers.ReadOnlyField()
+    fulfillment_pct = serializers.ReadOnlyField()
+    total_cost = serializers.ReadOnlyField()
+
+    class Meta:
+        model = ProductionOrderLine
+        fields = [
+            'id', 'production_order', 'sku', 'sku_code', 'sku_name', 'product_name',
+            'planned_quantity', 'received_quantity', 'rejected_quantity',
+            'unit_cost', 'line_status', 'notes',
+            'shortfall', 'fulfillment_pct', 'total_cost',
+            'created_at',
+        ]
+        read_only_fields = ['id', 'received_quantity', 'rejected_quantity', 'created_at']
+
+    def get_product_name(self, obj):
+        if obj.sku and obj.sku.product:
+            return obj.sku.product.name
+        return None
+
+
+class ProductionOrderLineCreateSerializer(serializers.Serializer):
+    """Used for nested creation inside ProductionOrder."""
+    sku = serializers.UUIDField()
+    planned_quantity = serializers.IntegerField(min_value=1)
+    unit_cost = serializers.DecimalField(max_digits=15, decimal_places=2, default=0)
+    notes = serializers.CharField(required=False, default='')
+
+
+class ProductionOrderSerializer(serializers.ModelSerializer):
+    lines = ProductionOrderLineSerializer(many=True, read_only=True)
+    factory_name = serializers.SerializerMethodField()
+    destination_name = serializers.SerializerMethodField()
+    total_planned = serializers.ReadOnlyField()
+    total_received = serializers.ReadOnlyField()
+    total_rejected = serializers.ReadOnlyField()
+    total_shortfall = serializers.ReadOnlyField()
+    fulfillment_pct = serializers.ReadOnlyField()
+    is_overdue = serializers.ReadOnlyField()
+
+    class Meta:
+        model = ProductionOrder
+        fields = [
+            'id', 'order_number', 'order_type', 'po_status',
+            'factory', 'factory_name', 'destination', 'destination_name',
+            'order_date', 'expected_delivery', 'actual_delivery',
+            'triggered_by', 'notes',
+            'total_planned', 'total_received', 'total_rejected',
+            'total_shortfall', 'fulfillment_pct', 'is_overdue',
+            'lines',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'order_number', 'created_at', 'updated_at']
+
+    def get_factory_name(self, obj):
+        return obj.factory.name if obj.factory else None
+
+    def get_destination_name(self, obj):
+        return obj.destination.name if obj.destination else None
+
+
+class ProductionOrderCreateSerializer(serializers.Serializer):
+    """Handles creation of a Production Order with its lines in one request."""
+    order_type = serializers.ChoiceField(choices=ProductionOrder.TYPE_CHOICES, default='new_production')
+    factory = serializers.UUIDField(required=False, allow_null=True)
+    destination = serializers.UUIDField()
+    order_date = serializers.DateField()
+    expected_delivery = serializers.DateField(required=False, allow_null=True)
+    triggered_by = serializers.ChoiceField(choices=ProductionOrder.TRIGGER_CHOICES, default='manual')
+    notes = serializers.CharField(required=False, default='')
+    lines = ProductionOrderLineCreateSerializer(many=True)
+
+    def validate_lines(self, value):
+        if not value:
+            raise serializers.ValidationError('At least one line is required.')
+        return value
