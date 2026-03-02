@@ -732,11 +732,11 @@ class DesignerWorkbenchViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
-        """Transition SKU to 'In Production' and log journeys."""
+        """Transition SKU to 'In Production', log journeys, and optionally auto-create a Production Order."""
         from django.utils import timezone
         import datetime
         from apps.mdm.models import SKU
-        from .models import ProductJourneyCheckpoint
+        from .models import ProductJourneyCheckpoint, ProductionOrder, ProductionOrderLine
 
         try:
             sku = SKU.objects.get(id=pk, company_id=request.user.company_id)
@@ -749,6 +749,13 @@ class DesignerWorkbenchViewSet(viewsets.ViewSet):
         notes = request.data.get('notes', 'Design approved and moved to production.')
         expected_days = int(request.data.get('expected_days', 14))
         attachment = request.FILES.get('attachment')
+
+        # New: production order fields
+        production_quantity = request.data.get('production_quantity')
+        destination_id = request.data.get('destination_id')
+        unit_cost = request.data.get('unit_cost', 0)
+
+        user_name = request.user.get_full_name() or request.user.username
 
         with transaction.atomic():
             # 1. Update SKU lifecycle status
@@ -771,7 +778,7 @@ class DesignerWorkbenchViewSet(viewsets.ViewSet):
                 stage=ProductJourneyCheckpoint.STAGE_DESIGN_APPROVED,
                 status=ProductJourneyCheckpoint.STATUS_COMPLETED,
                 notes=notes,
-                user_name=request.user.get_full_name() or request.user.username,
+                user_name=user_name,
                 timestamp=timezone.now(),
                 expected_time=timezone.now(),
                 attachment=attachment
@@ -784,12 +791,62 @@ class DesignerWorkbenchViewSet(viewsets.ViewSet):
                 stage=ProductJourneyCheckpoint.STAGE_IN_PRODUCTION,
                 status=ProductJourneyCheckpoint.STATUS_IN_PROGRESS,
                 notes='Manufacturing started.',
-                user_name=request.user.get_full_name() or request.user.username,
+                user_name=user_name,
                 timestamp=timezone.now(),
                 expected_time=timezone.now() + datetime.timedelta(days=expected_days)
             )
 
-        return Response({"message": "Successfully sent to production."}, status=status.HTTP_200_OK)
+            # 4. Auto-create Production Order if quantity and destination provided
+            po_data = None
+            if production_quantity and destination_id:
+                try:
+                    production_qty = int(production_quantity)
+                    cost = float(unit_cost) if unit_cost else 0
+
+                    po = ProductionOrder.objects.create(
+                        company_id=request.user.company_id,
+                        order_number=_next_po_number(request.user.company_id),
+                        order_type=ProductionOrder.TYPE_NEW_PRODUCTION,
+                        destination_id=destination_id,
+                        order_date=timezone.now().date(),
+                        expected_delivery=timezone.now().date() + datetime.timedelta(days=expected_days),
+                        triggered_by=ProductionOrder.TRIGGER_DESIGN_APPROVAL,
+                        notes=f"Auto-created from design approval of {sku.code}. {notes}",
+                        created_by=request.user,
+                    )
+
+                    ProductionOrderLine.objects.create(
+                        company_id=request.user.company_id,
+                        production_order=po,
+                        sku=sku,
+                        planned_quantity=production_qty,
+                        unit_cost=cost,
+                    )
+
+                    # Journey checkpoint: production ordered
+                    _create_journey_checkpoint(
+                        company_id=request.user.company_id,
+                        sku=sku,
+                        stage=ProductJourneyCheckpoint.STAGE_PRODUCTION_ORDERED,
+                        status_val=ProductJourneyCheckpoint.STATUS_COMPLETED,
+                        notes=f"Production Order {po.order_number} auto-created from design approval. Planned: {production_qty} units.",
+                        user_name=user_name,
+                    )
+
+                    po_data = {
+                        'order_number': po.order_number,
+                        'id': str(po.id),
+                        'planned_quantity': production_qty,
+                    }
+                except (ValueError, Exception) as e:
+                    # Don't fail the approval if PO creation fails
+                    po_data = {'error': str(e)}
+
+        response_data = {"message": "Successfully sent to production."}
+        if po_data:
+            response_data['production_order'] = po_data
+
+        return Response(response_data, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'])
     def reject(self, request, pk=None):
@@ -1815,5 +1872,489 @@ class DailyStockReportViewSet(viewsets.ViewSet):
                 'online_pct': round(total_online_rev / grand_total * 100, 1) if grand_total > 0 else 0,
             },
             'daily': daily_data,
+        })
+
+
+# ─────────────────────────────────────────────────────────
+# Production Orders
+# ─────────────────────────────────────────────────────────
+
+from .models import ProductionOrder, ProductionOrderLine, ProductJourneyCheckpoint
+from .serializers import (
+    ProductionOrderSerializer,
+    ProductionOrderCreateSerializer,
+    ProductionOrderLineSerializer,
+)
+
+
+def _next_po_number(company_id):
+    """Generate next sequential PO number: PO-2026-0001."""
+    import re
+    from datetime import date
+    year = date.today().year
+    prefix = f"PO-{year}-"
+    existing = ProductionOrder.objects.filter(
+        company_id=company_id,
+        order_number__startswith=prefix
+    ).values_list('order_number', flat=True)
+    max_seq = 0
+    for num in existing:
+        match = re.search(r'PO-\d{4}-(\d+)', num)
+        if match:
+            max_seq = max(max_seq, int(match.group(1)))
+    return f"{prefix}{max_seq + 1:04d}"
+
+
+def _create_journey_checkpoint(company_id, sku, stage, status_val, notes='', user_name='', location=None):
+    """Helper to create a Product Journey checkpoint."""
+    ProductJourneyCheckpoint.objects.create(
+        company_id=company_id,
+        sku=sku,
+        stage=stage,
+        status=status_val,
+        location=location,
+        timestamp=timezone.now(),
+        notes=notes,
+        user_name=user_name,
+    )
+
+
+class ProductionOrderViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated]
+    serializer_class = ProductionOrderSerializer
+    pagination_class = InventoryPagination
+
+    def get_queryset(self):
+        qs = ProductionOrder.objects.filter(
+            company_id=self.request.user.company_id,
+        ).select_related('factory', 'destination').prefetch_related('lines__sku__product')
+
+        po_status = self.request.query_params.get('po_status')
+        if po_status:
+            qs = qs.filter(po_status=po_status)
+
+        order_type = self.request.query_params.get('order_type')
+        if order_type:
+            qs = qs.filter(order_type=order_type)
+
+        return qs.order_by('-order_date')
+
+    def create(self, request, *args, **kwargs):
+        """Create a Production Order with lines in one request."""
+        serializer = ProductionOrderCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        user_name = request.user.get_full_name() or request.user.username
+
+        with transaction.atomic():
+            po = ProductionOrder.objects.create(
+                company_id=request.user.company_id,
+                order_number=_next_po_number(request.user.company_id),
+                order_type=data['order_type'],
+                factory_id=data.get('factory'),
+                destination_id=data['destination'],
+                order_date=data['order_date'],
+                expected_delivery=data.get('expected_delivery'),
+                triggered_by=data.get('triggered_by', 'manual'),
+                notes=data.get('notes', ''),
+                created_by=request.user,
+            )
+
+            for line_data in data['lines']:
+                sku = SKU.objects.get(id=line_data['sku'])
+                ProductionOrderLine.objects.create(
+                    company_id=request.user.company_id,
+                    production_order=po,
+                    sku=sku,
+                    planned_quantity=line_data['planned_quantity'],
+                    unit_cost=line_data.get('unit_cost', 0),
+                    notes=line_data.get('notes', ''),
+                )
+
+                # Product Journey: production ordered
+                _create_journey_checkpoint(
+                    company_id=request.user.company_id,
+                    sku=sku,
+                    stage=ProductJourneyCheckpoint.STAGE_PRODUCTION_ORDERED,
+                    status_val=ProductJourneyCheckpoint.STATUS_COMPLETED,
+                    notes=f"Production Order {po.order_number} created. Planned: {line_data['planned_quantity']} units.",
+                    user_name=user_name,
+                    location=po.destination,
+                )
+
+        result = ProductionOrderSerializer(po, context={'request': request}).data
+        return Response(result, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'])
+    def confirm(self, request, pk=None):
+        """Move PO from draft → confirmed."""
+        po = self.get_object()
+        if po.po_status != ProductionOrder.STATUS_DRAFT:
+            return Response({'error': 'Only draft orders can be confirmed.'}, status=400)
+
+        user_name = request.user.get_full_name() or request.user.username
+        po.po_status = ProductionOrder.STATUS_CONFIRMED
+        po.save(update_fields=['po_status', 'updated_at'])
+
+        for line in po.lines.select_related('sku'):
+            line.line_status = ProductionOrderLine.LINE_PENDING
+            line.save(update_fields=['line_status', 'updated_at'])
+
+            _create_journey_checkpoint(
+                company_id=po.company_id,
+                sku=line.sku,
+                stage=ProductJourneyCheckpoint.STAGE_PRODUCTION_CONFIRMED,
+                status_val=ProductJourneyCheckpoint.STATUS_COMPLETED,
+                notes=f"Production Order {po.order_number} confirmed. {line.planned_quantity} units to be produced.",
+                user_name=user_name,
+                location=po.destination,
+            )
+
+        return Response(ProductionOrderSerializer(po, context={'request': request}).data)
+
+    @action(detail=True, methods=['post'])
+    def start(self, request, pk=None):
+        """Move PO from confirmed → in_production."""
+        po = self.get_object()
+        if po.po_status != ProductionOrder.STATUS_CONFIRMED:
+            return Response({'error': 'Only confirmed orders can be started.'}, status=400)
+
+        user_name = request.user.get_full_name() or request.user.username
+        po.po_status = ProductionOrder.STATUS_IN_PRODUCTION
+        po.save(update_fields=['po_status', 'updated_at'])
+
+        for line in po.lines.select_related('sku'):
+            line.line_status = ProductionOrderLine.LINE_IN_PRODUCTION
+            line.save(update_fields=['line_status', 'updated_at'])
+
+            _create_journey_checkpoint(
+                company_id=po.company_id,
+                sku=line.sku,
+                stage=ProductJourneyCheckpoint.STAGE_IN_PRODUCTION,
+                status_val=ProductJourneyCheckpoint.STATUS_IN_PROGRESS,
+                notes=f"Production started for {po.order_number}. {line.planned_quantity} units in production.",
+                user_name=user_name,
+                location=po.destination,
+            )
+
+        return Response(ProductionOrderSerializer(po, context={'request': request}).data)
+
+    @action(detail=True, methods=['post'])
+    def receive(self, request, pk=None):
+        """
+        Record receipt of goods against a Production Order.
+        Body: { "receipts": [{ "sku_id": "uuid", "quantity": 10, "rejected": 0 }] }
+        This updates PO lines, creates inventory movements, and updates balances.
+        """
+        po = self.get_object()
+        if po.po_status not in (
+            ProductionOrder.STATUS_IN_PRODUCTION,
+            ProductionOrder.STATUS_PARTIALLY_RECEIVED,
+            ProductionOrder.STATUS_CONFIRMED,
+        ):
+            return Response({'error': 'Order is not in a receivable state.'}, status=400)
+
+        receipts = request.data.get('receipts', [])
+        if not receipts:
+            return Response({'error': 'No receipt data provided.'}, status=400)
+
+        user_name = request.user.get_full_name() or request.user.username
+        from datetime import date
+        results = []
+
+        with transaction.atomic():
+            if not po.actual_delivery:
+                po.actual_delivery = date.today()
+
+            for rec in receipts:
+                sku_id = rec.get('sku_id')
+                qty = int(rec.get('quantity', 0))
+                rejected = int(rec.get('rejected', 0))
+
+                if qty <= 0 and rejected <= 0:
+                    continue
+
+                try:
+                    line = po.lines.select_related('sku').get(sku_id=sku_id)
+                except ProductionOrderLine.DoesNotExist:
+                    results.append({'sku_id': sku_id, 'error': 'SKU not found on this PO'})
+                    continue
+
+                line.received_quantity += qty
+                line.rejected_quantity += rejected
+
+                # Update line status
+                total_accounted = line.received_quantity + line.rejected_quantity
+                if total_accounted >= line.planned_quantity:
+                    line.line_status = ProductionOrderLine.LINE_COMPLETED
+                else:
+                    line.line_status = ProductionOrderLine.LINE_PARTIALLY_RECEIVED
+
+                line.save(update_fields=['received_quantity', 'rejected_quantity', 'line_status', 'updated_at'])
+
+                # Create inventory movement (receipt into destination warehouse)
+                if qty > 0:
+                    movement = InventoryMovement(
+                        movement_type=InventoryMovement.MOVEMENT_TYPE_RECEIPT,
+                        movement_date=timezone.now(),
+                        sku=line.sku,
+                        to_location=po.destination,
+                        quantity=qty,
+                        unit_cost=line.unit_cost,
+                        total_cost=qty * line.unit_cost,
+                        reference_number=po.order_number,
+                        notes=f"Production order receipt: {po.order_number}",
+                    )
+                    movement.save()
+
+                    # Update inventory balance
+                    balance, _ = InventoryBalance.objects.get_or_create(
+                        company_id=po.company_id,
+                        sku=line.sku,
+                        location=po.destination,
+                        defaults={'quantity_on_hand': 0, 'quantity_available': 0}
+                    )
+                    balance.quantity_on_hand += qty
+                    balance.quantity_available += qty
+                    balance.save(update_fields=['quantity_on_hand', 'quantity_available', 'updated_at'])
+
+                # Product Journey: received
+                _create_journey_checkpoint(
+                    company_id=po.company_id,
+                    sku=line.sku,
+                    stage=ProductJourneyCheckpoint.STAGE_RECEIVED,
+                    status_val=ProductJourneyCheckpoint.STATUS_COMPLETED,
+                    notes=f"Received {qty} units (rejected {rejected}) against {po.order_number}. Total: {line.received_quantity}/{line.planned_quantity}.",
+                    user_name=user_name,
+                    location=po.destination,
+                )
+
+                # If there's a shortfall, log that too
+                if line.line_status == ProductionOrderLine.LINE_COMPLETED and line.shortfall > 0:
+                    _create_journey_checkpoint(
+                        company_id=po.company_id,
+                        sku=line.sku,
+                        stage=ProductJourneyCheckpoint.STAGE_PRODUCTION_SHORTFALL,
+                        status_val=ProductJourneyCheckpoint.STATUS_COMPLETED,
+                        notes=f"Shortfall of {line.shortfall} units on {po.order_number}. Planned: {line.planned_quantity}, Received: {line.received_quantity}, Rejected: {line.rejected_quantity}.",
+                        user_name=user_name,
+                        location=po.destination,
+                    )
+
+                results.append({
+                    'sku_id': str(sku_id),
+                    'sku_code': line.sku.code,
+                    'received': qty,
+                    'rejected': rejected,
+                    'total_received': line.received_quantity,
+                    'planned': line.planned_quantity,
+                    'fulfillment_pct': line.fulfillment_pct,
+                })
+
+            # Update PO status
+            all_lines = po.lines.all()
+            all_completed = all(l.line_status in (ProductionOrderLine.LINE_COMPLETED, ProductionOrderLine.LINE_SHORT_CLOSED) for l in all_lines)
+            any_received = any(l.received_quantity > 0 for l in all_lines)
+
+            if all_completed:
+                po.po_status = ProductionOrder.STATUS_COMPLETED
+            elif any_received:
+                po.po_status = ProductionOrder.STATUS_PARTIALLY_RECEIVED
+
+            po.save(update_fields=['po_status', 'actual_delivery', 'updated_at'])
+
+        return Response({
+            'order_number': po.order_number,
+            'po_status': po.po_status,
+            'receipts': results,
+        })
+
+    @action(detail=True, methods=['post'])
+    def short_close(self, request, pk=None):
+        """Accept shortfall and close the PO."""
+        po = self.get_object()
+        if po.po_status not in (ProductionOrder.STATUS_PARTIALLY_RECEIVED, ProductionOrder.STATUS_IN_PRODUCTION):
+            return Response({'error': 'Order cannot be short-closed in its current state.'}, status=400)
+
+        user_name = request.user.get_full_name() or request.user.username
+
+        with transaction.atomic():
+            for line in po.lines.select_related('sku'):
+                if line.line_status != ProductionOrderLine.LINE_COMPLETED:
+                    shortfall = line.shortfall
+                    line.line_status = ProductionOrderLine.LINE_SHORT_CLOSED
+                    line.save(update_fields=['line_status', 'updated_at'])
+
+                    if shortfall > 0:
+                        _create_journey_checkpoint(
+                            company_id=po.company_id,
+                            sku=line.sku,
+                            stage=ProductJourneyCheckpoint.STAGE_PRODUCTION_SHORTFALL,
+                            status_val=ProductJourneyCheckpoint.STATUS_COMPLETED,
+                            notes=f"PO {po.order_number} short-closed. {shortfall} units undelivered for {line.sku.code}.",
+                            user_name=user_name,
+                            location=po.destination,
+                        )
+
+            po.po_status = ProductionOrder.STATUS_SHORT_CLOSED
+            po.save(update_fields=['po_status', 'updated_at'])
+
+        return Response(ProductionOrderSerializer(po, context={'request': request}).data)
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        """Cancel a PO (only if draft or confirmed)."""
+        po = self.get_object()
+        if po.po_status not in (ProductionOrder.STATUS_DRAFT, ProductionOrder.STATUS_CONFIRMED):
+            return Response({'error': 'Only draft or confirmed orders can be cancelled.'}, status=400)
+
+        po.po_status = ProductionOrder.STATUS_CANCELLED
+        po.save(update_fields=['po_status', 'updated_at'])
+        return Response(ProductionOrderSerializer(po, context={'request': request}).data)
+
+    @action(detail=False, methods=['get'])
+    def dashboard(self, request):
+        """Production orders summary for the dashboard widget."""
+        company_id = request.user.company_id
+        from datetime import date, timedelta
+
+        active_statuses = [
+            ProductionOrder.STATUS_CONFIRMED,
+            ProductionOrder.STATUS_IN_PRODUCTION,
+            ProductionOrder.STATUS_PARTIALLY_RECEIVED,
+        ]
+
+        active_pos = ProductionOrder.objects.filter(
+            company_id=company_id, po_status__in=active_statuses
+        ).prefetch_related('lines')
+
+        total_active = active_pos.count()
+        total_units_in_production = 0
+        overdue_count = 0
+        awaiting_receipt = 0
+
+        for po in active_pos:
+            total_units_in_production += po.total_planned - po.total_received
+            if po.is_overdue:
+                overdue_count += 1
+            if po.po_status in (ProductionOrder.STATUS_IN_PRODUCTION, ProductionOrder.STATUS_CONFIRMED):
+                awaiting_receipt += 1
+
+        # Recent completed
+        recent_completed = ProductionOrder.objects.filter(
+            company_id=company_id,
+            po_status__in=[ProductionOrder.STATUS_COMPLETED, ProductionOrder.STATUS_SHORT_CLOSED],
+        ).order_by('-updated_at')[:5]
+
+        return Response({
+            'active_orders': total_active,
+            'units_in_production': total_units_in_production,
+            'awaiting_receipt': awaiting_receipt,
+            'overdue': overdue_count,
+            'recent_completed': ProductionOrderSerializer(recent_completed, many=True, context={'request': request}).data,
+        })
+
+    @action(detail=False, methods=['get'])
+    def restock_suggestions(self, request):
+        """
+        Restock suggestions: SKUs below min_stock_level with no active PO already.
+        Returns items ready for one-click restock PO creation.
+        """
+        company_id = request.user.company_id
+
+        # Get all active PO SKU IDs so we don't suggest restocking items already in production
+        active_po_skus = set(
+            ProductionOrderLine.objects.filter(
+                production_order__company_id=company_id,
+                production_order__po_status__in=[
+                    ProductionOrder.STATUS_DRAFT,
+                    ProductionOrder.STATUS_CONFIRMED,
+                    ProductionOrder.STATUS_IN_PRODUCTION,
+                    ProductionOrder.STATUS_PARTIALLY_RECEIVED,
+                ],
+            ).values_list('sku_id', flat=True)
+        )
+
+        suggestions = []
+
+        # Warehouse stock alerts
+        all_balances = InventoryBalance.objects.filter(
+            company_id=company_id,
+            status='active',
+        ).select_related('sku__product', 'location')
+
+        for item in all_balances:
+            min_level = item.sku.min_stock_level
+            current_qty = float(item.quantity_available)
+
+            if min_level > 0 and current_qty <= min_level:
+                sku_id = item.sku_id
+                already_in_production = sku_id in active_po_skus
+                suggested_qty = max(int(min_level * 2 - current_qty), int(min_level))
+
+                suggestions.append({
+                    'sku_id': str(sku_id),
+                    'sku_code': item.sku.code,
+                    'sku_name': item.sku.name,
+                    'product_name': item.sku.product.name if item.sku.product else '',
+                    'location_id': str(item.location_id),
+                    'location_name': item.location.name,
+                    'current_stock': current_qty,
+                    'min_stock_level': float(min_level),
+                    'suggested_quantity': suggested_qty,
+                    'is_best_seller': item.sku.is_best_seller,
+                    'source': 'warehouse',
+                    'already_in_production': already_in_production,
+                    'urgency': 'critical' if (item.sku.is_best_seller or item.sku.movement_classification == 'fast') else 'standard',
+                })
+
+        # Shopify low-stock
+        try:
+            from apps.integrations.shopify_models import ShopifyProduct
+            shopify_products = ShopifyProduct.objects.filter(
+                store__company_id=company_id,
+                erp_sku__isnull=False
+            ).select_related('erp_sku__product')
+
+            for sp in shopify_products:
+                min_level = sp.erp_sku.min_stock_level
+                current_qty = sp.shopify_inventory_quantity or 0
+
+                if min_level > 0 and current_qty <= min_level:
+                    sku_id = sp.erp_sku_id
+                    already_in_production = sku_id in active_po_skus
+                    suggested_qty = max(int(min_level * 2 - current_qty), int(min_level))
+
+                    # Avoid duplicating if already in warehouse alerts
+                    if not any(s['sku_id'] == str(sku_id) for s in suggestions):
+                        suggestions.append({
+                            'sku_id': str(sku_id),
+                            'sku_code': sp.erp_sku.code,
+                            'sku_name': sp.erp_sku.name,
+                            'product_name': sp.erp_sku.product.name if sp.erp_sku.product else '',
+                            'location_id': None,
+                            'location_name': 'Shopify Online',
+                            'current_stock': current_qty,
+                            'min_stock_level': float(min_level),
+                            'suggested_quantity': suggested_qty,
+                            'is_best_seller': sp.erp_sku.is_best_seller,
+                            'source': 'shopify',
+                            'already_in_production': already_in_production,
+                            'urgency': 'critical' if sp.erp_sku.is_best_seller else 'standard',
+                        })
+        except Exception:
+            pass  # Shopify not configured
+
+        # Sort: critical first, then by lowest stock
+        suggestions.sort(key=lambda x: (0 if x['urgency'] == 'critical' else 1, x['current_stock']))
+
+        return Response({
+            'suggestions': suggestions,
+            'summary': {
+                'total': len(suggestions),
+                'critical': sum(1 for s in suggestions if s['urgency'] == 'critical'),
+                'already_in_production': sum(1 for s in suggestions if s['already_in_production']),
+            }
         })
 

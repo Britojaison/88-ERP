@@ -363,15 +363,25 @@ class ProductJourneyCheckpoint(TenantAwareModel):
     STAGE_IN_TRANSIT = 'in_transit'
     STAGE_DELIVERED = 'delivered'
     
+    # Production Order stages
+    STAGE_PRODUCTION_ORDERED = 'production_ordered'
+    STAGE_PRODUCTION_CONFIRMED = 'production_confirmed'
+    STAGE_PRODUCTION_SHORTFALL = 'production_shortfall'
+    STAGE_RESTOCK_TRIGGERED = 'restock_triggered'
+
     STAGE_CHOICES = [
         (STAGE_FABRIC_SOURCED, 'Fabric Sourced'),
         (STAGE_FABRIC_DISPATCHED, 'Fabric Dispatched'),
         (STAGE_DESIGN_APPROVED, 'Design Approved'),
+        (STAGE_PRODUCTION_ORDERED, 'Production Ordered'),
+        (STAGE_PRODUCTION_CONFIRMED, 'Production Confirmed'),
         (STAGE_IN_PRODUCTION, 'In Production'),
         (STAGE_SHOOT, 'Shoot / Photography'),
         (STAGE_RECEIVED, 'Received'),
+        (STAGE_PRODUCTION_SHORTFALL, 'Production Shortfall'),
         (STAGE_QUALITY_CHECK, 'Quality Check'),
         (STAGE_STORAGE, 'Storage'),
+        (STAGE_RESTOCK_TRIGGERED, 'Restock Triggered'),
         (STAGE_PICKED, 'Picked'),
         (STAGE_PACKED, 'Packed'),
         (STAGE_DISPATCHED, 'Dispatched'),
@@ -492,3 +502,195 @@ class DailyStockSnapshot(TenantAwareModel):
 
     def __str__(self):
         return f"{self.sku.code} @ {self.location.code} on {self.snapshot_date}: {self.opening_stock} → {self.closing_stock}"
+
+
+class ProductionOrder(TenantAwareModel):
+    """
+    Production Order — tracks planned production quantities for SKUs.
+    Links intent ("I want 50 units") with fulfillment ("I received 48 units").
+    """
+
+    # Order types
+    TYPE_NEW_PRODUCTION = 'new_production'
+    TYPE_RESTOCK = 'restock'
+    TYPE_URGENT_RESTOCK = 'urgent_restock'
+    TYPE_CHOICES = [
+        (TYPE_NEW_PRODUCTION, 'New Production'),
+        (TYPE_RESTOCK, 'Restock'),
+        (TYPE_URGENT_RESTOCK, 'Urgent Restock'),
+    ]
+
+    # Statuses
+    STATUS_DRAFT = 'draft'
+    STATUS_CONFIRMED = 'confirmed'
+    STATUS_IN_PRODUCTION = 'in_production'
+    STATUS_PARTIALLY_RECEIVED = 'partially_received'
+    STATUS_COMPLETED = 'completed'
+    STATUS_SHORT_CLOSED = 'short_closed'
+    STATUS_CANCELLED = 'cancelled'
+    PO_STATUS_CHOICES = [
+        (STATUS_DRAFT, 'Draft'),
+        (STATUS_CONFIRMED, 'Confirmed'),
+        (STATUS_IN_PRODUCTION, 'In Production'),
+        (STATUS_PARTIALLY_RECEIVED, 'Partially Received'),
+        (STATUS_COMPLETED, 'Completed'),
+        (STATUS_SHORT_CLOSED, 'Short Closed'),
+        (STATUS_CANCELLED, 'Cancelled'),
+    ]
+
+    # Trigger sources
+    TRIGGER_MANUAL = 'manual'
+    TRIGGER_DESIGN_APPROVAL = 'design_approval'
+    TRIGGER_LOW_STOCK = 'low_stock_alert'
+    TRIGGER_SHOPIFY_LOW = 'shopify_low'
+    TRIGGER_CHOICES = [
+        (TRIGGER_MANUAL, 'Manual'),
+        (TRIGGER_DESIGN_APPROVAL, 'Design Approval'),
+        (TRIGGER_LOW_STOCK, 'Low Stock Alert'),
+        (TRIGGER_SHOPIFY_LOW, 'Shopify Low Stock'),
+    ]
+
+    order_number = models.CharField(max_length=50, unique=True, db_index=True)
+    order_type = models.CharField(max_length=30, choices=TYPE_CHOICES, default=TYPE_NEW_PRODUCTION)
+    po_status = models.CharField(
+        max_length=30,
+        choices=PO_STATUS_CHOICES,
+        default=STATUS_DRAFT,
+        db_index=True
+    )
+
+    # Factory/vendor
+    factory = models.ForeignKey(
+        'mdm.Vendor',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='production_orders',
+        help_text='Factory/vendor producing the goods'
+    )
+
+    # Destination warehouse
+    destination = models.ForeignKey(
+        'mdm.Location',
+        on_delete=models.PROTECT,
+        related_name='incoming_production_orders',
+        help_text='Warehouse where goods will be received'
+    )
+
+    # Dates
+    order_date = models.DateField(help_text='When the production order was placed')
+    expected_delivery = models.DateField(null=True, blank=True, help_text='Expected delivery from factory')
+    actual_delivery = models.DateField(null=True, blank=True, help_text='When first goods were received')
+
+    triggered_by = models.CharField(max_length=30, choices=TRIGGER_CHOICES, default=TRIGGER_MANUAL)
+    notes = models.TextField(blank=True)
+
+    objects = models.Manager()
+    active = ActiveManager()
+
+    class Meta:
+        db_table = 'inv_production_order'
+        ordering = ['-order_date']
+        indexes = [
+            models.Index(fields=['company', 'po_status']),
+            models.Index(fields=['po_status', '-order_date']),
+        ]
+
+    def __str__(self):
+        return f"{self.order_number} ({self.get_po_status_display()})"
+
+    @property
+    def total_planned(self):
+        return sum(line.planned_quantity for line in self.lines.all())
+
+    @property
+    def total_received(self):
+        return sum(line.received_quantity for line in self.lines.all())
+
+    @property
+    def total_rejected(self):
+        return sum(line.rejected_quantity for line in self.lines.all())
+
+    @property
+    def total_shortfall(self):
+        return self.total_planned - self.total_received - self.total_rejected
+
+    @property
+    def fulfillment_pct(self):
+        total = self.total_planned
+        if total == 0:
+            return 100.0
+        return round((self.total_received / total) * 100, 1)
+
+    @property
+    def is_overdue(self):
+        from datetime import date
+        if self.expected_delivery and self.po_status in (
+            self.STATUS_CONFIRMED, self.STATUS_IN_PRODUCTION, self.STATUS_PARTIALLY_RECEIVED
+        ):
+            return date.today() > self.expected_delivery
+        return False
+
+
+class ProductionOrderLine(TenantAwareModel):
+    """
+    Individual SKU line within a Production Order.
+    Tracks planned vs actual quantities per SKU/size.
+    """
+
+    LINE_PENDING = 'pending'
+    LINE_IN_PRODUCTION = 'in_production'
+    LINE_PARTIALLY_RECEIVED = 'partially_received'
+    LINE_COMPLETED = 'completed'
+    LINE_SHORT_CLOSED = 'short_closed'
+    LINE_STATUS_CHOICES = [
+        (LINE_PENDING, 'Pending'),
+        (LINE_IN_PRODUCTION, 'In Production'),
+        (LINE_PARTIALLY_RECEIVED, 'Partially Received'),
+        (LINE_COMPLETED, 'Completed'),
+        (LINE_SHORT_CLOSED, 'Short Closed'),
+    ]
+
+    production_order = models.ForeignKey(
+        ProductionOrder,
+        on_delete=models.CASCADE,
+        related_name='lines'
+    )
+    sku = models.ForeignKey(
+        'mdm.SKU',
+        on_delete=models.PROTECT,
+        related_name='production_order_lines'
+    )
+
+    planned_quantity = models.PositiveIntegerField(help_text='Units ordered for production')
+    received_quantity = models.PositiveIntegerField(default=0, help_text='Units actually received')
+    rejected_quantity = models.PositiveIntegerField(default=0, help_text='Units that failed QC')
+    unit_cost = models.DecimalField(max_digits=15, decimal_places=2, default=0, help_text='Cost per unit from factory')
+
+    line_status = models.CharField(max_length=30, choices=LINE_STATUS_CHOICES, default=LINE_PENDING)
+    notes = models.TextField(blank=True)
+
+    objects = models.Manager()
+    active = ActiveManager()
+
+    class Meta:
+        db_table = 'inv_production_order_line'
+        unique_together = [['production_order', 'sku']]
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f"{self.production_order.order_number} — {self.sku.code}: {self.received_quantity}/{self.planned_quantity}"
+
+    @property
+    def shortfall(self):
+        return max(0, self.planned_quantity - self.received_quantity - self.rejected_quantity)
+
+    @property
+    def fulfillment_pct(self):
+        if self.planned_quantity == 0:
+            return 100.0
+        return round((self.received_quantity / self.planned_quantity) * 100, 1)
+
+    @property
+    def total_cost(self):
+        return self.planned_quantity * self.unit_cost

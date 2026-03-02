@@ -9,6 +9,7 @@ from .views import (
     ProductionKanbanViewSet,
     ProductJourneyViewSet,
     DailyStockReportViewSet,
+    ProductionOrderViewSet,
 )
 
 router = DefaultRouter()
@@ -20,6 +21,7 @@ router.register(r'design-approvals', DesignerWorkbenchViewSet, basename='design-
 router.register(r'production-kanban', ProductionKanbanViewSet, basename='production-kanban')
 router.register(r'product-journey', ProductJourneyViewSet, basename='product-journey')
 router.register(r'reports', DailyStockReportViewSet, basename='inventory-reports')
+router.register(r'production-orders', ProductionOrderViewSet, basename='production-orders')
 
 urlpatterns = [
     path('', include(router.urls)),

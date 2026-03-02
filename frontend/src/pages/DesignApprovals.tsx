@@ -16,24 +16,36 @@ import {
     CircularProgress,
     Alert,
     Stack,
+    FormControl,
+    InputLabel,
+    Select,
+    MenuItem,
+    Divider,
 } from '@mui/material'
-import { CheckCircle, Cancel, Schedule, Architecture, ChevronLeft, ChevronRight, CloudUpload } from '@mui/icons-material'
+import { CheckCircle, Cancel, Schedule, Architecture, ChevronLeft, ChevronRight, CloudUpload, LocalShipping } from '@mui/icons-material'
+import { useNavigate } from 'react-router-dom'
 import PageHeader from '../components/ui/PageHeader'
 import { designApprovalService, DesignApprovalItem } from '../services/inventory.service'
+import { mdmService, type Location } from '../services/mdm.service'
 
 export default function DesignApprovals() {
+    const navigate = useNavigate()
     const [items, setItems] = useState<DesignApprovalItem[]>([])
     const [page, setPage] = useState(1)
     const [totalPages, setTotalPages] = useState(1)
     const limit = 50
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
+    const [warehouses, setWarehouses] = useState<Location[]>([])
 
     const [selectedItem, setSelectedItem] = useState<DesignApprovalItem | null>(null)
     const [approvalModalOpen, setApprovalModalOpen] = useState(false)
     const [approvalForm, setApprovalForm] = useState({
         notes: 'Fabric tested and design approved.',
         expectedDays: 14,
+        productionQuantity: 0,
+        destinationId: '',
+        unitCost: 0,
     })
     const [submitting, setSubmitting] = useState(false)
     const [successMsg, setSuccessMsg] = useState<string | null>(null)
@@ -57,11 +69,24 @@ export default function DesignApprovals() {
         fetchPending()
     }, [page])
 
+    useEffect(() => {
+        const loadLocations = async () => {
+            try {
+                const locs = await mdmService.getLocations()
+                setWarehouses(locs.filter((l: Location) => l.location_type === 'warehouse'))
+            } catch { }
+        }
+        loadLocations()
+    }, [])
+
     const handleOpenApproval = (item: DesignApprovalItem) => {
         setSelectedItem(item)
         setApprovalForm({
             notes: 'Fabric tested and design approved.',
             expectedDays: 14,
+            productionQuantity: 0,
+            destinationId: warehouses.length > 0 ? warehouses[0].id : '',
+            unitCost: 0,
         })
         setAttachment(null)
         setApprovalModalOpen(true)
@@ -71,13 +96,20 @@ export default function DesignApprovals() {
         if (!selectedItem) return
         setSubmitting(true)
         try {
-            await designApprovalService.approveDesign(
+            const result = await designApprovalService.approveDesign(
                 selectedItem.id,
                 approvalForm.notes,
                 approvalForm.expectedDays,
-                attachment || undefined
+                attachment || undefined,
+                approvalForm.productionQuantity > 0 ? approvalForm.productionQuantity : undefined,
+                approvalForm.destinationId || undefined,
+                approvalForm.unitCost > 0 ? approvalForm.unitCost : undefined,
             )
-            setSuccessMsg('Design successfully approved and sent to production!')
+            let msg = 'Design successfully approved and sent to production!'
+            if (result.production_order?.order_number) {
+                msg += ` Production Order ${result.production_order.order_number} created (${result.production_order.planned_quantity} units).`
+            }
+            setSuccessMsg(msg)
             setApprovalModalOpen(false)
             fetchPending()
         } catch (err: any) {
@@ -116,7 +148,15 @@ export default function DesignApprovals() {
             )}
 
             {successMsg && (
-                <Alert severity="success" sx={{ mb: 3 }} onClose={() => setSuccessMsg(null)}>
+                <Alert severity="success" sx={{ mb: 3 }} onClose={() => setSuccessMsg(null)}
+                    action={
+                        successMsg.includes('Production Order') ? (
+                            <Button color="inherit" size="small" onClick={() => navigate('/inventory/production-orders')}>
+                                View Orders →
+                            </Button>
+                        ) : undefined
+                    }
+                >
                     {successMsg}
                 </Alert>
             )}
@@ -263,6 +303,9 @@ export default function DesignApprovals() {
                             <li>Change the lifecycle status to <strong>In Production</strong></li>
                             <li>Log a "Design Approved" Product Journey checkpoint</li>
                             <li>Create a new "In Production" Product Journey checkpoint</li>
+                            {approvalForm.productionQuantity > 0 && (
+                                <li><strong>Create a Production Order for {approvalForm.productionQuantity} units</strong></li>
+                            )}
                         </ul>
                     </Alert>
 
@@ -286,29 +329,82 @@ export default function DesignApprovals() {
                                 value={approvalForm.expectedDays}
                                 onChange={(e) => setApprovalForm({ ...approvalForm, expectedDays: Number(e.target.value) })}
                                 helperText="Estimated days until the factory delivers this to the warehouse."
-                                sx={{ mb: 2 }}
                             />
-
-                            <Box>
-                                <Typography variant="subtitle2" gutterBottom>
-                                    Upload Pattern File / Design Specs (Optional)
-                                </Typography>
-                                <Button
-                                    variant="outlined"
-                                    component="label"
-                                    startIcon={<CloudUpload />}
-                                    fullWidth
-                                >
-                                    {attachment ? attachment.name : 'Choose File'}
-                                    <input
-                                        type="file"
-                                        hidden
-                                        onChange={(e) => setAttachment(e.target.files?.[0] || null)}
-                                    />
-                                </Button>
-                            </Box>
                         </Grid>
                     </Grid>
+
+                    <Divider sx={{ my: 3 }} />
+
+                    {/* Production Order Section */}
+                    <Box sx={{ p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 2, backgroundColor: 'action.hover' }}>
+                        <Stack direction="row" alignItems="center" gap={1} mb={2}>
+                            <LocalShipping color="primary" />
+                            <Typography variant="subtitle1" fontWeight={700}>
+                                Production Order (Optional)
+                            </Typography>
+                        </Stack>
+                        <Typography variant="body2" color="text.secondary" mb={2}>
+                            Specify a quantity to automatically create a draft Production Order. You can leave this at 0 to skip.
+                        </Typography>
+                        <Grid container spacing={2}>
+                            <Grid item xs={12} sm={4}>
+                                <TextField
+                                    fullWidth
+                                    type="number"
+                                    label="Quantity"
+                                    size="small"
+                                    value={approvalForm.productionQuantity}
+                                    onChange={(e) => setApprovalForm({ ...approvalForm, productionQuantity: Number(e.target.value) })}
+                                    inputProps={{ min: 0 }}
+                                    helperText="Units to produce"
+                                />
+                            </Grid>
+                            <Grid item xs={12} sm={4}>
+                                <FormControl fullWidth size="small">
+                                    <InputLabel>Warehouse</InputLabel>
+                                    <Select
+                                        value={approvalForm.destinationId}
+                                        label="Warehouse"
+                                        onChange={(e) => setApprovalForm({ ...approvalForm, destinationId: e.target.value })}
+                                    >
+                                        {warehouses.map(w => (
+                                            <MenuItem key={w.id} value={w.id}>{w.name}</MenuItem>
+                                        ))}
+                                    </Select>
+                                </FormControl>
+                            </Grid>
+                            <Grid item xs={12} sm={4}>
+                                <TextField
+                                    fullWidth
+                                    type="number"
+                                    label="Unit Cost (₹)"
+                                    size="small"
+                                    value={approvalForm.unitCost}
+                                    onChange={(e) => setApprovalForm({ ...approvalForm, unitCost: Number(e.target.value) })}
+                                    inputProps={{ min: 0, step: 0.01 }}
+                                />
+                            </Grid>
+                        </Grid>
+                    </Box>
+
+                    <Box sx={{ mt: 3 }}>
+                        <Typography variant="subtitle2" gutterBottom>
+                            Upload Pattern File / Design Specs (Optional)
+                        </Typography>
+                        <Button
+                            variant="outlined"
+                            component="label"
+                            startIcon={<CloudUpload />}
+                            fullWidth
+                        >
+                            {attachment ? attachment.name : 'Choose File'}
+                            <input
+                                type="file"
+                                hidden
+                                onChange={(e) => setAttachment(e.target.files?.[0] || null)}
+                            />
+                        </Button>
+                    </Box>
                 </DialogContent>
                 <DialogActions>
                     <Button
@@ -324,7 +420,7 @@ export default function DesignApprovals() {
                         disabled={submitting}
                         startIcon={submitting ? <CircularProgress size={20} /> : <CheckCircle />}
                     >
-                        {submitting ? 'Approving...' : 'Approve & Send'}
+                        {submitting ? 'Approving...' : approvalForm.productionQuantity > 0 ? `Approve & Create PO (${approvalForm.productionQuantity} units)` : 'Approve & Send'}
                     </Button>
                 </DialogActions>
             </Dialog>

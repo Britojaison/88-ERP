@@ -12,6 +12,7 @@ import InventoryTracking from './pages/InventoryTracking'
 import ProductJourney from './pages/ProductJourney'
 import DesignApprovals from './pages/DesignApprovals'
 import ProductionKanban from './pages/ProductionKanban'
+import ProductionOrders from './pages/ProductionOrders'
 import StockTransfer from './pages/StockTransfer'
 import InventoryHealth from './pages/InventoryHealth'
 import POSCheckout from './pages/POSCheckout'
@@ -79,6 +80,7 @@ function App() {
           <Route path="inventory/product-journey" element={<ProductJourney />} />
           <Route path="inventory/design-approvals" element={<DesignApprovals />} />
           <Route path="inventory/production-kanban" element={<ProductionKanban />} />
+          <Route path="inventory/production-orders" element={<ProductionOrders />} />
           <Route path="inventory/stock-transfers" element={<StockTransfer />} />
           <Route path="inventory/health" element={<InventoryHealth />} />
           <Route path="reports" element={<Reports />} />
