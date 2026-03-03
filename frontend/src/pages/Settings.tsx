@@ -41,7 +41,7 @@ function TabPanel(props: TabPanelProps) {
   const { children, value, index, ...other } = props
   return (
     <div hidden={value !== index} {...other}>
-      {value === index && <Box sx={{ py: 3 }}>{children}</Box>}
+      {value === index && <Box sx={{ pt: 4, pb: 6, px: { xs: 3, sm: 4, md: 5 } }}>{children}</Box>}
     </div>
   )
 }
@@ -109,7 +109,7 @@ export default function Settings() {
         </Tabs>
 
         <TabPanel value={tabValue} index={0}>
-          <Box sx={{ maxWidth: 800, mx: 'auto', px: { xs: 2, sm: 0 } }}>
+          <Box sx={{ maxWidth: 1200 }}>
             <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
               Company Information
             </Typography>
@@ -157,19 +157,20 @@ export default function Settings() {
                   onChange={(e) => handleChange('email', e.target.value)}
                 />
               </Grid>
-              <Grid item xs={12}>
+              <Grid item xs={12} sx={{ mt: 1 }}>
                 <Button
                   variant="contained"
                   startIcon={<Save />}
                   onClick={() => handleSave('Company')}
+                  size="large"
                 >
                   Save Changes
                 </Button>
               </Grid>
             </Grid>
-
+            <Divider sx={{ my: 6 }} />
             {/* Display/Theme Options Area */}
-            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, mt: 5 }}>
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
               Display Options
             </Typography>
             <Card sx={{ mt: 1 }}>
@@ -193,7 +194,7 @@ export default function Settings() {
         </TabPanel>
 
         <TabPanel value={tabValue} index={1}>
-          <Box sx={{ maxWidth: 800, mx: 'auto', px: { xs: 2, sm: 0 } }}>
+          <Box sx={{ maxWidth: 1200 }}>
             <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
               Security Settings
             </Typography>
@@ -234,7 +235,7 @@ export default function Settings() {
 
         <TabPanel value={tabValue} index={2}>
           {isAdmin ? (
-            <Box sx={{ maxWidth: '100%', mx: 'auto', px: { xs: 2, sm: 0 } }}>
+            <Box sx={{ maxWidth: '100%' }}>
               <PermissionDesigner />
             </Box>
           ) : (
@@ -244,7 +245,7 @@ export default function Settings() {
 
         <TabPanel value={tabValue} index={3}>
           {isAdmin ? (
-            <Box sx={{ maxWidth: '100%', mx: 'auto', px: { xs: 2, sm: 0 } }}>
+            <Box sx={{ maxWidth: '100%' }}>
               <UserManagement />
             </Box>
           ) : (
