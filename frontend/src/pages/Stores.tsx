@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { qty } from '../utils'
 import {
     Box,
     Chip,
@@ -447,10 +448,10 @@ export default function Stores() {
                                                                 />
                                                             </TableCell>
                                                             <TableCell align="right" sx={{ fontWeight: 700 }}>
-                                                                {row.quantity_on_hand}
+                                                                {qty(row.quantity_on_hand)}
                                                             </TableCell>
                                                             <TableCell align="right" sx={{ fontWeight: 800, color: parseInt(row.quantity_available) > 0 ? 'inherit' : 'error.main' }}>
-                                                                {row.quantity_available}
+                                                                {qty(row.quantity_available)}
                                                             </TableCell>
                                                             <TableCell align="center">
                                                                 <Chip

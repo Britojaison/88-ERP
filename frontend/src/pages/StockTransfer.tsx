@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { qty } from '../utils'
 import {
     Box, Typography, Card, CardContent, Grid, TextField, Button,
     MenuItem, Alert, CircularProgress, Autocomplete
@@ -181,7 +182,7 @@ export default function StockTransfer() {
                             </Typography>
                             <Autocomplete
                                 options={balances}
-                                getOptionLabel={(option) => `${option.sku_code} - Available: ${parseFloat(option.quantity_available).toString()}`}
+                                getOptionLabel={(option) => `${option.sku_code} - Available: ${qty(option.quantity_available)}`}
                                 value={selectedBalance}
                                 onChange={(_, newValue) => setSelectedBalance(newValue)}
                                 disabled={!fromLocation || fetchingBalances}

@@ -577,7 +577,7 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
       rows: skuPerformance.map(item => [
         item.code,
         item.name,
-        item.quantity.toFixed(2),
+        Math.round(item.quantity).toString(),
         `₹${item.price.toFixed(2)}`,
         `₹${item.value.toFixed(2)}`,
       ]),
@@ -666,7 +666,7 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
       rows: slowMoving.map(item => [
         item.sku_code || 'Unknown',
         item.location_code || 'Unknown',
-        parseFloat(item.quantity_available || '0').toFixed(2),
+        Math.round(parseFloat(item.quantity_available || '0')).toString(),
         `₹${parseFloat(item.average_cost || '0').toFixed(2)}`,
         `₹${(parseFloat(item.quantity_available || '0') * parseFloat(item.average_cost || '0')).toFixed(2)}`,
         '30+', // Placeholder - would need movement date analysis
@@ -689,7 +689,7 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
         movement.sku_code || 'Unknown',
         movement.from_location_code || '-',
         movement.to_location_code || '-',
-        parseFloat(movement.quantity || '0').toFixed(2),
+        Math.round(parseFloat(movement.quantity || '0')).toString(),
         `₹${parseFloat(movement.total_cost || '0').toFixed(2)}`,
       ]),
     }
@@ -735,7 +735,7 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
         .map(cat => [
           cat.name,
           cat.skus,
-          cat.quantity.toFixed(2),
+          Math.round(cat.quantity).toString(),
           `₹${cat.value.toFixed(2)}`,
         ]),
     }
@@ -894,7 +894,7 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
                     {reportData.details.breakdown.map((row: any, index: number) => (
                       <TableRow key={index}>
                         <TableCell>{row.sku}</TableCell>
-                        <TableCell align="right">{row.quantity.toFixed(2)}</TableCell>
+                        <TableCell align="right">{Math.round(row.quantity)}</TableCell>
                         <TableCell align="right">${row.costValue.toFixed(2)}</TableCell>
                         <TableCell align="right">${row.retailValue.toFixed(2)}</TableCell>
                       </TableRow>

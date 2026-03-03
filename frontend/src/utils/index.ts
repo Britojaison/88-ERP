@@ -1,5 +1,12 @@
 // Utility functions
 
+/** Display a quantity value as a whole number (no decimals). Use for all stock/quantity UI display. */
+export const qty = (value: string | number | null | undefined): string => {
+  if (value === null || value === undefined || value === '') return '0'
+  return Math.round(parseFloat(String(value))).toString()
+}
+
+
 export const formatCurrency = (amount: number, currency: string = 'INR'): string => {
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',

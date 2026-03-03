@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { qty } from '../utils'
 import { useNavigate } from 'react-router-dom'
 import { Alert, Box, Button, Grid, Paper, Snackbar, Stack, Typography, CircularProgress, Divider, List, ListItem, ListItemText, ListItemIcon, Chip } from '@mui/material'
 import {
@@ -195,7 +196,7 @@ export default function Dashboard() {
                             )}
                           </Stack>
                         }
-                        secondary={`Location: ${alert.location_name || alert.location_code} | Reorder Point: ${alert.min_stock_level} | On Hand: ${alert.quantity_on_hand}`}
+                        secondary={`Location: ${alert.location_name || alert.location_code} | Reorder Point: ${qty(alert.min_stock_level)} | On Hand: ${qty(alert.quantity_on_hand)}`}
                       />
                       <Button size="small" variant="outlined" onClick={() => navigate('/inventory/health')}>
                         Review
