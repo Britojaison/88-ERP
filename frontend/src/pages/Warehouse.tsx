@@ -20,7 +20,8 @@ import {
     Card,
     CardContent,
     Tabs,
-    Tab
+    Tab,
+    Button
 } from '@mui/material'
 import {
     Warehouse as WarehouseIcon,
@@ -46,6 +47,11 @@ export default function Warehouse() {
     const [tabValue, setTabValue] = useState(0)
     const [searchQuery, setSearchQuery] = useState('')
     const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const [totalCount, setTotalCount] = useState(0)
+    const [currentPage, setCurrentPage] = useState(1)
+    const [hasNextPage, setHasNextPage] = useState(false)
+    const [hasPrevPage, setHasPrevPage] = useState(false)
+    const [summary, setSummary] = useState<{ total_skus: number; total_units: number; zero_stock: number }>({ total_skus: 0, total_units: 0, zero_stock: 0 })
 
     useEffect(() => {
         const fetchWarehouses = async () => {
@@ -67,19 +73,34 @@ export default function Warehouse() {
         fetchWarehouses()
     }, [])
 
-    const fetchBalances = useCallback(async (locationId: string, search?: string) => {
+    const fetchBalances = useCallback(async (locationId: string, search?: string, page?: number) => {
         setFetchingBalances(true)
         try {
             const params: any = { location: locationId }
             if (search?.trim()) {
                 params.search = search.trim()
-                params.page_size = 200
             }
-            const data = await inventoryService.getBalances(params)
-            setBalances(Array.isArray(data) ? data : (data as any).results || [])
+            if (page && page > 1) {
+                params.page = page
+            }
+            const data = await inventoryService.getBalances(params) as any
+            if (data && data.results) {
+                setBalances(data.results)
+                setTotalCount(data.count || 0)
+                setHasNextPage(!!data.next)
+                setHasPrevPage(!!data.previous)
+            } else {
+                setBalances(Array.isArray(data) ? data : [])
+                setTotalCount(Array.isArray(data) ? data.length : 0)
+                setHasNextPage(false)
+                setHasPrevPage(false)
+            }
         } catch (error) {
             console.error('Error fetching balances:', error)
             setBalances([])
+            setTotalCount(0)
+            setHasNextPage(false)
+            setHasPrevPage(false)
         } finally {
             setFetchingBalances(false)
         }
@@ -102,6 +123,12 @@ export default function Warehouse() {
                     inventoryService.getGoodsReceiptScans({ location: selectedWarehouse.id })
                 ])
 
+                // Fetch aggregate summary separately (not affected by pagination)
+                try {
+                    const summaryData = await inventoryService.getBalanceSummary(selectedWarehouse.id)
+                    setSummary(summaryData)
+                } catch { setSummary({ total_skus: 0, total_units: 0, zero_stock: 0 }) }
+
                 setScanLogs(Array.isArray(logData) ? logData : (logData as any).results || [])
             } catch (error) {
                 console.error('Error fetching warehouse data:', error)
@@ -111,16 +138,24 @@ export default function Warehouse() {
             }
         }
         setSearchQuery('')
+        setCurrentPage(1)
         fetchData()
     }, [selectedWarehouse, fetchBalances])
 
     const handleSearch = (value: string) => {
         setSearchQuery(value)
+        setCurrentPage(1)
         if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
         if (!selectedWarehouse) return
         searchTimerRef.current = setTimeout(() => {
-            fetchBalances(selectedWarehouse.id, value)
+            fetchBalances(selectedWarehouse.id, value, 1)
         }, 400)
+    }
+
+    const handlePageChange = (newPage: number) => {
+        if (!selectedWarehouse) return
+        setCurrentPage(newPage)
+        fetchBalances(selectedWarehouse.id, searchQuery, newPage)
     }
 
     const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
@@ -239,7 +274,7 @@ export default function Warehouse() {
                                             Stocked Items (SKUs)
                                         </Typography>
                                         <Typography variant="h3" sx={{ fontWeight: 800, mt: 1 }}>
-                                            {balances.length}
+                                            {summary.total_skus}
                                         </Typography>
                                     </CardContent>
                                 </Card>
@@ -252,7 +287,7 @@ export default function Warehouse() {
                                             Total Unit Count
                                         </Typography>
                                         <Typography variant="h3" sx={{ fontWeight: 800, mt: 1, color: '#0f6d6a' }}>
-                                            {balances.reduce((acc, b) => acc + parseInt(b.quantity_available || '0'), 0)}
+                                            {summary.total_units}
                                         </Typography>
                                     </CardContent>
                                 </Card>
@@ -264,7 +299,7 @@ export default function Warehouse() {
                                             Zero Stock Alerts
                                         </Typography>
                                         <Typography variant="h3" sx={{ fontWeight: 800, mt: 1, color: 'error.main' }}>
-                                            {balances.filter(b => parseInt(b.quantity_available || '0') <= 0).length}
+                                            {summary.zero_stock}
                                         </Typography>
                                     </CardContent>
                                 </Card>
@@ -331,69 +366,94 @@ export default function Warehouse() {
                                             </Typography>
                                         </Box>
                                     ) : (
-                                        <TableContainer>
-                                            <Table>
-                                                <TableHead sx={{ bgcolor: 'rgba(248, 250, 252, 0.8)' }}>
-                                                    <TableRow>
-                                                        <TableCell sx={{ fontWeight: 800 }}>SKU Code</TableCell>
-                                                        <TableCell sx={{ fontWeight: 800 }}>Product Name</TableCell>
-                                                        <TableCell sx={{ fontWeight: 800 }}>Variant</TableCell>
-                                                        <TableCell sx={{ fontWeight: 800 }}>Condition</TableCell>
-                                                        <TableCell sx={{ fontWeight: 800 }} align="right">On Hand</TableCell>
-                                                        <TableCell sx={{ fontWeight: 800 }} align="right">Available</TableCell>
-                                                        <TableCell sx={{ fontWeight: 800 }} align="center">Status</TableCell>
-                                                    </TableRow>
-                                                </TableHead>
-                                                <TableBody>
-                                                    {balances.map((row) => (
-                                                        <TableRow
-                                                            key={row.id}
-                                                            sx={{ '&:hover': { bgcolor: 'rgba(15, 109, 106, 0.02)' } }}
-                                                        >
-                                                            <TableCell sx={{ fontWeight: 600, color: 'primary.main' }}>
-                                                                {row.sku_code || '—'}
-                                                            </TableCell>
-                                                            <TableCell sx={{ fontWeight: 600 }}>
-                                                                {(row as any).product_name || row.sku_name || '—'}
-                                                            </TableCell>
-                                                            <TableCell sx={{ color: '#475569', fontSize: '0.85rem' }}>
-                                                                {row.sku_name || '—'}
-                                                            </TableCell>
-                                                            <TableCell>
-                                                                <Chip
-                                                                    label={row.condition}
-                                                                    size="small"
-                                                                    sx={{
-                                                                        textTransform: 'capitalize',
-                                                                        fontWeight: 600,
-                                                                        borderRadius: 1,
-                                                                        bgcolor: 'action.hover'
-                                                                    }}
-                                                                />
-                                                            </TableCell>
-                                                            <TableCell align="right" sx={{ fontWeight: 700 }}>
-                                                                {qty(row.quantity_on_hand)}
-                                                            </TableCell>
-                                                            <TableCell align="right" sx={{ fontWeight: 800, color: parseInt(row.quantity_available) > 0 ? 'inherit' : 'error.main' }}>
-                                                                {qty(row.quantity_available)}
-                                                            </TableCell>
-                                                            <TableCell align="center">
-                                                                <Chip
-                                                                    label={parseInt(row.quantity_available) > 0 ? 'In Stock' : 'Out of Stock'}
-                                                                    color={parseInt(row.quantity_available) > 0 ? 'success' : 'error'}
-                                                                    size="small"
-                                                                    sx={{ borderRadius: 1.5, fontWeight: 700 }}
-                                                                />
-                                                            </TableCell>
+                                        <>
+                                            <TableContainer>
+                                                <Table>
+                                                    <TableHead sx={{ bgcolor: 'rgba(248, 250, 252, 0.8)' }}>
+                                                        <TableRow>
+                                                            <TableCell sx={{ fontWeight: 800 }}>SKU Code</TableCell>
+                                                            <TableCell sx={{ fontWeight: 800 }}>Product Name</TableCell>
+                                                            <TableCell sx={{ fontWeight: 800 }}>Variant</TableCell>
+                                                            <TableCell sx={{ fontWeight: 800 }}>Condition</TableCell>
+                                                            <TableCell sx={{ fontWeight: 800 }} align="right">On Hand</TableCell>
+                                                            <TableCell sx={{ fontWeight: 800 }} align="right">Available</TableCell>
+                                                            <TableCell sx={{ fontWeight: 800 }} align="center">Status</TableCell>
                                                         </TableRow>
-                                                    ))}
-                                                </TableBody>
-                                            </Table>
-                                        </TableContainer>
+                                                    </TableHead>
+                                                    <TableBody>
+                                                        {balances.map((row) => (
+                                                            <TableRow
+                                                                key={row.id}
+                                                                sx={{ '&:hover': { bgcolor: 'rgba(15, 109, 106, 0.02)' } }}
+                                                            >
+                                                                <TableCell sx={{ fontWeight: 600, color: 'primary.main' }}>
+                                                                    {row.sku_code || '—'}
+                                                                </TableCell>
+                                                                <TableCell sx={{ fontWeight: 600 }}>
+                                                                    {(row as any).product_name || row.sku_name || '—'}
+                                                                </TableCell>
+                                                                <TableCell sx={{ color: '#475569', fontSize: '0.85rem' }}>
+                                                                    {row.sku_name || '—'}
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                    <Chip
+                                                                        label={row.condition}
+                                                                        size="small"
+                                                                        sx={{
+                                                                            textTransform: 'capitalize',
+                                                                            fontWeight: 600,
+                                                                            borderRadius: 1,
+                                                                            bgcolor: 'action.hover'
+                                                                        }}
+                                                                    />
+                                                                </TableCell>
+                                                                <TableCell align="right" sx={{ fontWeight: 700 }}>
+                                                                    {qty(row.quantity_on_hand)}
+                                                                </TableCell>
+                                                                <TableCell align="right" sx={{ fontWeight: 800, color: parseInt(row.quantity_available) > 0 ? 'inherit' : 'error.main' }}>
+                                                                    {qty(row.quantity_available)}
+                                                                </TableCell>
+                                                                <TableCell align="center">
+                                                                    <Chip
+                                                                        label={parseInt(row.quantity_available) > 0 ? 'In Stock' : 'Out of Stock'}
+                                                                        color={parseInt(row.quantity_available) > 0 ? 'success' : 'error'}
+                                                                        size="small"
+                                                                        sx={{ borderRadius: 1.5, fontWeight: 700 }}
+                                                                    />
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        ))}
+                                                    </TableBody>
+                                                </Table>
+                                            </TableContainer>
+                                            {/* Pagination Controls */}
+                                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 3, py: 2, borderTop: '1px solid rgba(15,23,42,0.06)' }}>
+                                                <Typography variant="body2" color="text.secondary">
+                                                    Showing {balances.length} of {totalCount} items (Page {currentPage})
+                                                </Typography>
+                                                <Stack direction="row" spacing={1}>
+                                                    <Button
+                                                        size="small"
+                                                        variant="outlined"
+                                                        disabled={!hasPrevPage || fetchingBalances}
+                                                        onClick={() => handlePageChange(currentPage - 1)}
+                                                    >
+                                                        Previous
+                                                    </Button>
+                                                    <Button
+                                                        size="small"
+                                                        variant="outlined"
+                                                        disabled={!hasNextPage || fetchingBalances}
+                                                        onClick={() => handlePageChange(currentPage + 1)}
+                                                    >
+                                                        Next
+                                                    </Button>
+                                                </Stack>
+                                            </Box>
+                                        </>
                                     )}
                                 </Box>
                             )}
-
                             {tabValue === 1 && (
                                 <Box>
                                     {fetchingLogs ? (
@@ -460,7 +520,8 @@ export default function Warehouse() {
                         </Paper>
                     </Grid>
                 </Grid>
-            )}
-        </Box>
+            )
+            }
+        </Box >
     )
 }

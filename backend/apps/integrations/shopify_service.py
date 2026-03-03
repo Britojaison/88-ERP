@@ -559,6 +559,45 @@ class ShopifyService:
             # Update the cached quantity on the product mapping
             sp.shopify_inventory_quantity = available
             sp.save(update_fields=['shopify_inventory_quantity'])
+
+            # ── Bridge: Sync into ERP InventoryBalance ──
+            # Find or create the "Shopify Warehouse" location and write
+            # the real Shopify quantity into a proper InventoryBalance row
+            # so that it appears on the Warehouse page.
+            if sp.erp_sku_id:
+                try:
+                    from apps.inventory.models import InventoryBalance
+                    from decimal import Decimal
+
+                    shopify_location = Location.objects.filter(
+                        company_id=store.company_id,
+                        code='SHOPIFY-WH',
+                    ).first()
+
+                    if shopify_location:
+                        balance, _ = InventoryBalance.objects.get_or_create(
+                            company_id=store.company_id,
+                            sku_id=sp.erp_sku_id,
+                            location=shopify_location,
+                            condition=InventoryBalance.CONDITION_NEW,
+                            defaults={
+                                'quantity_on_hand': Decimal(str(available)),
+                                'quantity_reserved': Decimal('0'),
+                                'quantity_available': Decimal(str(available)),
+                                'average_cost': Decimal('0'),
+                            },
+                        )
+
+                        if not _:  # existing row — overwrite with Shopify truth
+                            balance.quantity_on_hand = Decimal(str(available))
+                            balance.quantity_available = Decimal(str(available)) - balance.quantity_reserved
+                            balance.save(update_fields=[
+                                'quantity_on_hand', 'quantity_available',
+                                'updated_at', 'version',
+                            ])
+                except Exception as e:
+                    logger.warning(f"Failed to bridge InventoryBalance for {sp.erp_sku_id}: {e}")
+
             break
         
         job.processed_items += 1
@@ -587,13 +626,26 @@ class ShopifyService:
             if sku.size:
                 variant_data['option1'] = sku.size
 
-            # We update via the product endpoint to ensure title/etc are synced if needed,
-            # but specifically centering on our variant.
+            # Update product with title, description, and variant
             product_data = {
                 'id': existing.shopify_product_id,
                 'title': sku.product.name,
+                'body_html': sku.product.description or '',
                 'variants': [variant_data]
             }
+
+            # Update image if available
+            if sku.product.image:
+                try:
+                    import base64
+                    with sku.product.image.open('rb') as image_file:
+                        encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
+                        product_data['images'] = [{
+                            'attachment': encoded_string,
+                            'filename': f"{sku.code}.jpg"
+                        }]
+                except Exception as e:
+                    logger.warning(f"Failed to encode product image for Shopify update: {e}")
             
             result = client.update_product(existing.shopify_product_id, product_data)
             
@@ -646,9 +698,6 @@ class ShopifyService:
                 variant_data['option1'] = sku.size
             
             try:
-                # Add variant to product
-                result = client.create_variant(shopify_product_id, variant_data)
-                
                 # Add variant to product
                 variant_res = client.create_variant(shopify_product_id, variant_data)
                 
