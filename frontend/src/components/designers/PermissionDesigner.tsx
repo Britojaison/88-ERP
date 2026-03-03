@@ -30,9 +30,10 @@ import {
 
 import {
   PERMISSION_CATEGORIES,
-  ALL_PERMISSION_CODES,
   DEFAULT_ROLES,
   Role,
+  Permission,
+  PermissionCategory,
 } from '../../constants/permissions'
 
 export default function PermissionDesigner() {
@@ -100,10 +101,10 @@ export default function PermissionDesigner() {
 
   const handleSelectAll = (roleCode: string, category: string) => {
     if (!isAdmin) return
-    const categoryPerms = PERMISSION_CATEGORIES.find((c: any) => c.category === category)
+    const categoryPerms = PERMISSION_CATEGORIES.find((c: PermissionCategory) => c.category === category)
     if (!categoryPerms) return
 
-    const allPermCodes = categoryPerms.permissions.map((p: any) => p.code)
+    const allPermCodes = categoryPerms.permissions.map((p: Permission) => p.code)
     setRoles(
       roles.map((role) => {
         if (role.code === roleCode) {
@@ -212,7 +213,7 @@ export default function PermissionDesigner() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {PERMISSION_CATEGORIES.map((category: any) => (
+              {PERMISSION_CATEGORIES.map((category: PermissionCategory) => (
                 <>
                   <TableRow key={category.category}>
                     <TableCell
@@ -231,9 +232,9 @@ export default function PermissionDesigner() {
                       Select All
                     </TableCell>
                     {roles.map((role) => {
-                      const allPerms = category.permissions.map((p) => p.code)
-                      const hasAll = allPerms.every((p) => role.permissions.includes(p))
-                      const hasSome = allPerms.some((p) => role.permissions.includes(p))
+                      const allPerms = category.permissions.map((p: Permission) => p.code)
+                      const hasAll = allPerms.every((p: string) => role.permissions.includes(p))
+                      const hasSome = allPerms.some((p: string) => role.permissions.includes(p))
                       return (
                         <TableCell key={role.code} align="center">
                           <Checkbox
@@ -246,7 +247,7 @@ export default function PermissionDesigner() {
                       )
                     })}
                   </TableRow>
-                  {category.permissions.map((permission) => (
+                  {category.permissions.map((permission: Permission) => (
                     <TableRow key={permission.code} hover>
                       <TableCell>
                         <Typography variant="body2">{permission.name}</Typography>

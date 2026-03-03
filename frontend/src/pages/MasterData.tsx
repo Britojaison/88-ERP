@@ -192,6 +192,18 @@ export default function MasterData() {
       setFabricPhotoPreview('')
       setOpenFabricDialog(true)
       return
+    } else if (tabValue === 4) {
+      setLocationForm({ code: '', name: '', location_type: 'warehouse', business_unit: '', is_inventory_location: true })
+      setOpenLocationDialog(true)
+      return
+    } else if (tabValue === 5) {
+      setWarehouseForm({ code: '', name: '', email: '', opening_date: '', business_unit: '' })
+      setOpenWarehouseDialog(true)
+      return
+    } else if (tabValue === 6) {
+      setStoreForm({ code: '', name: '', email: '', opening_date: '', business_unit: '' })
+      setOpenStoreDialog(true)
+      return
     }
     if (tabValue === 1) {
       if (products.length === 0) {
@@ -603,9 +615,9 @@ export default function MasterData() {
                 <TableRow>
                   <TableCell>SKU Code</TableCell>
                   <TableCell>Product</TableCell>
-                  <TableCell>Attributes</TableCell>
+                  <TableCell>Style / Size</TableCell>
                   <TableCell>Status</TableCell>
-                  <TableCell>Stock</TableCell>
+                  <TableCell>Price</TableCell>
                   <TableCell>Created</TableCell>
                   <TableCell>Actions</TableCell>
                 </TableRow>
@@ -624,7 +636,7 @@ export default function MasterData() {
                     <TableRow key={sku.id}>
                       <TableCell>{sku.code}</TableCell>
                       <TableCell>{sku.product_name || sku.product_code || sku.product}</TableCell>
-                      <TableCell>{sku.style_code || '-'}</TableCell>
+                      <TableCell>{sku.style_code || '-'} / {sku.size || '-'}</TableCell>
                       <TableCell>{sku.status}</TableCell>
                       <TableCell>₹{sku.base_price}</TableCell>
                       <TableCell>{new Date(sku.created_at).toLocaleDateString()}</TableCell>

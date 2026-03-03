@@ -134,30 +134,19 @@ class StyleSerializer(serializers.ModelSerializer):
 
 
 class SKUSerializer(serializers.ModelSerializer):
-    product_code = serializers.SerializerMethodField()
-    product_name = serializers.SerializerMethodField()
+    product_code = serializers.ReadOnlyField(source='product.code')
+    product_name = serializers.ReadOnlyField(source='product.name')
+    style_code = serializers.ReadOnlyField(source='style.code')
     
     class Meta:
         model = SKU
         fields = [
-            'id', 'company', 'product', 'product_code', 'product_name', 'style',
+            'id', 'company', 'product', 'product_code', 'product_name', 'style', 'style_code',
             'code', 'name', 'base_price', 'cost_price', 'weight', 'size',
             'is_serialized', 'is_batch_tracked', 'status', 'created_at', 'updated_at'
         ]
         extra_kwargs = {'company': {'required': False}}
         validators = []
-    
-    def get_product_code(self, obj):
-        """Get the product code."""
-        if obj.product:
-            return obj.product.code
-        return None
-    
-    def get_product_name(self, obj):
-        """Get the product name."""
-        if obj.product:
-            return obj.product.name
-        return None
 
 
 class SKUBarcodeSerializer(serializers.ModelSerializer):

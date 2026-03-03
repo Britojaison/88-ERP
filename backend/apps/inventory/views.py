@@ -806,7 +806,7 @@ class DesignerWorkbenchViewSet(viewsets.ViewSet):
         """Transition SKU to 'In Production', log journeys, and optionally auto-create a Production Order."""
         from django.utils import timezone
         import datetime
-        from apps.mdm.models import SKU
+        from apps.mdm.models import SKU, Fabric
         from .models import ProductJourneyCheckpoint, ProductionOrder, ProductionOrderLine
 
         try:
@@ -834,13 +834,20 @@ class DesignerWorkbenchViewSet(viewsets.ViewSet):
             sku.save(update_fields=['lifecycle_status', 'updated_at'])
 
             # 1.5 Update associated Fabric if exists
-            fabric_qs = getattr(sku, 'fabric_source', None)
-            if fabric_qs and fabric_qs.exists():
-                fabric = fabric_qs.first()
-                fabric.approval_status = 'approved'
-                fabric.approved_by = request.user
-                fabric.approval_date = timezone.now()
-                fabric.save(update_fields=['approval_status', 'approved_by', 'approval_date', 'updated_at'])
+            # We use name-based access carefully. RelatedManager works fine here.
+            try:
+                # Attempt to find if this SKU is the primary SKU for any Fabric rolls
+                fabric = Fabric.objects.filter(sku=sku).first()
+                if fabric:
+                    print(f"[DesignerWorkbench] Found associated fabric for SKU {sku.code}. Updating status.")
+                    fabric.approval_status = 'approved'
+                    fabric.approved_by = request.user
+                    fabric.approval_date = timezone.now()
+                    fabric.save() # Save all fields to ensure no hidden logic is missed
+            except Exception as e:
+                print(f"[DesignerWorkbench] Error updating associated fabric: {str(e)}")
+                # We often don't want to fail the whole approval if fabric update fails, 
+                # but if it's atomic, it will roll back anyway.
 
             # 2. Complete the "Design Approved" checkpoint
             ProductJourneyCheckpoint.objects.create(
