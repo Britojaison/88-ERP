@@ -181,7 +181,7 @@ if os.getenv('AWS_ACCESS_KEY_ID'):
     
     # Use Supabase's public URL format for serving images directly
     AWS_QUERYSTRING_AUTH = False
-    AWS_S3_CUSTOM_DOMAIN = f"boqdknvjxzvjggsfyrqf.supabase.co/storage/v1/object/public/{AWS_STORAGE_BUCKET_NAME}"
+    AWS_S3_CUSTOM_DOMAIN = f"88erp.jiobase.com/storage/v1/object/public/{AWS_STORAGE_BUCKET_NAME}"
     MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/"
 else:
     # Fallback to local storage
