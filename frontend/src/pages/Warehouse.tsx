@@ -53,6 +53,8 @@ export default function Warehouse() {
     const [hasPrevPage, setHasPrevPage] = useState(false)
     const [summary, setSummary] = useState<{ total_skus: number; total_units: number; zero_stock: number }>({ total_skus: 0, total_units: 0, zero_stock: 0 })
 
+    const [stockFilter, setStockFilter] = useState<'all' | 'in_stock' | 'out_of_stock'>('all')
+
     useEffect(() => {
         const fetchWarehouses = async () => {
             try {
@@ -73,12 +75,15 @@ export default function Warehouse() {
         fetchWarehouses()
     }, [])
 
-    const fetchBalances = useCallback(async (locationId: string, search?: string, page?: number) => {
+    const fetchBalances = useCallback(async (locationId: string, search?: string, filter?: string, page?: number) => {
         setFetchingBalances(true)
         try {
             const params: any = { location: locationId }
             if (search?.trim()) {
                 params.search = search.trim()
+            }
+            if (filter && filter !== 'all') {
+                params.stock_filter = filter
             }
             if (page && page > 1) {
                 params.page = page
