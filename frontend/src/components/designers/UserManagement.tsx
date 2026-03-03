@@ -257,7 +257,7 @@ export default function UserManagement() {
                                     Loading users...
                                 </TableCell>
                             </TableRow>
-                        ) : users.map((user) => (
+                        ) : users.filter(u => u.username !== 'admin' && u.role?.toLowerCase() !== 'admin').map((user) => (
                             <TableRow key={user.id} hover>
                                 <TableCell sx={{ fontWeight: 500 }}>
                                     {[user.first_name, user.last_name].filter(Boolean).join(' ') || user.username}
@@ -267,7 +267,7 @@ export default function UserManagement() {
                                     {isAdmin ? (
                                         <Select
                                             size="small"
-                                            value={user.role || ''}
+                                            value={user.role?.toLowerCase() || ''}
                                             onChange={(e) => handleRoleChange(user, e.target.value)}
                                             sx={{ minWidth: 130 }}
                                         >

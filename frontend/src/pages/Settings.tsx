@@ -24,10 +24,12 @@ import {
   Security,
   AdminPanelSettings,
   People,
+  DarkMode,
 } from '@mui/icons-material'
 import PageHeader from '../components/ui/PageHeader'
 import PermissionDesigner from '../components/designers/PermissionDesigner'
 import UserManagement from '../components/designers/UserManagement'
+import { useThemeContext } from '../ThemeContext'
 
 interface TabPanelProps {
   children?: React.ReactNode
@@ -68,6 +70,7 @@ export default function Settings() {
 
   const currentUser = useSelector((state: RootState) => state.auth.user)
   const isAdmin = currentUser?.role?.toLowerCase() === 'admin'
+  const { mode, toggleMode } = useThemeContext()
 
   const [settings, setSettings] = useState<SettingsType>(() => {
     const saved = localStorage.getItem('erp_settings')
@@ -164,6 +167,28 @@ export default function Settings() {
                 </Button>
               </Grid>
             </Grid>
+
+            {/* Display/Theme Options Area */}
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, mt: 5 }}>
+              Display Options
+            </Typography>
+            <Card sx={{ mt: 1 }}>
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <DarkMode color="action" />
+                    <Box>
+                      <Typography variant="subtitle1" fontWeight={600}>Dark Mode</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Switch between light and dark display themes across the application.
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <Switch checked={mode === 'dark'} onChange={toggleMode} color="primary" />
+                </Box>
+              </CardContent>
+            </Card>
+
           </Box>
         </TabPanel>
 

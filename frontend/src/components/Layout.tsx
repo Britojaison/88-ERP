@@ -195,10 +195,10 @@ export default function Layout() {
         color="inherit"
         sx={{
           zIndex: (muiTheme) => muiTheme.zIndex.drawer + 1,
-          borderBottom: '1px solid rgba(15, 23, 42, 0.08)',
+          borderBottom: (muiTheme) => muiTheme.palette.mode === 'dark' ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(15, 23, 42, 0.08)',
           boxShadow: 'none',
           backdropFilter: 'blur(12px)',
-          backgroundColor: 'rgba(255,255,255,0.9)',
+          backgroundColor: (muiTheme) => muiTheme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.9)' : 'rgba(255,255,255,0.9)',
         }}
       >
         <Toolbar>
@@ -248,8 +248,8 @@ export default function Layout() {
           '& .MuiDrawer-paper': {
             width: drawerWidth,
             boxSizing: 'border-box',
-            borderRight: '1px solid rgba(15, 23, 42, 0.08)',
-            backgroundColor: 'rgba(255,255,255,0.85)',
+            borderRight: (muiTheme) => muiTheme.palette.mode === 'dark' ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(15, 23, 42, 0.08)',
+            backgroundColor: (muiTheme) => muiTheme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.85)' : 'rgba(255,255,255,0.85)',
             backdropFilter: 'blur(12px)',
           },
         }}
