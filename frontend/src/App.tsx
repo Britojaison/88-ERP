@@ -4,7 +4,6 @@ import Layout from './components/Layout'
 import Dashboard from './pages/Dashboard'
 import Login from './pages/Login'
 import MasterData from './pages/MasterData'
-import Documents from './pages/Documents'
 import Inventory from './pages/Inventory'
 import InventoryBarcodes from './pages/InventoryBarcodes'
 import InventoryReceiving from './pages/InventoryReceiving'
@@ -72,7 +71,6 @@ function App() {
           <Route path="stores" element={<Stores />} />
           <Route path="warehouses" element={<Warehouse />} />
           <Route path="master-data" element={<MasterData />} />
-          <Route path="documents" element={<Documents />} />
           <Route path="inventory" element={<Inventory />} />
           <Route path="inventory/barcodes" element={<InventoryBarcodes />} />
           <Route path="inventory/receiving" element={<InventoryReceiving />} />

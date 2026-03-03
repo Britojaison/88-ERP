@@ -33,13 +33,11 @@ import { QrCodeScanner, Refresh, Warning, CloudUpload, CameraAlt, BrokenImage } 
 import PageHeader from '../components/ui/PageHeader'
 import { inventoryService, type GoodsReceiptScanLog } from '../services/inventory.service'
 import { mdmService, type Location } from '../services/mdm.service'
-import { documentsService, type Document } from '../services/documents.service'
 
 export default function InventoryReceiving() {
   const barcodeInputRef = useRef<HTMLInputElement | null>(null)
   const [activeTab, setActiveTab] = useState(0)
   const [locations, setLocations] = useState<Location[]>([])
-  const [documents, setDocuments] = useState<Document[]>([])
   const [logs, setLogs] = useState<GoodsReceiptScanLog[]>([])
   const [damageRecords, setDamageRecords] = useState<any[]>([])
   const [unviewedDamageCount, setUnviewedDamageCount] = useState(0)
@@ -68,7 +66,6 @@ export default function InventoryReceiving() {
   const [form, setForm] = useState({
     barcode_value: '',
     location_id: '',
-    document_id: '',
     quantity: '1',
     strict: true,
   })
@@ -84,13 +81,11 @@ export default function InventoryReceiving() {
     }
 
     try {
-      const [locationData, documentData, logData] = await Promise.all([
+      const [locationData, logData] = await Promise.all([
         mdmService.getLocations(),
-        documentsService.getDocuments(),
         inventoryService.getGoodsReceiptScans(),
       ])
       setLocations(toArray<Location>(locationData))
-      setDocuments(toArray<Document>(documentData))
       setLogs(toArray<GoodsReceiptScanLog>(logData))
     } catch (error) {
       setSnackbar({ open: true, message: 'Failed to load receiving workspace data.', severity: 'error' })
@@ -100,8 +95,6 @@ export default function InventoryReceiving() {
   useEffect(() => {
     void loadData()
   }, [])
-
-  const recentDocuments = useMemo(() => documents.slice(0, 5), [documents])
 
   const filteredLogs = useMemo(() => {
     let result = [...logs]
@@ -136,16 +129,15 @@ export default function InventoryReceiving() {
       const result = await inventoryService.scanGoodsReceipt({
         barcode_value: form.barcode_value,
         location_id: form.location_id,
-        document_id: form.document_id || undefined,
         quantity: Number(form.quantity),
         strict: form.strict,
       })
       setLogs((prev) => [result, ...prev])
-      
+
       // Show damage dialog after successful scan
       setCurrentScanResult(result)
       setOpenDamageDialog(true)
-      
+
       setForm((prev) => ({ ...prev, barcode_value: '' }))
     } catch (error) {
       setSnackbar({ open: true, message: 'Scan failed.', severity: 'error' })
@@ -187,11 +179,11 @@ export default function InventoryReceiving() {
         recorded_at: new Date().toISOString(),
         location: currentScanResult?.location_code || 'N/A',
       }
-      
+
       // Add to damage records (in real app, this would be an API call)
       setDamageRecords((prev) => [damageRecord, ...prev])
       setUnviewedDamageCount((prev) => prev + 1)
-      
+
       setSnackbar({ open: true, message: 'Damage recorded successfully.', severity: 'success' })
       setOpenDamageFormDialog(false)
       setDamageForm({
@@ -216,12 +208,12 @@ export default function InventoryReceiving() {
 
   const handleOpenCamera = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'environment' } 
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' }
       })
       setCameraStream(stream)
       setOpenCameraDialog(true)
-      
+
       // Wait for video element to be ready
       setTimeout(() => {
         if (videoRef.current) {
@@ -229,10 +221,10 @@ export default function InventoryReceiving() {
         }
       }, 100)
     } catch (error) {
-      setSnackbar({ 
-        open: true, 
-        message: 'Camera access denied. Please allow camera permissions.', 
-        severity: 'error' 
+      setSnackbar({
+        open: true,
+        message: 'Camera access denied. Please allow camera permissions.',
+        severity: 'error'
       })
     }
   }
@@ -257,14 +249,14 @@ export default function InventoryReceiving() {
     if (videoRef.current && canvasRef.current) {
       const video = videoRef.current
       const canvas = canvasRef.current
-      
+
       canvas.width = video.videoWidth
       canvas.height = video.videoHeight
-      
+
       const context = canvas.getContext('2d')
       if (context) {
         context.drawImage(video, 0, 0, canvas.width, canvas.height)
-        
+
         canvas.toBlob((blob) => {
           if (blob) {
             const file = new File([blob], `damage-photo-${Date.now()}.jpg`, { type: 'image/jpeg' })
@@ -295,7 +287,7 @@ export default function InventoryReceiving() {
             <Tabs value={activeTab} onChange={(_, newValue) => handleTabChange(newValue)}>
               <Tab label="Receive by Scan" />
               <Tab label="Scan Audit Log" />
-              <Tab 
+              <Tab
                 label={
                   <Stack direction="row" spacing={1} alignItems="center">
                     <span>Damaged Items</span>
@@ -303,7 +295,7 @@ export default function InventoryReceiving() {
                       <Chip size="small" label={unviewedDamageCount} color="error" />
                     )}
                   </Stack>
-                } 
+                }
               />
             </Tabs>
           </Paper>
@@ -316,283 +308,244 @@ export default function InventoryReceiving() {
               <Typography variant="h6" gutterBottom>
                 Receive by Scan
               </Typography>
-            <Grid container spacing={2}>
-              <Grid item xs={12} md={4}>
-                <TextField
-                  fullWidth
-                  label="Barcode Value"
-                  inputRef={barcodeInputRef}
-                  value={form.barcode_value}
-                  onChange={(e) => setForm((prev) => ({ ...prev, barcode_value: e.target.value }))}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      void handleScan()
-                    }
-                  }}
-                  helperText="Scan and press Enter to submit quickly."
-                />
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <FormControl fullWidth>
-                  <InputLabel>Location</InputLabel>
-                  <Select
-                    value={form.location_id}
-                    label="Location"
-                    onChange={(e) => setForm((prev) => ({ ...prev, location_id: e.target.value }))}
-                  >
-                    {locations.map((loc) => (
-                      <MenuItem key={loc.id} value={loc.id}>
-                        {loc.code} - {loc.name}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <FormControl fullWidth>
-                  <InputLabel>Source Document (Optional)</InputLabel>
-                  <Select
-                    value={form.document_id}
-                    label="Source Document (Optional)"
-                    onChange={(e) => setForm((prev) => ({ ...prev, document_id: e.target.value }))}
-                  >
-                    <MenuItem value="">None</MenuItem>
-                    {documents.map((doc) => (
-                      <MenuItem key={doc.id} value={doc.id}>
-                        {doc.document_number}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <TextField
-                  fullWidth
-                  label="Quantity"
-                  value={form.quantity}
-                  onChange={(e) => setForm((prev) => ({ ...prev, quantity: e.target.value }))}
-                />
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <FormControl fullWidth>
-                  <InputLabel>Validation Mode</InputLabel>
-                  <Select
-                    value={form.strict ? 'strict' : 'relaxed'}
-                    label="Validation Mode"
-                    onChange={(e) => setForm((prev) => ({ ...prev, strict: e.target.value === 'strict' }))}
-                  >
-                    <MenuItem value="strict">Strict</MenuItem>
-                    <MenuItem value="relaxed">Relaxed</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <Stack direction="row" sx={{ height: '100%' }} alignItems="center">
-                  <Button
-                    variant="contained"
-                    startIcon={<QrCodeScanner />}
-                    onClick={() => void handleScan()}
-                    disabled={isScanning}
-                  >
-                    {isScanning ? 'Scanning...' : 'Confirm Scan'}
-                  </Button>
-                </Stack>
-              </Grid>
-              <Grid item xs={12}>
-                <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
-                  <Typography variant="body2" color="text.secondary">
-                    Recent documents:
-                  </Typography>
-                  <Chip
-                    size="small"
-                    label="None"
-                    color={form.document_id === '' ? 'primary' : 'default'}
-                    onClick={() => setForm((prev) => ({ ...prev, document_id: '' }))}
+              <Grid container spacing={2}>
+                <Grid item xs={12} md={4}>
+                  <TextField
+                    fullWidth
+                    label="Barcode Value"
+                    inputRef={barcodeInputRef}
+                    value={form.barcode_value}
+                    onChange={(e) => setForm((prev) => ({ ...prev, barcode_value: e.target.value }))}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        void handleScan()
+                      }
+                    }}
+                    helperText="Scan and press Enter to submit quickly."
                   />
-                  {recentDocuments.map((doc) => (
-                    <Chip
-                      key={doc.id}
-                      size="small"
-                      label={doc.document_number}
-                      color={form.document_id === doc.id ? 'primary' : 'default'}
-                      onClick={() => setForm((prev) => ({ ...prev, document_id: doc.id }))}
-                    />
-                  ))}
-                </Stack>
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <FormControl fullWidth>
+                    <InputLabel>Location</InputLabel>
+                    <Select
+                      value={form.location_id}
+                      label="Location"
+                      onChange={(e) => setForm((prev) => ({ ...prev, location_id: e.target.value }))}
+                    >
+                      {locations.map((loc) => (
+                        <MenuItem key={loc.id} value={loc.id}>
+                          {loc.code} - {loc.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <TextField
+                    fullWidth
+                    label="Quantity"
+                    value={form.quantity}
+                    onChange={(e) => setForm((prev) => ({ ...prev, quantity: e.target.value }))}
+                  />
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <FormControl fullWidth>
+                    <InputLabel>Validation Mode</InputLabel>
+                    <Select
+                      value={form.strict ? 'strict' : 'relaxed'}
+                      label="Validation Mode"
+                      onChange={(e) => setForm((prev) => ({ ...prev, strict: e.target.value === 'strict' }))}
+                    >
+                      <MenuItem value="strict">Strict</MenuItem>
+                      <MenuItem value="relaxed">Relaxed</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <Stack direction="row" sx={{ height: '100%' }} alignItems="center">
+                    <Button
+                      variant="contained"
+                      startIcon={<QrCodeScanner />}
+                      onClick={() => void handleScan()}
+                      disabled={isScanning}
+                    >
+                      {isScanning ? 'Scanning...' : 'Confirm Scan'}
+                    </Button>
+                  </Stack>
+                </Grid>
               </Grid>
-            </Grid>
-          </Paper>
-        </Grid>
+            </Paper>
+          </Grid>
         )}
 
         {/* Tab 1: Scan Audit Log */}
         {activeTab === 1 && (
-        <Grid item xs={12}>
-          <Paper sx={{ p: 2.5 }}>
-            <Stack
-              direction={{ xs: 'column', md: 'row' }}
-              spacing={1.5}
-              justifyContent="space-between"
-              alignItems={{ xs: 'flex-start', md: 'center' }}
-              sx={{ mb: 1.5 }}
-            >
-              <Typography variant="h6">Scan Audit Log</Typography>
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25} sx={{ width: { xs: '100%', md: 'auto' } }}>
-                <TextField
-                  size="small"
-                  label="Search Barcode/SKU"
-                  value={barcodeFilter}
-                  onChange={(e) => setBarcodeFilter(e.target.value)}
-                />
-                <FormControl size="small" sx={{ minWidth: 150 }}>
-                  <InputLabel>Result</InputLabel>
-                  <Select
-                    value={resultFilter}
-                    label="Result"
-                    onChange={(e) =>
-                      setResultFilter(e.target.value as 'all' | 'matched' | 'mismatch' | 'over_receipt' | 'unknown')
+          <Grid item xs={12}>
+            <Paper sx={{ p: 2.5 }}>
+              <Stack
+                direction={{ xs: 'column', md: 'row' }}
+                spacing={1.5}
+                justifyContent="space-between"
+                alignItems={{ xs: 'flex-start', md: 'center' }}
+                sx={{ mb: 1.5 }}
+              >
+                <Typography variant="h6">Scan Audit Log</Typography>
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25} sx={{ width: { xs: '100%', md: 'auto' } }}>
+                  <TextField
+                    size="small"
+                    label="Search Barcode/SKU"
+                    value={barcodeFilter}
+                    onChange={(e) => setBarcodeFilter(e.target.value)}
+                  />
+                  <FormControl size="small" sx={{ minWidth: 150 }}>
+                    <InputLabel>Result</InputLabel>
+                    <Select
+                      value={resultFilter}
+                      label="Result"
+                      onChange={(e) =>
+                        setResultFilter(e.target.value as 'all' | 'matched' | 'mismatch' | 'over_receipt' | 'unknown')
+                      }
+                    >
+                      <MenuItem value="all">All</MenuItem>
+                      <MenuItem value="matched">Matched</MenuItem>
+                      <MenuItem value="mismatch">Mismatch</MenuItem>
+                      <MenuItem value="over_receipt">Over Receipt</MenuItem>
+                      <MenuItem value="unknown">Unknown</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={showExceptionsOnly}
+                        onChange={(e) => setShowExceptionsOnly(e.target.checked)}
+                      />
                     }
-                  >
-                    <MenuItem value="all">All</MenuItem>
-                    <MenuItem value="matched">Matched</MenuItem>
-                    <MenuItem value="mismatch">Mismatch</MenuItem>
-                    <MenuItem value="over_receipt">Over Receipt</MenuItem>
-                    <MenuItem value="unknown">Unknown</MenuItem>
-                  </Select>
-                </FormControl>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={showExceptionsOnly}
-                      onChange={(e) => setShowExceptionsOnly(e.target.checked)}
-                    />
-                  }
-                  label="Exceptions Only"
-                />
+                    label="Exceptions Only"
+                  />
+                </Stack>
               </Stack>
-            </Stack>
-            {filteredLogs.length === 0 ? (
-              <Alert severity="info">No scan logs available yet.</Alert>
-            ) : (
-              <TableContainer>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Scanned At</TableCell>
-                      <TableCell>Barcode</TableCell>
-                      <TableCell>SKU</TableCell>
-                      <TableCell>Location</TableCell>
-                      <TableCell>Quantity</TableCell>
-                      <TableCell>Result</TableCell>
-                      <TableCell>Message</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {filteredLogs.map((log) => (
-                      <TableRow key={log.id}>
-                        <TableCell>{new Date(log.scanned_at).toLocaleString()}</TableCell>
-                        <TableCell>{log.barcode_value}</TableCell>
-                        <TableCell>{log.sku_code || '-'}</TableCell>
-                        <TableCell>{log.location_code || log.location}</TableCell>
-                        <TableCell>{log.quantity}</TableCell>
-                        <TableCell>
-                          <Chip
-                            size="small"
-                            label={log.result}
-                            color={
-                              log.result === 'matched'
-                                ? 'success'
-                                : log.result === 'over_receipt'
-                                ? 'warning'
-                                : 'error'
-                            }
-                          />
-                        </TableCell>
-                        <TableCell>{log.message}</TableCell>
+              {filteredLogs.length === 0 ? (
+                <Alert severity="info">No scan logs available yet.</Alert>
+              ) : (
+                <TableContainer>
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Scanned At</TableCell>
+                        <TableCell>Barcode</TableCell>
+                        <TableCell>SKU</TableCell>
+                        <TableCell>Location</TableCell>
+                        <TableCell>Quantity</TableCell>
+                        <TableCell>Result</TableCell>
+                        <TableCell>Message</TableCell>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            )}
-          </Paper>
-        </Grid>
+                    </TableHead>
+                    <TableBody>
+                      {filteredLogs.map((log) => (
+                        <TableRow key={log.id}>
+                          <TableCell>{new Date(log.scanned_at).toLocaleString()}</TableCell>
+                          <TableCell>{log.barcode_value}</TableCell>
+                          <TableCell>{log.sku_code || '-'}</TableCell>
+                          <TableCell>{log.location_code || log.location}</TableCell>
+                          <TableCell>{log.quantity}</TableCell>
+                          <TableCell>
+                            <Chip
+                              size="small"
+                              label={log.result}
+                              color={
+                                log.result === 'matched'
+                                  ? 'success'
+                                  : log.result === 'over_receipt'
+                                    ? 'warning'
+                                    : 'error'
+                              }
+                            />
+                          </TableCell>
+                          <TableCell>{log.message}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </Paper>
+          </Grid>
         )}
 
         {/* Tab 2: Damaged Items */}
         {activeTab === 2 && (
-        <Grid item xs={12}>
-          <Paper sx={{ p: 2.5 }}>
-            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-              <Typography variant="h6">Damaged Items Log</Typography>
-              <Chip 
-                icon={<BrokenImage />}
-                label={`${damageRecords.length} Damaged Item${damageRecords.length !== 1 ? 's' : ''}`} 
-                color="error" 
-              />
-            </Stack>
-            {damageRecords.length === 0 ? (
-              <Alert severity="info">No damaged items recorded yet.</Alert>
-            ) : (
-              <TableContainer>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Recorded At</TableCell>
-                      <TableCell>SKU</TableCell>
-                      <TableCell>Barcode</TableCell>
-                      <TableCell>Quantity</TableCell>
-                      <TableCell>Damage Type</TableCell>
-                      <TableCell>Severity</TableCell>
-                      <TableCell>Description</TableCell>
-                      <TableCell>Suggested Action</TableCell>
-                      <TableCell>Location</TableCell>
-                      <TableCell>Photo</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {damageRecords.map((record) => (
-                      <TableRow key={record.id}>
-                        <TableCell>{new Date(record.recorded_at).toLocaleString()}</TableCell>
-                        <TableCell>{record.sku_code}</TableCell>
-                        <TableCell>{record.barcode}</TableCell>
-                        <TableCell>{record.quantity}</TableCell>
-                        <TableCell>
-                          <Chip 
-                            size="small" 
-                            label={record.damage_type.replace('_', ' ')} 
-                            color="warning"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Chip 
-                            size="small" 
-                            label={record.severity} 
-                            color={
-                              record.severity === 'critical' ? 'error' :
-                              record.severity === 'major' ? 'warning' : 'default'
-                            }
-                          />
-                        </TableCell>
-                        <TableCell>{record.description || '-'}</TableCell>
-                        <TableCell>{record.suggested_action ? record.suggested_action.replace('_', ' ') : '-'}</TableCell>
-                        <TableCell>{record.location}</TableCell>
-                        <TableCell>
-                          {record.photo ? (
-                            <Chip size="small" label="Yes" color="success" />
-                          ) : (
-                            <Chip size="small" label="No" />
-                          )}
-                        </TableCell>
+          <Grid item xs={12}>
+            <Paper sx={{ p: 2.5 }}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                <Typography variant="h6">Damaged Items Log</Typography>
+                <Chip
+                  icon={<BrokenImage />}
+                  label={`${damageRecords.length} Damaged Item${damageRecords.length !== 1 ? 's' : ''}`}
+                  color="error"
+                />
+              </Stack>
+              {damageRecords.length === 0 ? (
+                <Alert severity="info">No damaged items recorded yet.</Alert>
+              ) : (
+                <TableContainer>
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Recorded At</TableCell>
+                        <TableCell>SKU</TableCell>
+                        <TableCell>Barcode</TableCell>
+                        <TableCell>Quantity</TableCell>
+                        <TableCell>Damage Type</TableCell>
+                        <TableCell>Severity</TableCell>
+                        <TableCell>Description</TableCell>
+                        <TableCell>Suggested Action</TableCell>
+                        <TableCell>Location</TableCell>
+                        <TableCell>Photo</TableCell>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            )}
-          </Paper>
-        </Grid>
+                    </TableHead>
+                    <TableBody>
+                      {damageRecords.map((record) => (
+                        <TableRow key={record.id}>
+                          <TableCell>{new Date(record.recorded_at).toLocaleString()}</TableCell>
+                          <TableCell>{record.sku_code}</TableCell>
+                          <TableCell>{record.barcode}</TableCell>
+                          <TableCell>{record.quantity}</TableCell>
+                          <TableCell>
+                            <Chip
+                              size="small"
+                              label={record.damage_type.replace('_', ' ')}
+                              color="warning"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              size="small"
+                              label={record.severity}
+                              color={
+                                record.severity === 'critical' ? 'error' :
+                                  record.severity === 'major' ? 'warning' : 'default'
+                              }
+                            />
+                          </TableCell>
+                          <TableCell>{record.description || '-'}</TableCell>
+                          <TableCell>{record.suggested_action ? record.suggested_action.replace('_', ' ') : '-'}</TableCell>
+                          <TableCell>{record.location}</TableCell>
+                          <TableCell>
+                            {record.photo ? (
+                              <Chip size="small" label="Yes" color="success" />
+                            ) : (
+                              <Chip size="small" label="No" />
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </Paper>
+          </Grid>
         )}
       </Grid>
 
@@ -631,8 +584,8 @@ export default function InventoryReceiving() {
       </Dialog>
 
       {/* Damage Details Form Dialog */}
-      <Dialog 
-        open={openDamageFormDialog} 
+      <Dialog
+        open={openDamageFormDialog}
         onClose={() => setOpenDamageFormDialog(false)}
         maxWidth="sm"
         fullWidth
@@ -739,8 +692,8 @@ export default function InventoryReceiving() {
       </Dialog>
 
       {/* Camera Dialog */}
-      <Dialog 
-        open={openCameraDialog} 
+      <Dialog
+        open={openCameraDialog}
         onClose={handleCloseCamera}
         maxWidth="md"
         fullWidth
