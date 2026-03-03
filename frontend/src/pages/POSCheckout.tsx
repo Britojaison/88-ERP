@@ -36,7 +36,7 @@ import { Storefront, DeleteOutline, PointOfSale, Search, LocalOffer, Refresh, Cl
 import PageHeader from '../components/ui/PageHeader'
 import { mdmService, Location, SKU } from '../services/mdm.service'
 import { inventoryService, InventoryBalance } from '../services/inventory.service'
-import { salesService, SalesTransaction, SalesTransactionLine } from '../services/sales.service'
+import { salesService, SalesTransaction } from '../services/sales.service'
 import { StoreInvoice } from '../components/pos/StoreInvoice'
 
 interface CartItem {

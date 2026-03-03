@@ -27,7 +27,7 @@ import {
     InputAdornment,
     Tooltip,
 } from '@mui/material'
-import { Save, PersonAdd, Lock, Visibility, VisibilityOff, Close, CheckCircle } from '@mui/icons-material'
+import { PersonAdd, Lock, Visibility, VisibilityOff, Close, CheckCircle } from '@mui/icons-material'
 import api from '../../services/api'
 import { DEFAULT_ROLES } from '../../constants/permissions'
 
