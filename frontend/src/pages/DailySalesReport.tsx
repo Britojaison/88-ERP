@@ -23,7 +23,6 @@ import {
     ShoppingCart,
     LocalOffer,
     Refresh,
-    CameraAlt,
 } from '@mui/icons-material'
 import PageHeader from '../components/ui/PageHeader'
 import api from '../services/api'
@@ -96,7 +95,6 @@ export default function DailySalesReport() {
     const [salesData, setSalesData] = useState<DailySalesData | null>(null)
     const [stockSummary, setStockSummary] = useState<StockSummary | null>(null)
     const [loading, setLoading] = useState(false)
-    const [snapshotLoading, setSnapshotLoading] = useState(false)
     const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
 
     useEffect(() => {
@@ -135,18 +133,6 @@ export default function DailySalesReport() {
         }
     }
 
-    const handleSnapshot = async () => {
-        setSnapshotLoading(true)
-        try {
-            await api.post('/inventory/reports/take-snapshot/', { date: selectedDate })
-            setFeedback({ type: 'success', msg: `Stock snapshot taken for ${selectedDate}` })
-            void loadReport()
-        } catch {
-            setFeedback({ type: 'error', msg: 'Failed to take snapshot' })
-        } finally {
-            setSnapshotLoading(false)
-        }
-    }
 
     const ov = salesData?.overview
 
@@ -155,11 +141,6 @@ export default function DailySalesReport() {
             <PageHeader
                 title="Daily Sales & Stock Report"
                 subtitle="View daily sales performance, discount tracking, customer metrics, and opening/closing stock."
-                actions={
-                    <Button variant="outlined" startIcon={<CameraAlt />} onClick={handleSnapshot} disabled={snapshotLoading}>
-                        {snapshotLoading ? 'Snapping...' : 'Take Stock Snapshot'}
-                    </Button>
-                }
             />
 
             {feedback && (

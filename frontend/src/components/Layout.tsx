@@ -187,7 +187,7 @@ export default function Layout() {
   )
 
   return (
-    <Box sx={{ display: 'flex' }}>
+    <Box sx={{ display: 'flex', width: '100%', minHeight: '100vh', overflowX: 'hidden' }}>
       <AppBar
         position="fixed"
         color="inherit"
@@ -207,11 +207,11 @@ export default function Layout() {
           >
             <MenuIcon />
           </IconButton>
-          <Box sx={{ flexGrow: 1 }}>
+          <Box sx={{ flexGrow: 1, minWidth: 0 }}>
             <Typography variant="caption" color="text.secondary">
               Workspace
             </Typography>
-            <Typography variant="h6" sx={{ lineHeight: 1.2 }}>
+            <Typography variant="h6" sx={{ lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {activeTitle}
             </Typography>
           </Box>
@@ -266,9 +266,24 @@ export default function Layout() {
       >
         {drawer}
       </Drawer>
-      <Box component="main" sx={{ flexGrow: 1, p: { xs: 2, sm: 3 }, minHeight: '100vh' }}>
+      <Box
+        component="main"
+        sx={{
+          flexGrow: 1,
+          p: { xs: 2, sm: 3 },
+          minHeight: '100vh',
+          minWidth: 0,
+          width: { sm: `calc(100% - ${drawerWidth}px)`, xs: '100%' },
+          maxWidth: '100%',
+          overflowX: 'hidden',
+          display: 'flex',
+          flexDirection: 'column'
+        }}
+      >
         <Toolbar />
-        <Outlet />
+        <Box sx={{ flexGrow: 1, minWidth: 0, width: '100%' }}>
+          <Outlet />
+        </Box>
       </Box>
     </Box>
   )

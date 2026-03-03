@@ -33,25 +33,25 @@ function SimpleBarChart({ data }: { data: DailyChannel[] }) {
     const barWidth = Math.max(6, Math.min(20, Math.floor(800 / data.length) - 4))
 
     return (
-        <Box sx={{ overflowX: 'auto', pb: 2 }}>
-            <svg width={Math.max(800, data.length * (barWidth * 2 + 8))} height={220} style={{ display: 'block' }}>
+        <Box sx={{ overflowX: 'auto', pb: 1, width: '100%', WebkitOverflowScrolling: 'touch' }}>
+            <svg width={Math.max(600, data.length * (barWidth * 2 + 8))} height={160} style={{ display: 'block', minWidth: '100%' }}>
                 {data.map((d, i) => {
                     const x = i * (barWidth * 2 + 8) + 20
-                    const storeH = (d.store_revenue / maxVal) * 180
-                    const onlineH = (d.online_revenue / maxVal) * 180
+                    const storeH = (d.store_revenue / maxVal) * 120
+                    const onlineH = (d.online_revenue / maxVal) * 120
 
                     return (
                         <g key={d.date}>
-                            <rect x={x} y={200 - storeH} width={barWidth} height={storeH}
+                            <rect x={x} y={140 - storeH} width={barWidth} height={storeH}
                                 fill={theme.palette.primary.main} rx={2} opacity={0.85}>
                                 <title>Store: {fmt(d.store_revenue)} on {d.date}</title>
                             </rect>
-                            <rect x={x + barWidth + 2} y={200 - onlineH} width={barWidth} height={onlineH}
+                            <rect x={x + barWidth + 2} y={140 - onlineH} width={barWidth} height={onlineH}
                                 fill={theme.palette.secondary.main} rx={2} opacity={0.85}>
                                 <title>Online: {fmt(d.online_revenue)} on {d.date}</title>
                             </rect>
                             {i % Math.ceil(data.length / 10) === 0 && (
-                                <text x={x + barWidth} y={215} textAnchor="middle" fontSize={9} fill={theme.palette.text.secondary}>
+                                <text x={x + barWidth} y={155} textAnchor="middle" fontSize={9} fill={theme.palette.text.secondary}>
                                     {d.date.slice(5)}
                                 </text>
                             )}
@@ -98,67 +98,67 @@ export default function ChannelComparisonReport() {
     const t = data?.totals
 
     return (
-        <Box>
+        <Box sx={{ width: '100%', maxWidth: '100%', overflowX: 'hidden', p: { xs: 1, sm: 2 } }}>
             <PageHeader title="Store vs Shopify Sales Comparison"
                 subtitle="Compare in-store POS sales against online/Shopify sales side by side." />
 
-            <Grid container spacing={2} sx={{ mb: 3 }}>
-                <Grid item xs={12} sm={4}>
+            <Grid container spacing={1} sx={{ mb: 1.5 }}>
+                <Grid item xs={12} sm={6} md={4}>
                     <TextField fullWidth type="date" label="Start Date" value={startDate}
                         onChange={e => setStartDate(e.target.value)} InputLabelProps={{ shrink: true }} size="small" />
                 </Grid>
-                <Grid item xs={12} sm={4}>
+                <Grid item xs={12} sm={6} md={4}>
                     <TextField fullWidth type="date" label="End Date" value={endDate}
                         onChange={e => setEndDate(e.target.value)} InputLabelProps={{ shrink: true }} size="small" />
                 </Grid>
-                <Grid item xs={12} sm={4} display="flex" alignItems="center">
-                    <Button fullWidth variant="contained" startIcon={<Refresh />} onClick={loadData}>Refresh</Button>
+                <Grid item xs={12} md={4} display="flex" alignItems="center">
+                    <Button fullWidth variant="contained" startIcon={<Refresh />} onClick={loadData} size="small" sx={{ height: 40 }}>Refresh</Button>
                 </Grid>
             </Grid>
 
             {loading ? <Box display="flex" justifyContent="center" py={8}><CircularProgress /></Box> : data && (
                 <>
                     {/* Summary Cards */}
-                    <Grid container spacing={2} sx={{ mb: 3 }}>
+                    <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
                         <Grid item xs={12} md={4}>
                             <Card sx={{ bgcolor: 'primary.main', color: 'white' }}>
-                                <CardContent>
-                                    <Box display="flex" alignItems="center" gap={1} mb={1}>
-                                        <Storefront />
-                                        <Typography variant="h6">Store Sales</Typography>
+                                <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                                    <Box display="flex" alignItems="center" gap={1} mb={0.5}>
+                                        <Storefront fontSize="small" />
+                                        <Typography variant="subtitle2" fontWeight={600}>Store Sales</Typography>
                                     </Box>
-                                    <Typography variant="h4" fontWeight="bold">{fmt(t?.store_revenue || 0)}</Typography>
-                                    <Box display="flex" justifyContent="space-between" mt={1}>
-                                        <Typography variant="body2" sx={{ opacity: 0.8 }}>{t?.store_orders || 0} orders</Typography>
-                                        <Chip label={`${t?.store_pct || 0}%`} size="small" sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white' }} />
+                                    <Typography variant="h5" fontWeight="bold">{fmt(t?.store_revenue || 0)}</Typography>
+                                    <Box display="flex" justifyContent="space-between" mt={0.5}>
+                                        <Typography variant="caption" sx={{ opacity: 0.8 }}>{t?.store_orders || 0} orders</Typography>
+                                        <Chip label={`${t?.store_pct || 0}%`} size="small" sx={{ height: 18, fontSize: '0.65rem', bgcolor: 'rgba(255,255,255,0.2)', color: 'white' }} />
                                     </Box>
                                 </CardContent>
                             </Card>
                         </Grid>
                         <Grid item xs={12} md={4}>
                             <Card sx={{ bgcolor: 'secondary.main', color: 'white' }}>
-                                <CardContent>
-                                    <Box display="flex" alignItems="center" gap={1} mb={1}>
-                                        <ShoppingCart />
-                                        <Typography variant="h6">Online / Shopify</Typography>
+                                <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                                    <Box display="flex" alignItems="center" gap={1} mb={0.5}>
+                                        <ShoppingCart fontSize="small" />
+                                        <Typography variant="subtitle2" fontWeight={600}>Online / Shopify</Typography>
                                     </Box>
-                                    <Typography variant="h4" fontWeight="bold">{fmt(t?.online_revenue || 0)}</Typography>
-                                    <Box display="flex" justifyContent="space-between" mt={1}>
-                                        <Typography variant="body2" sx={{ opacity: 0.8 }}>{t?.online_orders || 0} orders</Typography>
-                                        <Chip label={`${t?.online_pct || 0}%`} size="small" sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white' }} />
+                                    <Typography variant="h5" fontWeight="bold">{fmt(t?.online_revenue || 0)}</Typography>
+                                    <Box display="flex" justifyContent="space-between" mt={0.5}>
+                                        <Typography variant="caption" sx={{ opacity: 0.8 }}>{t?.online_orders || 0} orders</Typography>
+                                        <Chip label={`${t?.online_pct || 0}%`} size="small" sx={{ height: 18, fontSize: '0.65rem', bgcolor: 'rgba(255,255,255,0.2)', color: 'white' }} />
                                     </Box>
                                 </CardContent>
                             </Card>
                         </Grid>
                         <Grid item xs={12} md={4}>
                             <Card variant="outlined">
-                                <CardContent>
-                                    <Box display="flex" alignItems="center" gap={1} mb={1}>
-                                        <CompareArrows color="primary" />
-                                        <Typography variant="h6">Combined Total</Typography>
+                                <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                                    <Box display="flex" alignItems="center" gap={1} mb={0.5}>
+                                        <CompareArrows color="primary" fontSize="small" />
+                                        <Typography variant="subtitle2" fontWeight={600}>Combined Total</Typography>
                                     </Box>
-                                    <Typography variant="h4" fontWeight="bold" color="primary">{fmt(t?.grand_total || 0)}</Typography>
-                                    <Typography variant="body2" color="text.secondary" mt={1}>
+                                    <Typography variant="h5" fontWeight="bold" color="primary">{fmt(t?.grand_total || 0)}</Typography>
+                                    <Typography variant="caption" color="text.secondary" display="block" mt={0.5}>
                                         {(t?.store_orders || 0) + (t?.online_orders || 0)} total orders
                                     </Typography>
                                 </CardContent>
@@ -167,18 +167,18 @@ export default function ChannelComparisonReport() {
                     </Grid>
 
                     {/* Chart */}
-                    <Card variant="outlined" sx={{ mb: 3 }}>
-                        <CardContent>
-                            <Typography variant="h6" mb={2}>📊 Daily Revenue Comparison</Typography>
+                    <Card variant="outlined" sx={{ mb: 1.5 }}>
+                        <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1 } }}>
+                            <Typography variant="subtitle1" fontWeight={600} mb={1}>📊 Daily Revenue Comparison</Typography>
                             <SimpleBarChart data={data.daily} />
                         </CardContent>
                     </Card>
 
                     {/* Daily Table */}
                     <Card variant="outlined">
-                        <CardContent>
-                            <Typography variant="h6" mb={2}>📋 Daily Breakdown</Typography>
-                            <TableContainer sx={{ maxHeight: 500 }}>
+                        <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                            <Typography variant="subtitle1" fontWeight={600} mb={1}>📋 Daily Breakdown</Typography>
+                            <TableContainer sx={{ maxHeight: 300 }}>
                                 <Table size="small" stickyHeader>
                                     <TableHead>
                                         <TableRow>
