@@ -35,6 +35,7 @@ import {
   MenuItem,
   InputAdornment,
   Tooltip,
+  Stack,
 } from '@mui/material'
 import {
   Add,
@@ -230,7 +231,7 @@ export default function ShopifyIntegration() {
     }
   }
 
-  const loadDemandData = async (storeId: string, period?: string) => {
+  const loadDemandData = async (storeId: string, period?: string, sync = false) => {
     const p = period !== undefined ? period : demandPeriodRef.current
 
     // Cancel any previous in-flight demand request
@@ -247,7 +248,7 @@ export default function ShopifyIntegration() {
     try {
       const res = await shopifyService.getProductDemand(
         storeId,
-        p ? { days: parseInt(p) } : undefined,
+        p ? { days: parseInt(p), sync: sync as any } : { sync: sync as any } as any,
         abortController.signal
       )
       // Only update state if this is still the latest request
@@ -1029,25 +1030,36 @@ export default function ShopifyIntegration() {
                       {productDemand?.period || 'Loading...'}
                     </Typography>
                   </Box>
-                  <FormControl size="small" sx={{ minWidth: 160 }}>
-                    <InputLabel>Time Period</InputLabel>
-                    <Select
-                      value={demandPeriod}
-                      label="Time Period"
-                      onChange={(e) => {
-                        const val = e.target.value as string
-                        setDemandPeriod(val)
-                        demandPeriodRef.current = val
-                        if (selectedStore) {
-                          loadDemandData(selectedStore.id, val)
-                        }
-                      }}
+                  <Stack direction="row" spacing={2} alignItems="center">
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={<Sync />}
+                      onClick={() => selectedStore && loadDemandData(selectedStore.id, demandPeriod, true)}
+                      disabled={loadingDemand}
                     >
-                      <MenuItem value="7">Last 7 Days</MenuItem>
-                      <MenuItem value="14">Last 14 Days</MenuItem>
-                      <MenuItem value="30">Last 30 Days</MenuItem>
-                    </Select>
-                  </FormControl>
+                      Bypass Cache & Sync
+                    </Button>
+                    <FormControl size="small" sx={{ minWidth: 160 }}>
+                      <InputLabel>Time Period</InputLabel>
+                      <Select
+                        value={demandPeriod}
+                        label="Time Period"
+                        onChange={(e) => {
+                          const val = e.target.value as string
+                          setDemandPeriod(val)
+                          demandPeriodRef.current = val
+                          if (selectedStore) {
+                            loadDemandData(selectedStore.id, val)
+                          }
+                        }}
+                      >
+                        <MenuItem value="7">Last 7 Days</MenuItem>
+                        <MenuItem value="14">Last 14 Days</MenuItem>
+                        <MenuItem value="30">Last 30 Days</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Stack>
                 </Box>
 
                 <Box sx={{ position: 'relative' }}>

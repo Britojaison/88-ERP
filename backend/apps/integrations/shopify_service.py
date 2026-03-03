@@ -168,23 +168,65 @@ class ShopifyAPIClient:
         response = self._make_request('POST', 'inventory_levels/adjust.json', json=data)
         return response.get('inventory_level', {})
 
-    def get_orders(self, status_filter: str = 'any', limit: int = 250) -> List[Dict]:
-        """Get orders from Shopify."""
+    def get_orders(self, status_filter: str = 'any', limit: int = 250, created_at_min: Optional[str] = None, created_at_max: Optional[str] = None) -> List[Dict]:
+        """Get orders from Shopify with date filtering."""
         params = {'status': status_filter, 'limit': limit}
+        if created_at_min:
+            params['created_at_min'] = created_at_min
+        if created_at_max:
+            params['created_at_max'] = created_at_max
         response = self._make_request('GET', 'orders.json', params=params)
         return response.get('orders', [])
 
-    def get_all_orders(self) -> List[Dict]:
-        """Get ALL orders using pagination."""
+    def get_all_orders(self, created_at_min: Optional[str] = None, created_at_max: Optional[str] = None) -> List[Dict]:
+        """Get ALL orders within a date range using Link-header pagination."""
+        import re
         all_orders = []
         params = {'limit': 250, 'status': 'any'}
+        if created_at_min:
+            params['created_at_min'] = created_at_min
+        if created_at_max:
+            params['created_at_max'] = created_at_max
+
+        url = f"{self.base_url}/orders.json"
+        current_params = params
+        
         while True:
-            response = self._make_request('GET', 'orders.json', params=params)
-            orders = response.get('orders', [])
+            response = requests.get(url, headers=self.headers, params=current_params, timeout=30)
+            
+            if response.status_code == 429:
+                retry_after = float(response.headers.get('Retry-After', '2.0'))
+                time.sleep(retry_after)
+                continue
+                
+            response.raise_for_status()
+            data = response.json()
+            orders = data.get('orders', [])
             all_orders.extend(orders)
-            if len(orders) < 250: break
-            params['since_id'] = orders[-1]['id']
+            
+            # Check for next page in Link header
+            link_header = response.headers.get('Link', '')
+            if not link_header or 'rel="next"' not in link_header:
+                break
+                
+            # Extract page_info from the next link
+            next_match = re.search(r'<([^>]+)>;\s*rel="next"', link_header)
+            if not next_match:
+                break
+            
+            next_url = next_match.group(1)
+            from urllib.parse import urlparse, parse_qs
+            parsed = urlparse(next_url)
+            qs = parse_qs(parsed.query)
+            page_info = qs.get('page_info', [None])[0]
+            
+            if not page_info:
+                break
+                
+            # For next calls, only page_info and limit are allowed
+            current_params = {'page_info': page_info, 'limit': 250}
             time.sleep(0.5)
+
         return all_orders
 
     def get_draft_orders(self) -> List[Dict]:
@@ -1009,14 +1051,32 @@ class ShopifyService:
                     return
     
     @staticmethod
-    def sync_orders(store: ShopifyStore) -> ShopifySyncJob:
-        """Sync orders from Shopify to ERP."""
-        job = ShopifySyncJob.objects.create(store=store, job_type='orders', job_status='running')
+    def sync_orders(store: ShopifyStore, start_date: Optional[str] = None, end_date: Optional[str] = None) -> ShopifySyncJob:
+        """
+        Sync orders from Shopify to ERP.
+        Optionally filter by date range (ISO strings).
+        """
+        job = ShopifySyncJob.objects.create(
+            store=store,
+            job_type='orders',
+            job_status='running',
+            error_log=f"Range: {start_date or 'All'} to {end_date or 'Now'}"
+        )
         try:
             client = ShopifyAPIClient(store)
-            orders = client.get_all_orders()
+            
+            # Prepare ISO strings for Shopify API
+            created_at_min = None
+            if start_date:
+                created_at_min = f"{start_date}T00:00:00Z"
+            
+            created_at_max = None
+            if end_date:
+                created_at_max = f"{end_date}T23:59:59Z"
+
+            orders = client.get_all_orders(created_at_min=created_at_min, created_at_max=created_at_max)
             job.total_items = len(orders)
-            job.save()
+            job.save(update_fields=['total_items'])
             
             for order_data in orders:
                 try:
@@ -1025,15 +1085,20 @@ class ShopifyService:
                 except Exception as e:
                     logger.error(f"Error processing order {order_data.get('id')}: {e}")
                     job.failed_items += 1
-                job.save()
+                
+                if job.processed_items % 10 == 0:
+                    job.save(update_fields=['processed_items', 'failed_items'])
                 
             job.job_status = 'completed'
             job.completed_at = timezone.now()
             store.last_order_sync = timezone.now()
-            store.save()
+            store.save(update_fields=['last_order_sync'])
         except Exception as e:
+            logger.error(f"Order sync failed: {e}")
             job.job_status = 'failed'
-            job.error_log = str(e)
+            job.error_log = f"{job.error_log}\nError: {str(e)}"
+            job.completed_at = timezone.now()
+        
         job.save()
         return job
 
@@ -1120,11 +1185,13 @@ class ShopifyService:
                 email = order_data.get('customer', {}).get('email')
                 customer = None
                 if email:
+                    # Provide a code to avoid IntegrityError if creating new customer
                     customer, _ = Customer.objects.get_or_create(
                         company_id=store.company_id,
                         email=email,
                         defaults={
-                            'name': s_order.customer_name,
+                            'code': email[:50], 
+                            'name': s_order.customer_name or email,
                             'status': 'active'
                         }
                     )

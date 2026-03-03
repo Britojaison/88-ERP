@@ -171,6 +171,7 @@ export const salesService = {
   },
 
   getSalesSummary: async (params?: any) => {
+    // If and endpoint is for a report, nosotros want to optionally trigger a shopify sync
     const response = await api.get('/sales/transactions/summary/', { params })
     return response.data as SalesSummary
   },

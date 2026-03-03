@@ -9,8 +9,22 @@ from django.db.models import Sum, Count, Avg, F, Q
 from collections import defaultdict
 from .shopify_models import ShopifyOrder, ShopifyProduct, ShopifyStore
 import logging
+from .shopify_service import ShopifyService
 
-logger = logging.getLogger(__name__)
+
+def _maybe_sync(request):
+    """Trigger sync if requested via query param."""
+    if request.query_params.get('sync') == 'true':
+        company_id = getattr(request.user, 'company_id', None)
+        if company_id:
+            stores = ShopifyStore.objects.filter(company_id=company_id, status='active')
+            for store in stores:
+                try:
+                    # Sync products & orders for a complete picture
+                    ShopifyService.sync_products(store)
+                    ShopifyService.sync_orders(store)
+                except Exception as e:
+                    logger.warning(f"Live sync failed: {e}")
 
 
 @api_view(['GET'])
@@ -20,6 +34,7 @@ def product_performance(request):
     Product performance analytics from Shopify orders.
     Returns top products by revenue, quantity sold, and order count.
     """
+    _maybe_sync(request)
     user = request.user
     company_id = getattr(user, 'company_id', None)
     
@@ -75,6 +90,7 @@ def customer_analysis(request):
     Customer analytics from Shopify orders.
     Returns customer spending, order frequency, and lifetime value.
     """
+    _maybe_sync(request)
     user = request.user
     company_id = getattr(user, 'company_id', None)
     
@@ -129,6 +145,7 @@ def traffic_source_analysis(request):
     Traffic source analytics from Shopify orders.
     Analyzes referring_site and source_name from order data.
     """
+    _maybe_sync(request)
     user = request.user
     company_id = getattr(user, 'company_id', None)
     
@@ -189,6 +206,7 @@ def inventory_summary(request):
     Inventory summary from Shopify products.
     Returns stock levels, low stock alerts, and inventory value.
     """
+    _maybe_sync(request)
     user = request.user
     company_id = getattr(user, 'company_id', None)
     
@@ -246,6 +264,7 @@ def returns_analysis(request):
     Returns and refunds analysis from Shopify orders.
     Analyzes refunds and return patterns.
     """
+    _maybe_sync(request)
     user = request.user
     company_id = getattr(user, 'company_id', None)
     
