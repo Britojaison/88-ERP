@@ -16,70 +16,45 @@ export interface Role {
 
 export const PERMISSION_CATEGORIES: PermissionCategory[] = [
     {
-        category: 'Dashboard',
+        category: 'Operations',
         permissions: [
-            { code: 'dashboard.view', name: 'View Dashboard' },
-            { code: 'dashboard.metrics', name: 'View Key Metrics' },
+            { code: 'dashboard.view', name: 'Dashboard' },
+            { code: 'mdm.product.view', name: 'Master Data' },
+            { code: 'mdm.documents.view', name: 'Documents' },
+            { code: 'inv.view', name: 'Inventory' },
+            { code: 'inv.barcodes', name: 'Barcodes' },
+            { code: 'inv.receiving', name: 'Receiving' },
+            { code: 'org.warehouses.view', name: 'Warehouses' },
+            { code: 'org.stores.view', name: 'Stores' },
+            { code: 'inv.transfer', name: 'Transfers' },
+            { code: 'pos.checkout', name: 'Store POS' },
+            { code: 'pos.returns', name: 'POS Returns' },
+            { code: 'report.sales', name: 'Reports' },
         ],
     },
     {
-        category: 'Point of Sale (POS)',
+        category: 'Design & Production',
         permissions: [
-            { code: 'pos.checkout', name: 'Process Checkout' },
-            { code: 'pos.returns', name: 'Process Returns' },
-            { code: 'pos.history', name: 'View Transaction History' },
+            { code: 'design.workbench', name: 'Designer Workbench' },
+            { code: 'design.kanban', name: 'Production Kanban' },
+            { code: 'design.orders', name: 'Production Orders' },
+            { code: 'design.journey', name: 'Product Journey' },
         ],
     },
     {
-        category: 'Inventory',
+        category: 'Reports Detailed',
         permissions: [
-            { code: 'inv.view', name: 'View Inventory List' },
-            { code: 'inv.receiving', name: 'Manage Receiving' },
-            { code: 'inv.tracking', name: 'Product Tracking' },
-            { code: 'inv.journey', name: 'View Product Journey' },
-            { code: 'inv.kanban', name: 'Production Kanban' },
-            { code: 'inv.transfer', name: 'Stock Transfers' },
-            { code: 'inv.health', name: 'View Inventory Health' },
-            { code: 'inv.barcodes', name: 'Generate Barcodes' },
+            { code: 'report.daily', name: 'Daily Sales' },
+            { code: 'report.stock', name: 'Stock Velocity' },
+            { code: 'report.margin', name: 'Margin Analysis' },
+            { code: 'report.channel', name: 'Store vs Online' },
         ],
     },
     {
-        category: 'Organization',
+        category: 'Platform',
         permissions: [
-            { code: 'org.stores.view', name: 'View Stores' },
-            { code: 'org.warehouses.view', name: 'View Warehouses' },
-        ],
-    },
-    {
-        category: 'Master Data',
-        permissions: [
-            { code: 'mdm.product.view', name: 'View Products' },
-            { code: 'mdm.product.edit', name: 'Edit Products/Metadata' },
-            { code: 'mdm.documents.view', name: 'View Documents' },
-            { code: 'mdm.documents.manage', name: 'Create/Approve Documents' },
-        ],
-    },
-    {
-        category: 'Reports',
-        permissions: [
-            { code: 'report.sales', name: 'Daily Sales Report' },
-            { code: 'report.stock', name: 'Weekly Stock Report' },
-            { code: 'report.margin', name: 'Monthly Margin Report' },
-            { code: 'report.channel', name: 'Channel Comparison' },
-        ],
-    },
-    {
-        category: 'Integrations',
-        permissions: [
-            { code: 'integration.shopify', name: 'Shopify Integration' },
-        ],
-    },
-    {
-        category: 'Administration',
-        permissions: [
-            { code: 'admin.users', name: 'Manage Users' },
-            { code: 'admin.roles', name: 'Manage Roles' },
-            { code: 'admin.config', name: 'System Configuration' },
+            { code: 'integration.shopify', name: 'Shopify' },
+            { code: 'admin.config', name: 'Settings' },
         ],
     },
 ]
@@ -96,11 +71,10 @@ export const DEFAULT_ROLES: Role[] = [
             'inv.view',
             'inv.receiving',
             'inv.transfer',
-            'inv.kanban',
             'inv.barcodes',
-            'inv.health',
             'org.warehouses.view',
-            'mdm.product.view'
+            'mdm.product.view',
+            'design.kanban',
         ]
     },
     {
@@ -110,10 +84,10 @@ export const DEFAULT_ROLES: Role[] = [
             'dashboard.view',
             'pos.checkout',
             'pos.returns',
-            'pos.history',
             'inv.view',
             'org.stores.view',
-            'mdm.product.view'
+            'mdm.product.view',
+            'report.sales',
         ]
     },
     {
@@ -122,7 +96,8 @@ export const DEFAULT_ROLES: Role[] = [
         permissions: [
             'dashboard.view',
             'inv.view',
-            'inv.journey',
+            'design.workbench',
+            'design.journey',
             'inv.barcodes',
             'mdm.product.view'
         ]

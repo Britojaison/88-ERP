@@ -70,17 +70,17 @@ const navSections = [
     heading: 'Design & Production',
     visible: true,
     items: [
-      { text: 'Designer Workbench', icon: <DesignerIcon />, path: '/inventory/design-approvals' },
-      { text: 'Production Kanban', icon: <KanbanIcon />, path: '/inventory/production-kanban' },
-      { text: 'Production Orders', icon: <ProductionOrderIcon />, path: '/inventory/production-orders' },
-      { text: 'Product Journey', icon: <BarcodeIcon />, path: '/inventory/product-journey' },
+      { text: 'Designer Workbench', icon: <DesignerIcon />, path: '/inventory/design-approvals', permission: 'design.workbench' },
+      { text: 'Production Kanban', icon: <KanbanIcon />, path: '/inventory/production-kanban', permission: 'design.kanban' },
+      { text: 'Production Orders', icon: <ProductionOrderIcon />, path: '/inventory/production-orders', permission: 'design.orders' },
+      { text: 'Product Journey', icon: <BarcodeIcon />, path: '/inventory/product-journey', permission: 'design.journey' },
     ],
   },
   {
     heading: 'Reports Detailed',
     visible: true,
     items: [
-      { text: 'Daily Sales', icon: <DailySalesIcon />, path: '/reports/daily', permission: 'report.sales' },
+      { text: 'Daily Sales', icon: <DailySalesIcon />, path: '/reports/daily', permission: 'report.daily' },
       { text: 'Stock Velocity', icon: <VelocityIcon />, path: '/reports/weekly-stock', permission: 'report.stock' },
       { text: 'Margin Analysis', icon: <MarginIcon />, path: '/reports/monthly-margin', permission: 'report.margin' },
       { text: 'Store vs Online', icon: <CompareIcon />, path: '/reports/channel-comparison', permission: 'report.channel' },

@@ -53,9 +53,12 @@ class UserViewSet(viewsets.ModelViewSet):
 
 
 
-def _get_next_mmw_number():
-    """Get the next available MMW sequence number."""
-    existing = SKU.objects.filter(code__startswith='MMW-').values_list('code', flat=True)
+def _get_next_mmw_number(company_id):
+    """Get the next available MMW sequence number for a specific company."""
+    existing = SKU.objects.filter(
+        company_id=company_id,
+        code__startswith='MMW-'
+    ).values_list('code', flat=True)
     max_num = 0
     for code in existing:
         match = re.match(r'MMW-(\d+)-', code)
@@ -78,9 +81,9 @@ def _extract_product_type(product_name):
     return words[-1].upper()
 
 
-def generate_mmw_sku_code(product_name, size=None):
+def generate_mmw_sku_code(company_id, product_name, size=None):
     """Generate a SKU code in the MMW-{seq}-{SIZE}-{TYPE} format."""
-    next_num = _get_next_mmw_number()
+    next_num = _get_next_mmw_number(company_id)
     product_type = _extract_product_type(product_name)
     size_part = str(size).upper().strip() if size else ''
     
@@ -188,7 +191,7 @@ class ProductViewSet(TenantScopedViewSet):
         product_name = request.query_params.get('product_name', '')
         size = request.query_params.get('size', '')
         
-        code = generate_mmw_sku_code(product_name, size if size else None)
+        code = generate_mmw_sku_code(request.user.company_id, product_name, size if size else None)
         return Response({'sku_code': code})
     
     @action(detail=True, methods=["post"], url_path="create-variants")
@@ -254,7 +257,7 @@ class ProductViewSet(TenantScopedViewSet):
         
         for size in sizes:
             # Generate SKU code in MMW format
-            sku_code = generate_mmw_sku_code(product.name, size)
+            sku_code = generate_mmw_sku_code(request.user.company_id, product.name, size)
             
             # Check if SKU already exists
             if SKU.objects.filter(code=sku_code).exists():
@@ -390,9 +393,9 @@ class SKUBarcodeViewSet(TenantScopedViewSet):
         return response
 
 
-def _get_next_fabric_number():
-    """Get the next sequential number for fabric codes."""
-    last = Fabric.objects.order_by('-created_at').first()
+def _get_next_fabric_number(company_id):
+    """Get the next sequential number for fabric codes within a company."""
+    last = Fabric.objects.filter(company_id=company_id).order_by('-created_at').first()
     if last and last.code:
         match = re.search(r'FAB-(\d+)', last.code)
         if match:
@@ -412,25 +415,30 @@ class FabricViewSet(TenantScopedViewSet):
         return ctx
 
     def get_queryset(self):
-        qs = Fabric.objects.select_related('vendor', 'approved_by', 'sku').all()
+        qs = Fabric.objects.filter(
+            company_id=self.request.user.company_id
+        ).select_related('vendor', 'approved_by', 'sku')
+        
         # Filter by approval status
         approval = self.request.query_params.get('approval_status')
         if approval:
             qs = qs.filter(approval_status=approval)
+            
         # Filter by dispatch unit
         unit = self.request.query_params.get('dispatch_unit')
         if unit:
             qs = qs.filter(dispatch_unit=unit)
-        return qs
+            
+        return qs.order_by("-created_at")
 
     def perform_create(self, serializer):
         """Auto-generate fabric code and SKU on creation."""
-        company = Company.objects.first()
-        if not company:
-            raise Exception('No company found')
+        company_id = self.request.user.company_id
+        if not company_id:
+            raise Exception('No company assigned to user')
 
         # Auto-generate fabric code
-        seq = _get_next_fabric_number()
+        seq = _get_next_fabric_number(company_id)
         fabric_name = serializer.validated_data.get('name', 'FABRIC')
         fabric_type = serializer.validated_data.get('fabric_type', '')
         type_abbr = fabric_type[:3].upper() if fabric_type else 'FAB'
@@ -438,7 +446,7 @@ class FabricViewSet(TenantScopedViewSet):
 
         # Ensure a 'Raw Fabrics' Product exists to attach the SKU to
         product, _ = Product.objects.get_or_create(
-            company=company,
+            company_id=company_id,
             code="RAW-FABRICS",
             defaults={
                 "name": "Raw Fabrics",
@@ -448,7 +456,7 @@ class FabricViewSet(TenantScopedViewSet):
 
         # Create an SKU for this fabric
         sku = SKU.objects.create(
-            company=company,
+            company_id=company_id,
             product=product,
             code=code,
             name=f"Fabric: {fabric_name}",
@@ -457,7 +465,7 @@ class FabricViewSet(TenantScopedViewSet):
         )
 
         serializer.save(
-            company=company,
+            company_id=company_id,
             code=code,
             sku=sku,
             created_by=self.request.user if self.request.user.is_authenticated else None,
