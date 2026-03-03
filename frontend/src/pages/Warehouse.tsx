@@ -21,8 +21,13 @@ import {
     CardContent,
     Tabs,
     Tab,
-    Button
+    Button,
+    ToggleButtonGroup,
+    ToggleButton,
+    IconButton,
+    Tooltip
 } from '@mui/material'
+import { useReactToPrint } from 'react-to-print'
 import {
     Warehouse as WarehouseIcon,
     Inventory2,
@@ -30,7 +35,8 @@ import {
     Badge,
     History,
     ReceiptLong,
-    Search as SearchIcon
+    Search as SearchIcon,
+    LocalPrintshop
 } from '@mui/icons-material'
 import PageHeader from '../components/ui/PageHeader'
 import { mdmService, Location } from '../services/mdm.service'
@@ -111,6 +117,12 @@ export default function Warehouse() {
         }
     }, [])
 
+    const printRef = useRef<HTMLDivElement>(null)
+    const handlePrint = useReactToPrint({
+        contentRef: printRef,
+        documentTitle: `Warehouse-Inventory-${selectedWarehouse?.name || 'Report'}`
+    })
+
     useEffect(() => {
         const fetchData = async () => {
             if (!selectedWarehouse) {
@@ -124,7 +136,7 @@ export default function Warehouse() {
 
             try {
                 const [, logData] = await Promise.all([
-                    fetchBalances(selectedWarehouse.id),
+                    fetchBalances(selectedWarehouse.id, '', stockFilter, 1),
                     inventoryService.getGoodsReceiptScans({ location: selectedWarehouse.id })
                 ])
 
@@ -145,7 +157,8 @@ export default function Warehouse() {
         setSearchQuery('')
         setCurrentPage(1)
         fetchData()
-    }, [selectedWarehouse, fetchBalances])
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedWarehouse])
 
     const handleSearch = (value: string) => {
         setSearchQuery(value)
@@ -153,14 +166,22 @@ export default function Warehouse() {
         if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
         if (!selectedWarehouse) return
         searchTimerRef.current = setTimeout(() => {
-            fetchBalances(selectedWarehouse.id, value, 1)
+            fetchBalances(selectedWarehouse.id, value, stockFilter, 1)
         }, 400)
+    }
+
+    const handleFilterChange = (_: any, newFilter: string | null) => {
+        if (!newFilter) return
+        setStockFilter(newFilter as any)
+        setCurrentPage(1)
+        if (!selectedWarehouse) return
+        fetchBalances(selectedWarehouse.id, searchQuery, newFilter, 1)
     }
 
     const handlePageChange = (newPage: number) => {
         if (!selectedWarehouse) return
         setCurrentPage(newPage)
-        fetchBalances(selectedWarehouse.id, searchQuery, newPage)
+        fetchBalances(selectedWarehouse.id, searchQuery, stockFilter, newPage)
     }
 
     const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
@@ -338,7 +359,19 @@ export default function Warehouse() {
                                         sx={{ minHeight: 64, fontWeight: 700 }}
                                     />
                                 </Tabs>
-                                {tabValue === 0 && (
+                                <Box display="flex" alignItems="center" gap={2}>
+                                    <ToggleButtonGroup
+                                        size="small"
+                                        value={stockFilter}
+                                        exclusive
+                                        onChange={handleFilterChange}
+                                        sx={{ '& .MuiToggleButton-root': { textTransform: 'none', fontWeight: 600, px: 2, height: 36 } }}
+                                    >
+                                        <ToggleButton value="all">All Items</ToggleButton>
+                                        <ToggleButton value="in_stock" color="success">In Stock</ToggleButton>
+                                        <ToggleButton value="out_of_stock" color="error">Out of Stock</ToggleButton>
+                                    </ToggleButtonGroup>
+
                                     <TextField
                                         size="small"
                                         placeholder="Search by SKU or product name..."
@@ -350,11 +383,22 @@ export default function Warehouse() {
                                                     <SearchIcon sx={{ fontSize: 18, color: 'text.disabled' }} />
                                                 </InputAdornment>
                                             ),
-                                            sx: { borderRadius: 3, bgcolor: 'white', fontSize: '0.875rem' }
+                                            sx: { borderRadius: 2, bgcolor: 'white', fontSize: '0.875rem', height: 36 }
                                         }}
                                         sx={{ width: 280 }}
                                     />
-                                )}
+
+                                    <Tooltip title="Print Filtered View">
+                                        <IconButton
+                                            color="primary"
+                                            onClick={() => handlePrint()}
+                                            sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, height: 36, width: 36, bgcolor: 'white' }}
+                                            disabled={fetchingBalances || balances.length === 0}
+                                        >
+                                            <LocalPrintshop fontSize="small" />
+                                        </IconButton>
+                                    </Tooltip>
+                                </Box>
                             </Box>
 
                             {tabValue === 0 && (
@@ -527,6 +571,52 @@ export default function Warehouse() {
                 </Grid>
             )
             }
+
+            {/* Hidden Printable Area */}
+            <div style={{ display: 'none' }}>
+                <div ref={printRef} style={{ padding: '40px', fontFamily: 'sans-serif' }}>
+                    <Typography variant="h4" sx={{ fontWeight: 800, mb: 1, color: '#0f6d6a' }}>
+                        {selectedWarehouse?.name} - Inventory Report
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                        <strong>Generated:</strong> {new Date().toLocaleString()}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                        <strong>Filter:</strong> {stockFilter.replace('_', ' ').toUpperCase()} | <strong>Search:</strong> {searchQuery ? `"${searchQuery}"` : 'None'}
+                    </Typography>
+
+                    <Table size="small" sx={{ width: '100%', '& th': { fontWeight: 'bold', borderBottom: '2px solid #000' }, '& td': { borderBottom: '1px solid #ddd' } }}>
+                        <TableHead>
+                            <TableRow>
+                                <TableCell>SKU Code</TableCell>
+                                <TableCell>Product Name</TableCell>
+                                <TableCell>Variant</TableCell>
+                                <TableCell align="right">On Hand</TableCell>
+                                <TableCell align="right">Available</TableCell>
+                            </TableRow>
+                        </TableHead>
+                        <TableBody>
+                            {balances.map((row) => (
+                                <TableRow key={row.id}>
+                                    <TableCell>{row.sku_code || '—'}</TableCell>
+                                    <TableCell>{(row as any).product_name || row.sku_name || '—'}</TableCell>
+                                    <TableCell>{row.sku_name || '—'}</TableCell>
+                                    <TableCell align="right">{qty(row.quantity_on_hand)}</TableCell>
+                                    <TableCell align="right">{qty(row.quantity_available)}</TableCell>
+                                </TableRow>
+                            ))}
+                            {balances.length === 0 && (
+                                <TableRow>
+                                    <TableCell colSpan={5} align="center" sx={{ py: 3, fontStyle: 'italic' }}>No records to print.</TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                    <Typography variant="caption" sx={{ display: 'block', mt: 4, textAlign: 'center', color: 'text.secondary' }}>
+                        End of Report - Page {currentPage} of {Math.ceil(totalCount / 50)}
+                    </Typography>
+                </div>
+            </div>
         </Box >
     )
 }
