@@ -62,6 +62,32 @@ class InventoryBalanceViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, 
 
         return queryset.order_by("-updated_at")
 
+    @action(detail=False, methods=['get'], url_path='summary')
+    def summary(self, request):
+        """Return aggregate stats for a location (total SKUs, total units, zero-stock count)."""
+        location_id = request.query_params.get("location")
+        if not location_id:
+            return Response({"error": "location parameter is required"}, status=400)
+
+        qs = InventoryBalance.objects.filter(
+            company_id=request.user.company_id,
+            status="active",
+            condition=InventoryBalance.CONDITION_NEW,
+            location_id=location_id,
+        )
+
+        agg = qs.aggregate(
+            total_skus=Count('id'),
+            total_units=Sum('quantity_available'),
+            zero_stock=Count('id', filter=models.Q(quantity_available__lte=0)),
+        )
+
+        return Response({
+            "total_skus": agg['total_skus'] or 0,
+            "total_units": int(agg['total_units'] or 0),
+            "zero_stock": agg['zero_stock'] or 0,
+        })
+
     @action(detail=False, methods=['get'], url_path='velocity')
     def stock_velocity(self, request):
         """
@@ -274,11 +300,15 @@ class InventoryMovementViewSet(viewsets.ModelViewSet):
         if movement.movement_type == InventoryMovement.MOVEMENT_TYPE_RECEIPT:
             to_balance = self._get_or_create_balance(company_id, movement.sku, movement.to_location, condition)
             self._increase_balance(to_balance, qty, movement.unit_cost)
+            # ── Push to Shopify if receiving into Shopify Warehouse ──
+            self._sync_shopify_after_balance_change(movement.sku, movement.to_location, to_balance)
             return
 
         if movement.movement_type == InventoryMovement.MOVEMENT_TYPE_ISSUE:
             from_balance = self._get_or_create_balance(company_id, movement.sku, movement.from_location, condition)
             self._decrease_balance(from_balance, qty)
+            # ── Push to Shopify if issuing from Shopify Warehouse ──
+            self._sync_shopify_after_balance_change(movement.sku, movement.from_location, from_balance)
             return
 
         if movement.movement_type == InventoryMovement.MOVEMENT_TYPE_TRANSFER:
@@ -286,21 +316,85 @@ class InventoryMovementViewSet(viewsets.ModelViewSet):
             to_balance = self._get_or_create_balance(company_id, movement.sku, movement.to_location, condition)
             self._decrease_balance(from_balance, qty)
             self._increase_balance(to_balance, qty, movement.unit_cost)
+
+            # ── Auto-push to Shopify when transferring OUT of Shopify Warehouse ──
+            self._sync_shopify_after_balance_change(movement.sku, movement.from_location, from_balance)
+            # Also handle transfers INTO Shopify Warehouse (increases online stock)
+            self._sync_shopify_after_balance_change(movement.sku, movement.to_location, to_balance)
             return
 
         if movement.movement_type == InventoryMovement.MOVEMENT_TYPE_ADJUSTMENT:
             if movement.from_location:
                 from_balance = self._get_or_create_balance(company_id, movement.sku, movement.from_location, condition)
                 self._decrease_balance(from_balance, qty)
+                self._sync_shopify_after_balance_change(movement.sku, movement.from_location, from_balance)
             if movement.to_location:
                 to_balance = self._get_or_create_balance(company_id, movement.sku, movement.to_location, condition)
                 self._increase_balance(to_balance, qty, movement.unit_cost)
+                self._sync_shopify_after_balance_change(movement.sku, movement.to_location, to_balance)
             return
 
         if movement.movement_type == InventoryMovement.MOVEMENT_TYPE_RETURN:
             to_balance = self._get_or_create_balance(company_id, movement.sku, movement.to_location, condition)
             self._increase_balance(to_balance, qty, movement.unit_cost)
+            self._sync_shopify_after_balance_change(movement.sku, movement.to_location, to_balance)
             return
+
+    def _sync_shopify_after_balance_change(self, sku, location, balance):
+        """If the location is Shopify Warehouse, push the updated quantity to Shopify.
+        If the SKU doesn't have a Shopify mapping yet, auto-create it first."""
+        if location.code != 'SHOPIFY-WH':
+            return
+        try:
+            from apps.integrations.shopify_models import ShopifyStore, ShopifyProduct
+            from apps.integrations.shopify_service import ShopifyService
+            import threading
+            import logging
+
+            log = logging.getLogger(__name__)
+
+            store = ShopifyStore.objects.filter(
+                company_id=location.company_id,
+                is_active=True
+            ).first()
+            if not store:
+                return
+
+            new_qty = int(balance.quantity_available)
+
+            mapping = ShopifyProduct.objects.filter(
+                store=store,
+                erp_sku_id=sku.id,
+                sync_status='synced'
+            ).first()
+
+            def _push():
+                try:
+                    nonlocal mapping
+                    # If no mapping, auto-create the product on Shopify first
+                    if not mapping:
+                        log.info(f"No Shopify mapping for SKU {sku.code}, auto-creating...")
+                        ShopifyService.push_sku_to_shopify(store, str(sku.id))
+                        # Re-fetch the mapping that was just created
+                        mapping = ShopifyProduct.objects.filter(
+                            store=store,
+                            erp_sku_id=sku.id,
+                            sync_status='synced'
+                        ).first()
+                        if not mapping:
+                            log.warning(f"Failed to create Shopify mapping for SKU {sku.code}")
+                            return
+
+                    # Now push the accurate quantity
+                    ShopifyService.push_inventory_to_shopify(store, str(sku.id), new_qty)
+                    log.info(f"Pushed {new_qty} units to Shopify for SKU {sku.code}")
+                except Exception as e:
+                    log.warning(f"Shopify sync failed for SKU {sku.code}: {e}")
+
+            # Run in background thread so the response isn't delayed
+            threading.Thread(target=_push, daemon=True).start()
+        except Exception:
+            pass  # Shopify integration not configured — silently skip
 
     @action(detail=False, methods=["get"], url_path="alerts")
     def alerts(self, request):
