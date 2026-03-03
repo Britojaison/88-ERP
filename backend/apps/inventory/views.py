@@ -60,6 +60,12 @@ class InventoryBalanceViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, 
                 Q(sku__product__name__icontains=search)
             )
 
+        stock_filter = self.request.query_params.get("stock_filter")
+        if stock_filter == "in_stock":
+            queryset = queryset.filter(quantity_available__gt=0)
+        elif stock_filter == "out_of_stock":
+            queryset = queryset.filter(quantity_available__lte=0)
+
         return queryset.order_by("-updated_at")
 
     @action(detail=False, methods=['get'], url_path='summary')

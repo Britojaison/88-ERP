@@ -22,7 +22,6 @@ import {
   Assessment as ReportIcon,
   FactCheck as ReceivingIcon,
   Dashboard as DashboardIcon,
-  Description as DocumentIcon,
   Inventory as InventoryIcon,
   Logout,
   Menu as MenuIcon,
@@ -54,7 +53,6 @@ const navSections = [
     items: [
       { text: 'Dashboard', icon: <DashboardIcon />, path: '/', permission: 'dashboard.view' },
       { text: 'Master Data', icon: <PeopleIcon />, path: '/master-data', permission: 'mdm.product.view' },
-      { text: 'Documents', icon: <DocumentIcon />, path: '/documents', permission: 'mdm.documents.view' },
       { text: 'Inventory', icon: <InventoryIcon />, path: '/inventory', permission: 'inv.view' },
       { text: 'Barcodes', icon: <BarcodeIcon />, path: '/inventory/barcodes', permission: 'inv.barcodes' },
       { text: 'Receiving', icon: <ReceivingIcon />, path: '/inventory/receiving', permission: 'inv.receiving' },
