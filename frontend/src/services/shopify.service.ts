@@ -129,8 +129,8 @@ export interface ShopifySalesSummary {
 }
 
 export const shopifyService = {
-  getSalesSummary: async (days: number = 30): Promise<ShopifySalesSummary> => {
-    const response = await api.get('/integrations/shopify/orders/sales_summary/', { params: { days } })
+  getSalesSummary: async (days: number = 30, sync: boolean = false): Promise<ShopifySalesSummary> => {
+    const response = await api.get('/integrations/shopify/orders/sales_summary/', { params: { days, sync } })
     return response.data
   },
 
@@ -246,28 +246,28 @@ export const shopifyService = {
     return response.data
   },
 
-  getProductPerformance: async () => {
-    const response = await api.get('/integrations/shopify/analytics/product-performance/')
+  getProductPerformance: async (sync: boolean = false) => {
+    const response = await api.get('/integrations/shopify/analytics/product-performance/', { params: { sync } })
     return response.data
   },
 
-  getCustomerAnalysis: async () => {
-    const response = await api.get('/integrations/shopify/analytics/customer-analysis/')
+  getCustomerAnalysis: async (sync: boolean = false) => {
+    const response = await api.get('/integrations/shopify/analytics/customer-analysis/', { params: { sync } })
     return response.data
   },
 
-  getTrafficSource: async () => {
-    const response = await api.get('/integrations/shopify/analytics/traffic-source/')
+  getTrafficSource: async (sync: boolean = false) => {
+    const response = await api.get('/integrations/shopify/analytics/traffic-source/', { params: { sync } })
     return response.data
   },
 
-  getInventorySummary: async () => {
-    const response = await api.get('/integrations/shopify/analytics/inventory-summary/')
+  getInventorySummary: async (sync: boolean = false) => {
+    const response = await api.get('/integrations/shopify/analytics/inventory-summary/', { params: { sync } })
     return response.data
   },
 
-  getReturnsAnalysis: async () => {
-    const response = await api.get('/integrations/shopify/analytics/returns-analysis/')
+  getReturnsAnalysis: async (sync: boolean = false) => {
+    const response = await api.get('/integrations/shopify/analytics/returns-analysis/', { params: { sync } })
     return response.data
   },
 

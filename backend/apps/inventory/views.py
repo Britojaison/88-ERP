@@ -1540,10 +1540,21 @@ class DailyStockReportViewSet(viewsets.ViewSet):
         Query params: date (YYYY-MM-DD), store (location_id)
         """
         from apps.sales.models import SalesTransaction, SalesTransactionLine
+        from apps.integrations.shopify_models import ShopifyOrder, ShopifyStore
+        from apps.integrations.shopify_service import ShopifyService
         from django.db.models.functions import TruncDate
 
         target_date = request.query_params.get('date', str(timezone.now().date()))
         store_id = request.query_params.get('store')
+        do_sync = request.query_params.get('sync') == 'true'
+
+        if do_sync:
+            stores = ShopifyStore.objects.filter(company_id=request.user.company_id, status='active')
+            for store in stores:
+                try:
+                    ShopifyService.sync_orders(store, start_date=target_date, end_date=target_date)
+                except Exception:
+                    pass
 
         txn_qs = SalesTransaction.objects.filter(
             company_id=request.user.company_id,
@@ -1553,7 +1564,7 @@ class DailyStockReportViewSet(viewsets.ViewSet):
         if store_id:
             txn_qs = txn_qs.filter(store_id=store_id)
 
-        # Overview
+        # Overview from POS
         overview = txn_qs.aggregate(
             total_revenue=Sum('total_amount'),
             total_transactions=Count('id'),
@@ -1574,7 +1585,41 @@ class DailyStockReportViewSet(viewsets.ViewSet):
             total=Sum('total_amount'),
         ).order_by('-total'))
 
-        # Top 10 products sold
+        # Shopify Add-ons (if no specific store selected or SHOPIFY-WH mapped)
+        if not store_id:
+            shopify_qs = ShopifyOrder.objects.filter(
+                store__company_id=request.user.company_id,
+                processed_at__date=target_date
+            )
+            shopify_stats = shopify_qs.aggregate(
+                total_rev=Sum('total_price'),
+                orders=Count('id')
+            )
+            
+            online_rev = float(shopify_stats['total_rev'] or 0)
+            online_count = shopify_stats['orders'] or 0
+            
+            if online_rev > 0:
+                # Update Overview
+                overview['total_revenue'] = float(overview['total_revenue'] or 0) + online_rev
+                overview['total_transactions'] = (overview['total_transactions'] or 0) + online_count
+                
+                # Update channel breakdown
+                found = False
+                for c in channel_breakdown:
+                    if c['sales_channel'] == 'online':
+                        c['total'] = float(c['total'] or 0) + online_rev
+                        c['count'] += online_count
+                        found = True
+                        break
+                if not found:
+                    channel_breakdown.append({
+                        'sales_channel': 'online',
+                        'count': online_count,
+                        'total': online_rev
+                    })
+
+        # Top 10 products sold (POS only for now, merging Shopify SKUs is expensive here)
         line_qs = SalesTransactionLine.objects.filter(
             transaction__in=txn_qs,
         ).values(
@@ -2008,7 +2053,21 @@ class DailyStockReportViewSet(viewsets.ViewSet):
                 date_map[ds]['online_orders'] += row['orders'] or 0
 
         # Shopify Orders (Unified accuracy)
-        from apps.integrations.shopify_models import ShopifyOrder
+        from apps.integrations.shopify_models import ShopifyOrder, ShopifyStore
+        from apps.integrations.shopify_service import ShopifyService
+
+        # If 'sync' param is provided, trigger a direct pull from Shopify for this range
+        do_sync = request.query_params.get('sync') == 'true'
+        if do_sync:
+            stores = ShopifyStore.objects.filter(company_id=request.user.company_id, status='active')
+            for store in stores:
+                try:
+                    # Synchronous sync for the report range
+                    ShopifyService.sync_orders(store, start_date=start_date.isoformat(), end_date=end_date.isoformat())
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).warning(f"Live sync failed during report: {e}")
+
         shopify_sales = ShopifyOrder.objects.filter(
             store__company_id=request.user.company_id,
             processed_at__date__gte=start_date,

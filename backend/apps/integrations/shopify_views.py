@@ -551,7 +551,11 @@ class ShopifyStoreViewSet(viewsets.ModelViewSet):
         # Build cache key
         cache_key = f"product_demand_{store.id}_{days or 'all'}_{date_from or ''}_{date_to or ''}"
         print(f"Cache key: {cache_key}")
-        cached = cache.get(cache_key)
+        
+        # Bypass cache if sync=true
+        sync_requested = request.query_params.get('sync') == 'true'
+        cached = cache.get(cache_key) if not sync_requested else None
+        
         if cached:
             print(f"CACHE HIT! Returning cached data: orders={cached.get('total_orders')}, revenue={cached.get('total_revenue')}")
             print(f"{'='*60}\n")
