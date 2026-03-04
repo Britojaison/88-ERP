@@ -19,7 +19,6 @@ import {
 } from '@mui/material'
 import {
   AccountCircle,
-  Assessment as ReportIcon,
   FactCheck as ReceivingIcon,
   Dashboard as DashboardIcon,
   Inventory as InventoryIcon,
@@ -61,7 +60,6 @@ const navSections = [
       { text: 'Transfers', icon: <TransferIcon />, path: '/inventory/stock-transfers', permission: 'inv.transfer' },
       { text: 'Store POS', icon: <StoreIcon />, path: '/pos', permission: 'pos.checkout' },
       { text: 'POS Returns', icon: <StoreIcon />, path: '/pos/returns', permission: 'pos.returns' },
-      { text: 'Reports', icon: <ReportIcon />, path: '/reports', permission: 'report.sales' },
     ],
   },
   {
