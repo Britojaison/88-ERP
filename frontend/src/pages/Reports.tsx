@@ -203,7 +203,6 @@ export default function Reports() {
   const navigate = useNavigate()
   const [tabValue, setTabValue] = useState(0)
   const [reportTypes, setReportTypes] = useState<Array<{ value: string; label: string }>>([])
-  const [loading, setLoading] = useState(false)
   const [dateRange, setDateRange] = useState('30')
   const [locationFilter, setLocationFilter] = useState('all')
   const [selectedReport, setSelectedReport] = useState<string | null>(null)
@@ -212,15 +211,11 @@ export default function Reports() {
   )
 
   const loadReportTypes = async () => {
-    setLoading(true)
     try {
       const types = await reportingService.getReportTypes()
       setReportTypes(types)
-      setSnackbar({ open: true, message: 'Report types refreshed.', severity: 'success' })
-    } catch (error) {
-      setSnackbar({ open: true, message: 'Failed to refresh report configuration.', severity: 'error' })
-    } finally {
-      setLoading(false)
+    } catch {
+      // /reporting/types/ endpoint may not be configured — silently ignore
     }
   }
 
@@ -259,7 +254,7 @@ export default function Reports() {
         subtitle="Generate operational, financial, and planning insights for online and store management."
         actions={
           <Stack direction="row" spacing={1.25}>
-            <Button variant="outlined" startIcon={<Refresh />} onClick={() => void loadReportTypes()} disabled={loading}>
+            <Button variant="outlined" startIcon={<Refresh />} onClick={() => void loadReportTypes()}>
               Refresh
             </Button>
             <Button variant="contained" startIcon={<Download />} onClick={handleExportBundle}>

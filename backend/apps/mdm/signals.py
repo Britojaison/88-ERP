@@ -14,7 +14,7 @@ def sync_sku_to_shopify_on_save(sender, instance, created, **kwargs):
     """
     if instance.status == 'active' and instance.lifecycle_status == 'active':
         try:
-            from apps.integrations.models import ShopifyStore
+            from apps.integrations.shopify_models import ShopifyStore
             from apps.integrations.shopify_service import ShopifyService
             
             # Find all active Shopify stores for this company

@@ -27,17 +27,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def _trigger_shopify_sync(request):
-    """Helper to sync Shopify data on demand for reports."""
-    if request.query_params.get('sync') == 'true':
-        from apps.integrations.shopify_models import ShopifyStore
-        from apps.integrations.shopify_service import ShopifyService
-        stores = ShopifyStore.objects.filter(company_id=request.user.company_id, status='active')
-        for store in stores:
-            try:
-                ShopifyService.sync_orders(store)
-            except Exception as e:
-                logger.warning(f"Shopify sync failed during sales report: {e}")
 
 
 class SalesTransactionViewSet(viewsets.ModelViewSet):
@@ -76,7 +65,6 @@ class SalesTransactionViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='summary')
     def summary(self, request):
         """Get sales summary statistics including Shopify orders"""
-        _trigger_shopify_sync(request)
         from apps.integrations.shopify_models import ShopifyOrder
         
         # POS Stats
@@ -140,7 +128,6 @@ class SalesTransactionViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='by-channel')
     def by_channel(self, request):
         """Sales breakdown by channel (POS + Shopify)"""
-        _trigger_shopify_sync(request)
         from apps.integrations.shopify_models import ShopifyOrder
         
         # 1. POS Channels
@@ -217,8 +204,7 @@ class SalesTransactionViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='channel-comparison')
     def channel_comparison(self, request):
-        """Compare Store vs Online sales over time"""
-        _trigger_shopify_sync(request)
+        """Compare Store vs Online sales over time — reads from DB (auto-synced every 12h)"""
         from datetime import timedelta, date as date_type
         from django.utils import timezone
         

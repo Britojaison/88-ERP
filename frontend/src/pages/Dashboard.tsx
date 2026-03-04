@@ -46,7 +46,7 @@ export default function Dashboard() {
 
   const [recentAlerts, setRecentAlerts] = useState<any[]>([])
 
-  const loadDashboardData = async (sync = false) => {
+  const loadDashboardData = async () => {
     setLoading(true)
     try {
       const [productsData, locationsData, alertsData, velocityData] = await Promise.all([
@@ -71,7 +71,6 @@ export default function Dashboard() {
         const sales = await salesService.getSalesSummary({
           date_from: startOfToday,
           date_to: endOfToday,
-          sync: sync
         })
         salesDataObj = sales;
         salesSum = sales?.total_sales || 0;
@@ -114,21 +113,11 @@ export default function Dashboard() {
           <Stack direction="row" spacing={1.25}>
             <Button
               variant="outlined"
-              onClick={() => void loadDashboardData(false)}
+              onClick={() => void loadDashboardData()}
               disabled={loading}
               size="small"
             >
               Refresh
-            </Button>
-            <Button
-              variant="contained"
-              color="secondary"
-              onClick={() => void loadDashboardData(true)}
-              disabled={loading}
-              startIcon={loading ? <CircularProgress size={16} /> : <TrendingUp />}
-              size="small"
-            >
-              Sync Shopify
             </Button>
             {hasAnyPermission(['report.sales', 'report.stock', 'report.margin', 'report.channel']) && (
               <Button variant="contained" onClick={() => navigate('/reports')}>

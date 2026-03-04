@@ -129,8 +129,8 @@ export interface ShopifySalesSummary {
 }
 
 export const shopifyService = {
-  getSalesSummary: async (days: number = 30, sync: boolean = false): Promise<ShopifySalesSummary> => {
-    const response = await api.get('/integrations/shopify/orders/sales_summary/', { params: { days, sync } })
+  getSalesSummary: async (days: number = 30): Promise<ShopifySalesSummary> => {
+    const response = await api.get('/integrations/shopify/orders/sales_summary/', { params: { days } })
     return response.data
   },
 
@@ -246,28 +246,28 @@ export const shopifyService = {
     return response.data
   },
 
-  getProductPerformance: async (sync: boolean = false) => {
-    const response = await api.get('/integrations/shopify/analytics/product-performance/', { params: { sync } })
+  getProductPerformance: async () => {
+    const response = await api.get('/integrations/shopify/analytics/product-performance/')
     return response.data
   },
 
-  getCustomerAnalysis: async (sync: boolean = false) => {
-    const response = await api.get('/integrations/shopify/analytics/customer-analysis/', { params: { sync } })
+  getCustomerAnalysis: async () => {
+    const response = await api.get('/integrations/shopify/analytics/customer-analysis/')
     return response.data
   },
 
-  getTrafficSource: async (sync: boolean = false) => {
-    const response = await api.get('/integrations/shopify/analytics/traffic-source/', { params: { sync } })
+  getTrafficSource: async () => {
+    const response = await api.get('/integrations/shopify/analytics/traffic-source/')
     return response.data
   },
 
-  getInventorySummary: async (sync: boolean = false) => {
-    const response = await api.get('/integrations/shopify/analytics/inventory-summary/', { params: { sync } })
+  getInventorySummary: async () => {
+    const response = await api.get('/integrations/shopify/analytics/inventory-summary/')
     return response.data
   },
 
-  getReturnsAnalysis: async (sync: boolean = false) => {
-    const response = await api.get('/integrations/shopify/analytics/returns-analysis/', { params: { sync } })
+  getReturnsAnalysis: async () => {
+    const response = await api.get('/integrations/shopify/analytics/returns-analysis/')
     return response.data
   },
 
@@ -278,6 +278,12 @@ export const shopifyService = {
 
   getGeographicSales: async (days: number = 30) => {
     const response = await api.get('/integrations/shopify/orders/geographic_sales/', { params: { days } })
+    return response.data
+  },
+
+  /** Trigger a full manual sync for a store (orders + products) in the background. */
+  syncNow: async (storeId: string): Promise<{ status: string; message: string }> => {
+    const response = await api.post(`/integrations/shopify/stores/${storeId}/sync-now/`)
     return response.data
   },
 }

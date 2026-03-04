@@ -13,7 +13,7 @@ def sync_inventory_to_shopify_on_save(sender, instance, **kwargs):
     When InventoryBalance changes, push the new quantity_available to Shopify asynchronously.
     """
     try:
-        from apps.integrations.models import ShopifyStore
+        from apps.integrations.shopify_models import ShopifyStore
         
         # Find all connected Shopify stores for this company
         stores = ShopifyStore.objects.filter(company_id=instance.company_id, is_connected=True)
