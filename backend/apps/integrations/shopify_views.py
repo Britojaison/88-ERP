@@ -607,22 +607,30 @@ class ShopifyStoreViewSet(viewsets.ModelViewSet):
         latest_date = None
         order_count = 0
 
-        for order in orders_qs.only('total_price', 'processed_at', 'shopify_data'):
-            order_total = float(order.total_price or 0)
+        # We need shopify_product_id and shopify_sku for bulk lookup
+        skus_needed = set()
+        ids_needed = set()
+
+        for order in orders_qs.values('total_price', 'processed_at', 'shopify_data'):
+            order_total = float(order['total_price'] or 0)
             total_revenue += order_total
             order_count += 1
 
-            if order.processed_at:
-                if earliest_date is None or order.processed_at < earliest_date:
-                    earliest_date = order.processed_at
-                if latest_date is None or order.processed_at > latest_date:
-                    latest_date = order.processed_at
+            processed_at = order['processed_at']
+            if processed_at:
+                if earliest_date is None or processed_at < earliest_date:
+                    earliest_date = processed_at
+                if latest_date is None or processed_at > latest_date:
+                    latest_date = processed_at
 
-            line_items = order.shopify_data.get('line_items', []) if order.shopify_data else []
+            shopify_data = order['shopify_data']
+            line_items = shopify_data.get('line_items', []) if shopify_data else []
             for item in line_items:
                 sku = item.get('sku', '')
                 title = item.get('title', 'Unknown')
                 variant = item.get('variant_title', '')
+                p_id = item.get('product_id')
+                
                 key = f"{title}||{variant}||{sku}"
 
                 demand[key]['title'] = title
@@ -631,26 +639,31 @@ class ShopifyStoreViewSet(viewsets.ModelViewSet):
                 demand[key]['total_quantity'] += int(item.get('quantity', 0))
                 demand[key]['total_revenue'] += float(item.get('price', 0)) * int(item.get('quantity', 0))
                 demand[key]['order_count'] += 1
-                if not demand[key]['shopify_product_id']:
-                    demand[key]['shopify_product_id'] = item.get('product_id')
+                if sku:
+                    skus_needed.add(sku)
+                if p_id:
+                    demand[key]['shopify_product_id'] = p_id
+                    ids_needed.add(str(p_id))
 
-        # Enrich with current inventory from ShopifyProduct table
+        # Bulk fetch current inventory to avoid N+1 queries
+        from apps.integrations.shopify_models import ShopifyProduct
+        stock_by_sku = {
+            p.shopify_sku: p.shopify_inventory_quantity 
+            for p in ShopifyProduct.objects.filter(store=store, shopify_sku__in=skus_needed).only('shopify_sku', 'shopify_inventory_quantity')
+            if p.shopify_sku
+        }
+        stock_by_id = {
+            str(p.shopify_product_id): p.shopify_inventory_quantity 
+            for p in ShopifyProduct.objects.filter(store=store, shopify_product_id__in=ids_needed).only('shopify_product_id', 'shopify_inventory_quantity')
+            if p.shopify_product_id
+        }
+
+        # Format results
         result = []
         for key, d in demand.items():
-            current_stock = None
-            if d['sku']:
-                product_match = ShopifyProduct.objects.filter(
-                    store=store, shopify_sku=d['sku']
-                ).only('shopify_inventory_quantity').first()
-            elif d['shopify_product_id']:
-                product_match = ShopifyProduct.objects.filter(
-                    store=store, shopify_product_id=d['shopify_product_id']
-                ).only('shopify_inventory_quantity').first()
-            else:
-                product_match = None
-
-            if product_match:
-                current_stock = product_match.shopify_inventory_quantity
+            current_stock = stock_by_sku.get(d['sku'])
+            if current_stock is None and d['shopify_product_id']:
+                current_stock = stock_by_id.get(str(d['shopify_product_id']))
 
             result.append({
                 'title': d['title'],
@@ -680,13 +693,8 @@ class ShopifyStoreViewSet(viewsets.ModelViewSet):
             'items': result,
         }
 
-        # Cache for 10 minutes
-        cache.set(cache_key, response_data, 600)
-        return Response(response_data)
-
-        # Cache for 5 minutes (300 seconds)
-        cache.set(cache_key, response_data, 300)
-
+        # Cache for 15 minutes (900 seconds)
+        cache.set(cache_key, response_data, 900)
         return Response(response_data)
 
     @action(detail=True, methods=['get'])
