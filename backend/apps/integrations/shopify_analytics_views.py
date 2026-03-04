@@ -12,19 +12,6 @@ import logging
 from .shopify_service import ShopifyService
 
 
-def _maybe_sync(request):
-    """Trigger sync if requested via query param."""
-    if request.query_params.get('sync') == 'true':
-        company_id = getattr(request.user, 'company_id', None)
-        if company_id:
-            stores = ShopifyStore.objects.filter(company_id=company_id, status='active')
-            for store in stores:
-                try:
-                    # Sync products & orders for a complete picture
-                    ShopifyService.sync_products(store)
-                    ShopifyService.sync_orders(store)
-                except Exception as e:
-                    logger.warning(f"Live sync failed: {e}")
 
 
 @api_view(['GET'])

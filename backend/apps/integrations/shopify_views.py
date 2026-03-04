@@ -457,6 +457,33 @@ class ShopifyStoreViewSet(viewsets.ModelViewSet):
         threading.Thread(target=lambda: ShopifyService._do_inventory_sync(store, job), daemon=True).start()
         return Response({'job_id': str(job.id), 'status': 'running'})
 
+    @action(detail=True, methods=['post'], url_path='sync-now')
+    def sync_now(self, request, pk=None):
+        """
+        Trigger a full manual sync (orders + products) in the background.
+        This is the single "Sync Now" action — all reports read from DB automatically.
+        """
+        store = self.get_object()
+
+        def _run_full_sync():
+            try:
+                import django
+                django.db.connections.close_all()
+                logger.info(f"[SyncNow] Starting full sync for {store.name}")
+                ShopifyService.sync_orders(store)
+                ShopifyService.sync_products(store)
+                logger.info(f"[SyncNow] Full sync complete for {store.name}")
+            except Exception as e:
+                logger.error(f"[SyncNow] Sync failed for {store.name}: {e}")
+
+        thread = threading.Thread(target=_run_full_sync, daemon=True)
+        thread.start()
+
+        return Response({
+            'status': 'running',
+            'message': f'Sync started for {store.name}. Data will be updated in the background (usually 1–3 minutes).',
+        })
+
     @action(detail=True, methods=['post'])
     def sync_orders(self, request, pk=None):
         """Trigger order sync in background."""

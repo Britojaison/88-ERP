@@ -116,6 +116,7 @@ export default function ShopifyIntegration() {
     message: '',
     severity: 'success' as 'success' | 'error' | 'info'
   })
+  const [syncingNow, setSyncingNow] = useState(false)
 
   const [newStore, setNewStore] = useState({
     name: '',
@@ -264,6 +265,23 @@ export default function ShopifyIntegration() {
       if (thisRequestId === demandRequestIdRef.current) {
         setLoadingDemand(false)
       }
+    }
+  }
+
+  const handleSyncNow = async () => {
+    if (!selectedStore) return
+    setSyncingNow(true)
+    try {
+      const res = await shopifyService.syncNow(selectedStore.id)
+      setSnackbar({ open: true, message: res.message || 'Sync started in background!', severity: 'success' })
+      // Reload demand data after a short delay to show updated results
+      setTimeout(() => {
+        if (selectedStore) loadDemandData(selectedStore.id)
+      }, 5000)
+    } catch (e) {
+      setSnackbar({ open: true, message: 'Failed to start sync. Please try again.', severity: 'error' })
+    } finally {
+      setSyncingNow(false)
     }
   }
 
@@ -759,62 +777,24 @@ export default function ShopifyIntegration() {
                   </Grid>
                 </Grid>
 
-                <Paper sx={{ p: 3, mt: 3 }}>
-                  <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
-                    Quick Actions
-                  </Typography>
-                  <Grid container spacing={2} sx={{ mt: 1 }}>
-                    <Grid item xs={12} sm={4} md={2}>
-                      <Button
-                        fullWidth
-                        variant="outlined"
-                        startIcon={<Sync />}
-                        onClick={() => handleSyncProducts(selectedStore!)}
-                      >
-                        Products
-                      </Button>
-                    </Grid>
-                    <Grid item xs={12} sm={4} md={2}>
-                      <Button
-                        fullWidth
-                        variant="outlined"
-                        startIcon={<ShoppingCart />}
-                        onClick={() => handleSyncOrders(selectedStore!)}
-                      >
-                        Orders
-                      </Button>
-                    </Grid>
-                    <Grid item xs={12} sm={4} md={2}>
-                      <Button
-                        fullWidth
-                        variant="outlined"
-                        startIcon={<LocalOffer />}
-                        onClick={() => handleSyncDiscounts(selectedStore!)}
-                      >
-                        Discounts
-                      </Button>
-                    </Grid>
-                    <Grid item xs={12} sm={4} md={2}>
-                      <Button
-                        fullWidth
-                        variant="outlined"
-                        startIcon={<Receipt />}
-                        onClick={() => handleSyncDraftOrders(selectedStore!)}
-                      >
-                        Sync Drafts
-                      </Button>
-                    </Grid>
-                    <Grid item xs={12} sm={4} md={2}>
-                      <Button
-                        fullWidth
-                        variant="outlined"
-                        startIcon={<Webhook />}
-                        onClick={() => handleSetupWebhooks(selectedStore!)}
-                      >
-                        Webhooks
-                      </Button>
-                    </Grid>
-                  </Grid>
+                <Paper sx={{ p: 3, mt: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
+                  <Box>
+                    <Typography variant="h6" sx={{ fontWeight: 600 }}>Data Sync</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Shopify data syncs automatically every 12 hours. Use "Sync Now" to pull the latest data immediately.
+                    </Typography>
+                  </Box>
+                  <Button
+                    variant="contained"
+                    color="secondary"
+                    size="large"
+                    startIcon={syncingNow ? <CircularProgress size={18} color="inherit" /> : <Sync />}
+                    onClick={handleSyncNow}
+                    disabled={syncingNow}
+                    sx={{ minWidth: 160, fontWeight: 700 }}
+                  >
+                    {syncingNow ? 'Syncing...' : 'Sync Now'}
+                  </Button>
                 </Paper>
               </TabPanel>
 
@@ -1031,15 +1011,6 @@ export default function ShopifyIntegration() {
                     </Typography>
                   </Box>
                   <Stack direction="row" spacing={2} alignItems="center">
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      startIcon={<Sync />}
-                      onClick={() => selectedStore && loadDemandData(selectedStore.id, demandPeriod, true)}
-                      disabled={loadingDemand}
-                    >
-                      Bypass Cache & Sync
-                    </Button>
                     <FormControl size="small" sx={{ minWidth: 160 }}>
                       <InputLabel>Time Period</InputLabel>
                       <Select
@@ -1073,7 +1044,7 @@ export default function ShopifyIntegration() {
                       <Box sx={{ textAlign: 'center' }}>
                         <CircularProgress size={36} />
                         <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                          Fetching live data from Shopify...
+                          Loading data from database...
                         </Typography>
                       </Box>
                     </Box>
@@ -1155,7 +1126,7 @@ export default function ShopifyIntegration() {
                         <TableRow>
                           <TableCell colSpan={9} align="center" sx={{ py: 8 }}>
                             <Typography color="text.secondary">
-                              No order data yet. Sync orders first using Quick Actions, then this view will show aggregated product demand.
+                              No order data yet. Use "Sync Now" below to pull data from Shopify.
                             </Typography>
                           </TableCell>
                         </TableRow>

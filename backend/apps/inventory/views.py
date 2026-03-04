@@ -2052,21 +2052,8 @@ class DailyStockReportViewSet(viewsets.ViewSet):
                 date_map[ds]['online_revenue'] += float(row['revenue'] or 0)
                 date_map[ds]['online_orders'] += row['orders'] or 0
 
-        # Shopify Orders (Unified accuracy)
-        from apps.integrations.shopify_models import ShopifyOrder, ShopifyStore
-        from apps.integrations.shopify_service import ShopifyService
-
-        # If 'sync' param is provided, trigger a direct pull from Shopify for this range
-        do_sync = request.query_params.get('sync') == 'true'
-        if do_sync:
-            stores = ShopifyStore.objects.filter(company_id=request.user.company_id, status='active')
-            for store in stores:
-                try:
-                    # Synchronous sync for the report range
-                    ShopifyService.sync_orders(store, start_date=start_date.isoformat(), end_date=end_date.isoformat())
-                except Exception as e:
-                    import logging
-                    logging.getLogger(__name__).warning(f"Live sync failed during report: {e}")
+        # Shopify Orders — read from synced DB (auto-synced every 12 hours)
+        from apps.integrations.shopify_models import ShopifyOrder
 
         shopify_sales = ShopifyOrder.objects.filter(
             store__company_id=request.user.company_id,

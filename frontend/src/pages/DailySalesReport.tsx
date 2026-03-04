@@ -112,10 +112,10 @@ export default function DailySalesReport() {
         } catch { }
     }
 
-    const loadReport = async (sync = false) => {
+    const loadReport = async () => {
         setLoading(true)
         try {
-            const params: any = { date: selectedDate, sync: sync }
+            const params: any = { date: selectedDate }
             if (selectedStore) params.store = selectedStore
             if (selectedStore) params.location = selectedStore
 
@@ -170,11 +170,8 @@ export default function DailySalesReport() {
                     </TextField>
                 </Grid>
                 <Grid item xs={12} sm={4} display="flex" gap={1}>
-                    <Button fullWidth variant="outlined" startIcon={<Refresh />} onClick={() => loadReport(false)}>
+                    <Button fullWidth variant="outlined" startIcon={<Refresh />} onClick={() => loadReport()}>
                         Refresh
-                    </Button>
-                    <Button fullWidth variant="contained" color="secondary" startIcon={<TrendingUp />} onClick={() => loadReport(true)}>
-                        Sync Shopify
                     </Button>
                 </Grid>
             </Grid>

@@ -82,13 +82,13 @@ export default function ChannelComparisonReport() {
     const [data, setData] = useState<ComparisonData | null>(null)
     const [loading, setLoading] = useState(false)
 
-    useEffect(() => { void loadData(false) }, [startDate, endDate])
+    useEffect(() => { void loadData() }, [startDate, endDate])
 
-    const loadData = async (sync = false) => {
+    const loadData = async () => {
         setLoading(true)
         try {
             const res = await api.get('/inventory/reports/channel-comparison/', {
-                params: { start_date: startDate, end_date: endDate, sync }
+                params: { start_date: startDate, end_date: endDate }
             })
             setData(res.data)
         } catch { setData(null) }
@@ -112,7 +112,7 @@ export default function ChannelComparisonReport() {
                         onChange={e => setEndDate(e.target.value)} InputLabelProps={{ shrink: true }} size="small" />
                 </Grid>
                 <Grid item xs={12} md={4} display="flex" alignItems="center">
-                    <Button fullWidth variant="contained" color="secondary" startIcon={<Refresh />} onClick={() => loadData(true)} size="small" sx={{ height: 40 }}>Fetch Real-time Data</Button>
+                    <Button fullWidth variant="outlined" startIcon={<Refresh />} onClick={() => loadData()} size="small" sx={{ height: 40 }}>Refresh</Button>
                 </Grid>
             </Grid>
 
