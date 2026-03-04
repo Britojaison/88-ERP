@@ -13,8 +13,6 @@ import {
   DialogContent,
   DialogActions,
   TextField,
-  FormControlLabel,
-  Checkbox,
   Table,
   TableBody,
   TableCell,
@@ -45,14 +43,11 @@ import {
   CheckCircle,
   Error as ErrorIcon,
   Delete,
-  Settings,
-  Webhook,
   Inventory,
   Search,
   FilterList,
   Info,
   ShoppingCart,
-  Receipt,
   LocalOffer,
   MonetizationOn,
   Assessment,
@@ -680,7 +675,6 @@ export default function ShopifyIntegration() {
                 <Tab label="Product Demand" icon={<Assessment />} iconPosition="start" />
                 <Tab label="Sales" icon={<LocalOffer />} iconPosition="start" />
                 <Tab label="Sync Jobs" icon={<Sync />} iconPosition="start" />
-                <Tab label="Settings" icon={<Settings />} iconPosition="start" />
               </Tabs>
 
               <TabPanel value={tabValue} index={0}>
@@ -1512,86 +1506,6 @@ export default function ShopifyIntegration() {
                     </Box>
                   </Box>
                 )}
-              </TabPanel>
-
-              <TabPanel value={tabValue} index={5}>
-                <Typography variant="h6" gutterBottom>Store Settings</Typography>
-                <Grid container spacing={3}>
-                  <Grid item xs={12} md={6}>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                      <FormControlLabel
-                        control={
-                          <Checkbox
-                            checked={selectedStore.auto_sync_products}
-                            onChange={(e) =>
-                              setSelectedStore((prev) => prev ? { ...prev, auto_sync_products: e.target.checked } : prev)
-                            }
-                          />
-                        }
-                        label={
-                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                            Auto-sync Products
-                            <Tooltip title="Automatically pulls new products from Shopify into your Master Data every sync interval.">
-                              <Info sx={{ fontSize: 16, ml: 0.5, color: 'text.secondary', cursor: 'help' }} />
-                            </Tooltip>
-                          </Box>
-                        }
-                      />
-                      <FormControlLabel
-                        control={
-                          <Checkbox
-                            checked={selectedStore.auto_sync_inventory}
-                            onChange={(e) =>
-                              setSelectedStore((prev) => prev ? { ...prev, auto_sync_inventory: e.target.checked } : prev)
-                            }
-                          />
-                        }
-                        label={
-                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                            Auto-sync Inventory
-                            <Tooltip title="Automatically updates Shopify inventory counts whenever items are received or sold in the ERP.">
-                              <Info sx={{ fontSize: 16, ml: 0.5, color: 'text.secondary', cursor: 'help' }} />
-                            </Tooltip>
-                          </Box>
-                        }
-                      />
-                      <FormControlLabel
-                        control={
-                          <Checkbox
-                            checked={selectedStore.auto_sync_orders}
-                            onChange={(e) =>
-                              setSelectedStore((prev) => prev ? { ...prev, auto_sync_orders: e.target.checked } : prev)
-                            }
-                          />
-                        }
-                        label={
-                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                            Auto-sync Orders
-                            <Tooltip title="Automatically pulls new customer orders from Shopify to process them in the ERP.">
-                              <Info sx={{ fontSize: 16, ml: 0.5, color: 'text.secondary', cursor: 'help' }} />
-                            </Tooltip>
-                          </Box>
-                        }
-                      />
-                    </Box>
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Sync Interval (minutes)"
-                      type="number"
-                      value={selectedStore.sync_interval_minutes}
-                      onChange={(e) =>
-                        setSelectedStore((prev) => prev ? { ...prev, sync_interval_minutes: Number(e.target.value) || 0 } : prev)
-                      }
-                    />
-                  </Grid>
-                  <Grid item xs={12}>
-                    <Button variant="contained" onClick={() => void handleSaveStoreSettings()}>
-                      Save Store Settings
-                    </Button>
-                  </Grid>
-                </Grid>
               </TabPanel>
             </Paper>
           )}

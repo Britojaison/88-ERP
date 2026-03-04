@@ -1701,7 +1701,7 @@ class DailyStockReportViewSet(viewsets.ViewSet):
 
         # If no location filtered, add Shopify online sales to give a complete picture
         if not location_id:
-            from apps.integrations.models import ShopifyOrder
+            from apps.integrations.shopify_models import ShopifyOrder
             shopify_orders = ShopifyOrder.objects.filter(
                 processed_at__gte=cutoff
             ).values_list('shopify_data', flat=True)

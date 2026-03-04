@@ -204,8 +204,7 @@ class SalesTransactionViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='channel-comparison')
     def channel_comparison(self, request):
-        """Compare Store vs Online sales over time"""
-        _trigger_shopify_sync(request)
+        """Compare Store vs Online sales over time — reads from DB (auto-synced every 12h)"""
         from datetime import timedelta, date as date_type
         from django.utils import timezone
         
