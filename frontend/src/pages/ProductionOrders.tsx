@@ -640,7 +640,7 @@ export default function ProductionOrders() {
                 <DialogTitle>Create Production Order</DialogTitle>
                 <DialogContent>
                     <Grid container spacing={2} sx={{ mt: 0 }}>
-                        <Grid item xs={12} sm={4}>
+                        <Grid item xs={12} sm={6} md={3}>
                             <FormControl fullWidth size="small">
                                 <InputLabel>Order Type</InputLabel>
                                 <Select
@@ -654,7 +654,7 @@ export default function ProductionOrders() {
                                 </Select>
                             </FormControl>
                         </Grid>
-                        <Grid item xs={12} sm={4}>
+                        <Grid item xs={12} sm={6} md={3}>
                             <FormControl fullWidth size="small" required>
                                 <InputLabel>Destination Warehouse</InputLabel>
                                 <Select
@@ -668,7 +668,7 @@ export default function ProductionOrders() {
                                 </Select>
                             </FormControl>
                         </Grid>
-                        <Grid item xs={6} sm={2}>
+                        <Grid item xs={6} sm={6} md={3}>
                             <TextField
                                 fullWidth size="small" type="date" label="Order Date"
                                 value={createForm.order_date}
@@ -676,7 +676,7 @@ export default function ProductionOrders() {
                                 InputLabelProps={{ shrink: true }}
                             />
                         </Grid>
-                        <Grid item xs={6} sm={2}>
+                        <Grid item xs={6} sm={6} md={3}>
                             <TextField
                                 fullWidth size="small" type="date" label="Expected Delivery"
                                 value={createForm.expected_delivery}

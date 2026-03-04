@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
     Box, Card, CardContent, Grid, Typography, TextField,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
@@ -27,31 +27,60 @@ const fmt = (v: number) => `₹${v.toLocaleString('en-IN', { minimumFractionDigi
 
 function SimpleBarChart({ data }: { data: DailyChannel[] }) {
     const theme = useTheme()
+    const containerRef = React.useRef<HTMLDivElement>(null)
+    const [containerWidth, setContainerWidth] = React.useState(600)
+
+    React.useEffect(() => {
+        const measure = () => {
+            if (containerRef.current) {
+                setContainerWidth(containerRef.current.clientWidth)
+            }
+        }
+        measure()
+        window.addEventListener('resize', measure)
+        return () => window.removeEventListener('resize', measure)
+    }, [])
+
     if (!data.length) return null
 
+    const chartWidth = Math.max(400, containerWidth)
+    const chartHeight = 180
+    const paddingLeft = 20
+    const paddingRight = 10
+    const barAreaWidth = chartWidth - paddingLeft - paddingRight
+    const groupWidth = barAreaWidth / data.length
+    const barWidth = Math.max(3, Math.min(16, (groupWidth - 4) / 2))
+    const gap = 2
+
     const maxVal = Math.max(...data.map(d => Math.max(d.store_revenue, d.online_revenue)), 1)
-    const barWidth = Math.max(6, Math.min(20, Math.floor(800 / data.length) - 4))
 
     return (
-        <Box sx={{ overflowX: 'auto', pb: 1, width: '100%', WebkitOverflowScrolling: 'touch' }}>
-            <svg width={Math.max(600, data.length * (barWidth * 2 + 8))} height={160} style={{ display: 'block', minWidth: '100%' }}>
+        <Box ref={containerRef} sx={{ width: '100%' }}>
+            <svg
+                width="100%"
+                height={chartHeight}
+                viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+                preserveAspectRatio="xMidYMid meet"
+                style={{ display: 'block' }}
+            >
                 {data.map((d, i) => {
-                    const x = i * (barWidth * 2 + 8) + 20
+                    const groupX = paddingLeft + i * groupWidth
+                    const barX = groupX + (groupWidth - barWidth * 2 - gap) / 2
                     const storeH = (d.store_revenue / maxVal) * 120
                     const onlineH = (d.online_revenue / maxVal) * 120
 
                     return (
                         <g key={d.date}>
-                            <rect x={x} y={140 - storeH} width={barWidth} height={storeH}
+                            <rect x={barX} y={140 - storeH} width={barWidth} height={storeH}
                                 fill={theme.palette.primary.main} rx={2} opacity={0.85}>
                                 <title>Store: {fmt(d.store_revenue)} on {d.date}</title>
                             </rect>
-                            <rect x={x + barWidth + 2} y={140 - onlineH} width={barWidth} height={onlineH}
+                            <rect x={barX + barWidth + gap} y={140 - onlineH} width={barWidth} height={onlineH}
                                 fill={theme.palette.secondary.main} rx={2} opacity={0.85}>
                                 <title>Online: {fmt(d.online_revenue)} on {d.date}</title>
                             </rect>
                             {i % Math.ceil(data.length / 10) === 0 && (
-                                <text x={x + barWidth} y={155} textAnchor="middle" fontSize={9} fill={theme.palette.text.secondary}>
+                                <text x={groupX + groupWidth / 2} y={158} textAnchor="middle" fontSize={9} fill={theme.palette.text.secondary}>
                                     {d.date.slice(5)}
                                 </text>
                             )}

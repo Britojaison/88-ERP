@@ -18,7 +18,7 @@ export default function MetricCard({
 }: MetricCardProps) {
   return (
     <Card sx={{ height: '100%' }}>
-      <CardContent>
+      <CardContent sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
           <Box>
             <Typography variant="body2" color="text.secondary" gutterBottom>
@@ -41,7 +41,7 @@ export default function MetricCard({
           </Box>
         </Box>
         {note && (
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 'auto' }}>
             {note}
           </Typography>
         )}
