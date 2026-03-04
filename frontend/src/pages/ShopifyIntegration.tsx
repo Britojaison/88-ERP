@@ -440,32 +440,8 @@ export default function ShopifyIntegration() {
   }
 
 
-  const handleSetupWebhooks = async (store: ShopifyStore) => {
-    try {
-      const result = await shopifyService.setupWebhooks(store.id)
-      setSnackbar({
-        open: true,
-        message: result.message,
-        severity: result.success ? 'success' : 'error'
-      })
-    } catch (error: any) {
-      setSnackbar({
-        open: true,
-        message: 'Failed to setup webhooks',
-        severity: 'error'
-      })
-    }
-  }
 
-  const handleSyncOrders = async (store: ShopifyStore) => {
-    try {
-      const result = await shopifyService.syncOrders(store.id)
-      setSnackbar({ open: true, message: result.message, severity: 'info' })
-      setTimeout(() => loadStoreData(store.id), 2000)
-    } catch (error) {
-      setSnackbar({ open: true, message: 'Failed to sync orders', severity: 'error' })
-    }
-  }
+
 
   const handleSyncDraftOrders = async (store: ShopifyStore) => {
     try {
@@ -523,32 +499,7 @@ export default function ShopifyIntegration() {
     }
   }
 
-  const handleSaveStoreSettings = async () => {
-    if (!selectedStore) return
 
-    try {
-      const updated = await shopifyService.updateStore(selectedStore.id, {
-        auto_sync_products: selectedStore.auto_sync_products,
-        auto_sync_inventory: selectedStore.auto_sync_inventory,
-        auto_sync_orders: selectedStore.auto_sync_orders,
-        sync_interval_minutes: Number(selectedStore.sync_interval_minutes),
-      })
-
-      setSelectedStore(updated)
-      setStores((prev) => prev.map((store) => (store.id === updated.id ? updated : store)))
-      setSnackbar({
-        open: true,
-        message: 'Store settings saved.',
-        severity: 'success',
-      })
-    } catch (error) {
-      setSnackbar({
-        open: true,
-        message: 'Failed to save store settings.',
-        severity: 'error',
-      })
-    }
-  }
 
   const handleQuickConnect = async () => {
     setLoading(true)
