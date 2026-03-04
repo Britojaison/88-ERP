@@ -114,12 +114,13 @@ class TenantScopedViewSet(viewsets.ModelViewSet):
     pagination_class = MDMPagination
 
     def perform_create(self, serializer):
+        import traceback
         print(f"[{self.__class__.__name__}] Performing CREATE. Data: {self.request.data}")
         try:
             # The HiddenField in TenantModelSerializer now handles the company automatically.
             # This enables DRF's UniqueTogetherValidator to work correctly.
-            serializer.save()
-            print(f"[{self.__class__.__name__}] Create successful.")
+            instance = serializer.save()
+            print(f"[{self.__class__.__name__}] Create successful. ID: {instance.id}")
         except IntegrityError as e:
             error_msg = str(e).lower()
             print(f"[{self.__class__.__name__}] Create FAILED (IntegrityError): {error_msg}")
@@ -130,20 +131,28 @@ class TenantScopedViewSet(viewsets.ModelViewSet):
                 )
             elif 'null' in error_msg and 'not-null' in error_msg or 'null value' in error_msg:
                 # Catch fields like offer_tag or lifecycle_status that were problematic
-                missing_field = error_msg.split('"')[1] if '"' in error_msg else "A required field"
+                missing_field = 'unknown'
+                import re
+                match = re.search(r'"([^"]+)"', error_msg)
+                if match:
+                    missing_field = match.group(1)
                 raise serializers.ValidationError(
                     {'detail': f'Missing or invalid value for field: {missing_field}'}
                 )
             else:
                 raise serializers.ValidationError(
-                    {'detail': f'Database error: {error_msg}'}
+                    {'detail': f'Database integrity error: {error_msg}'}
                 )
         except Exception as e:
-            print(f"[{self.__class__.__name__}] Create FAILED: {str(e)}")
-            raise e
-
+            tb = traceback.format_exc()
+            print(f"[{self.__class__.__name__}] UNEXPECTED EXCEPTION: {str(e)}\n{tb}")
+            # Return a 400 with the error detail instead of a 500
+            raise serializers.ValidationError(
+                {'detail': f'Internal Server Error: {str(e)}'}
+            )
 
     def perform_update(self, serializer):
+        import traceback
         try:
             serializer.save()
         except IntegrityError as e:
@@ -153,6 +162,9 @@ class TenantScopedViewSet(viewsets.ModelViewSet):
                     {'detail': 'A record with this code already exists.'}
                 )
             raise serializers.ValidationError({'detail': f'Database error: {error_msg}'})
+        except Exception as e:
+            print(f"[{self.__class__.__name__}] Update FAILED: {str(e)}\n{traceback.format_exc()}")
+            raise serializers.ValidationError({'detail': f'Internal Server Error: {str(e)}'})
 
 
 
