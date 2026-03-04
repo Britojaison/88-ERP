@@ -192,15 +192,11 @@ export default function MasterData() {
       setFabricPhotoPreview('')
       setOpenFabricDialog(true)
       return
-    } else if (tabValue === 4) {
-      setLocationForm({ code: '', name: '', location_type: 'warehouse', business_unit: '', is_inventory_location: true })
-      setOpenLocationDialog(true)
-      return
-    } else if (tabValue === 5) {
+    } else if (tabValue === 3) {
       setWarehouseForm({ code: '', name: '', email: '', opening_date: '', business_unit: '' })
       setOpenWarehouseDialog(true)
       return
-    } else if (tabValue === 6) {
+    } else if (tabValue === 4) {
       setStoreForm({ code: '', name: '', email: '', opening_date: '', business_unit: '' })
       setOpenStoreDialog(true)
       return
@@ -226,50 +222,6 @@ export default function MasterData() {
         is_batch_tracked: false,
       })
       setOpenSkuDialog(true)
-      return
-    }
-    if (tabValue === 3) {
-      setCompanyForm({
-        code: '',
-        name: '',
-        legal_name: '',
-        tax_id: '',
-        currency: 'INR',
-      })
-      setOpenCompanyDialog(true)
-      return
-    }
-    if (tabValue === 4) {
-      setLocationForm({
-        code: '',
-        name: '',
-        location_type: 'warehouse' as Location['location_type'],
-        business_unit: '',
-        is_inventory_location: true,
-      })
-      setOpenLocationDialog(true)
-      return
-    }
-    if (tabValue === 5) {
-      setWarehouseForm({
-        code: '',
-        name: '',
-        email: '',
-        opening_date: new Date().toISOString().split('T')[0],
-        business_unit: '',
-      })
-      setOpenWarehouseDialog(true)
-      return
-    }
-    if (tabValue === 6) {
-      setStoreForm({
-        code: '',
-        name: '',
-        email: '',
-        opening_date: new Date().toISOString().split('T')[0],
-        business_unit: '',
-      })
-      setOpenStoreDialog(true)
       return
     }
     setSnackbar({
@@ -532,8 +484,6 @@ export default function MasterData() {
           <Tab label="Products" />
           <Tab label="SKUs" />
           <Tab label="Fabrics" />
-          <Tab label="Companies" />
-          <Tab label="Locations" />
           <Tab label="Warehouses" />
           <Tab label="Stores" />
         </Tabs>
@@ -587,6 +537,17 @@ export default function MasterData() {
                               setSelectedProduct(product)
                               setProductImagePreview(product.image_url || '')
                               setProductImageFile(null)
+                              // Auto-fill selling price and MRP from the product's existing SKUs
+                              const productSkus = skus.filter(s => s.product === product.id || s.product_name === product.name)
+                              if (productSkus.length > 0) {
+                                setVariantForm({
+                                  sizes: [],
+                                  selling_price: productSkus[0].base_price || '',
+                                  mrp: productSkus[0].cost_price || '',
+                                })
+                              } else {
+                                setVariantForm({ sizes: [], selling_price: '', mrp: '' })
+                              }
                               setOpenVariantsDialog(true)
                             }}
                           >
@@ -766,84 +727,6 @@ export default function MasterData() {
             <Table>
               <TableHead>
                 <TableRow>
-                  <TableCell>Company Name</TableCell>
-                  <TableCell>Type</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell>Created</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {companies.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={4} align="center">
-                      <Typography variant="body2" color="text.secondary" sx={{ py: 4 }}>
-                        No companies found.
-                      </Typography>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  companies.map((company) => (
-                    <TableRow key={company.id}>
-                      <TableCell>{company.name}</TableCell>
-                      <TableCell>{company.currency}</TableCell>
-                      <TableCell>{company.status}</TableCell>
-                      <TableCell>{new Date(company.created_at).toLocaleDateString()}</TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </TabPanel>
-
-        <TabPanel value={tabValue} index={4}>
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Location Code</TableCell>
-                  <TableCell>Name</TableCell>
-                  <TableCell>Type</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell>Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {locations.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={4} align="center">
-                      <Typography variant="body2" color="text.secondary" sx={{ py: 4 }}>
-                        No locations found.
-                      </Typography>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  locations.map((location) => (
-                    <TableRow key={location.id}>
-                      <TableCell>{location.code}</TableCell>
-                      <TableCell>{location.name}</TableCell>
-                      <TableCell>{location.location_type}</TableCell>
-                      <TableCell>{location.status}</TableCell>
-                      <TableCell>
-                        <Tooltip title="Delete location">
-                          <IconButton size="small" color="error" onClick={() => setDeleteConfirm({ open: true, type: 'location', id: location.id, name: location.name })}>
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </TabPanel>
-
-        <TabPanel value={tabValue} index={5}>
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
                   <TableCell>Warehouse Code</TableCell>
                   <TableCell>Warehouse Name</TableCell>
                   <TableCell>Contact Email</TableCell>
@@ -882,7 +765,7 @@ export default function MasterData() {
           </TableContainer>
         </TabPanel>
 
-        <TabPanel value={tabValue} index={6}>
+        <TabPanel value={tabValue} index={4}>
           <TableContainer>
             <Table>
               <TableHead>
@@ -1147,9 +1030,30 @@ export default function MasterData() {
       <Dialog open={openVariantsDialog} onClose={() => setOpenVariantsDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Create Product Variants</DialogTitle>
         <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Product: {selectedProduct?.name}
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            Product: <strong>{selectedProduct?.name}</strong>
           </Typography>
+          {(() => {
+            const productSkus = skus.filter(s => s.product === selectedProduct?.id || s.product_name === selectedProduct?.name)
+            const productPrice = productSkus.length > 0 ? productSkus[0].base_price : null
+            const productMrp = productSkus.length > 0 ? productSkus[0].cost_price : null
+            return productPrice ? (
+              <Box sx={{ mb: 2, p: 1.5, bgcolor: 'action.hover', borderRadius: 1, display: 'flex', gap: 3, alignItems: 'center' }}>
+                <Typography variant="body2" color="text.secondary">
+                  Product Price: <strong style={{ color: '#2e7d32' }}>₹{productPrice}</strong>
+                </Typography>
+                {productMrp && (
+                  <Typography variant="body2" color="text.secondary">
+                    MRP: <strong style={{ color: '#1565c0' }}>₹{productMrp}</strong>
+                  </Typography>
+                )}
+              </Box>
+            ) : (
+              <Typography variant="caption" color="text.secondary" sx={{ mb: 2, display: 'block' }}>
+                No existing price found. Enter selling price and MRP below.
+              </Typography>
+            )
+          })()}
           <Box sx={{ mb: 3 }}>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
               Select Sizes:
@@ -1194,6 +1098,7 @@ export default function MasterData() {
                 value={variantForm.selling_price}
                 onChange={(e) => setVariantForm((prev) => ({ ...prev, selling_price: e.target.value }))}
                 type="number"
+                helperText={variantForm.selling_price ? 'Auto-filled from product (editable)' : 'Enter selling price'}
               />
             </Grid>
             <Grid item xs={6}>
@@ -1203,6 +1108,7 @@ export default function MasterData() {
                 value={variantForm.mrp}
                 onChange={(e) => setVariantForm((prev) => ({ ...prev, mrp: e.target.value }))}
                 type="number"
+                helperText={variantForm.mrp ? 'Auto-filled from product (editable)' : 'Enter MRP'}
               />
             </Grid>
             <Grid item xs={12}>

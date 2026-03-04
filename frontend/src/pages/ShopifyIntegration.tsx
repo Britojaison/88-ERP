@@ -65,7 +65,7 @@ function TabPanel(props: TabPanelProps) {
   const { children, value, index, ...other } = props
   return (
     <div hidden={value !== index} {...other}>
-      {value === index && <Box sx={{ py: 3 }}>{children}</Box>}
+      {value === index && <Box sx={{ py: 3, px: { xs: 2, sm: 3 } }}>{children}</Box>}
     </div>
   )
 }
@@ -532,12 +532,12 @@ export default function ShopifyIntegration() {
   }
 
   return (
-    <Box sx={{ p: { xs: 2, sm: 3 } }}>
+    <Box sx={{ width: '100%', minWidth: 0, overflowX: 'hidden' }}>
       <PageHeader
         title="Shopify Integration"
         subtitle="Connect, sync, and monitor your Shopify storefront data."
         actions={
-          <Box sx={{ display: 'flex', gap: 1.25 }}>
+          <Box sx={{ display: 'flex', gap: 1.25, flexWrap: 'wrap' }}>
             <Button variant="outlined" startIcon={<Refresh />} onClick={loadStores} disabled={loadingStores}>
               Refresh
             </Button>
@@ -632,7 +632,7 @@ export default function ShopifyIntegration() {
 
           {selectedStore && (
             <Paper sx={{ mb: 3 }}>
-              <Tabs value={tabValue} onChange={(_, v) => setTabValue(v)} sx={{ borderBottom: 1, borderColor: 'divider', px: 2 }}>
+              <Tabs value={tabValue} onChange={(_, v) => setTabValue(v)} variant="scrollable" scrollButtons="auto" sx={{ borderBottom: 1, borderColor: 'divider', px: 2 }}>
                 <Tab label="Overview" icon={<Assessment />} iconPosition="start" />
                 <Tab label="Products" icon={<Inventory />} iconPosition="start" />
                 <Tab label="Product Demand" icon={<Assessment />} iconPosition="start" />
@@ -642,7 +642,7 @@ export default function ShopifyIntegration() {
 
               <TabPanel value={tabValue} index={0}>
                 <Grid container spacing={2}>
-                  <Grid item xs={12} sm={6} md={4} lg={2.4}>
+                  <Grid item xs={12} sm={6} md={4} lg={2.4} xl={2.4}>
                     <Card sx={{ height: '100%', borderTop: '4px solid', borderColor: 'primary.main' }}>
                       <CardContent>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
@@ -660,7 +660,7 @@ export default function ShopifyIntegration() {
                       </CardContent>
                     </Card>
                   </Grid>
-                  <Grid item xs={12} sm={6} md={4} lg={2.4}>
+                  <Grid item xs={12} sm={6} md={4} lg={2.4} xl={2.4}>
                     <Card sx={{ height: '100%', borderTop: '4px solid', borderColor: 'success.main' }}>
                       <CardContent>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
@@ -678,7 +678,7 @@ export default function ShopifyIntegration() {
                       </CardContent>
                     </Card>
                   </Grid>
-                  <Grid item xs={12} sm={6} md={4} lg={2.4}>
+                  <Grid item xs={12} sm={6} md={4} lg={2.4} xl={2.4}>
                     <Card sx={{ height: '100%', borderTop: '4px solid', borderColor: 'warning.main' }}>
                       <CardContent>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
@@ -696,7 +696,7 @@ export default function ShopifyIntegration() {
                       </CardContent>
                     </Card>
                   </Grid>
-                  <Grid item xs={12} sm={6} md={4} lg={2.4}>
+                  <Grid item xs={12} sm={6} md={4} lg={2.4} xl={2.4}>
                     <Card sx={{ height: '100%', borderTop: '4px solid', borderColor: 'info.main' }}>
                       <CardContent>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
@@ -714,7 +714,7 @@ export default function ShopifyIntegration() {
                       </CardContent>
                     </Card>
                   </Grid>
-                  <Grid item xs={12} sm={6} md={4} lg={2.4}>
+                  <Grid item xs={12} sm={6} md={4} lg={2.4} xl={2.4}>
                     <Card sx={{ height: '100%', borderTop: '4px solid', borderColor: 'secondary.main' }}>
                       <CardContent>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
@@ -969,7 +969,7 @@ export default function ShopifyIntegration() {
 
               <TabPanel value={tabValue} index={2}>
                 {/* Period Selector + Summary Cards */}
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1, flexWrap: 'wrap', gap: 1 }}>
                   <Box>
                     <Typography variant="h6" sx={{ fontWeight: 600 }}>
                       Product Demand Analytics
