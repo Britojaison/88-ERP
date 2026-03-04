@@ -313,7 +313,73 @@ class SKUViewSet(TenantScopedViewSet):
         if exclude_fabrics and exclude_fabrics.lower() == 'true':
             queryset = queryset.exclude(product__code='RAW-FABRICS')
 
+        # Search by SKU code, SKU name, or product name
+        search = self.request.query_params.get("search")
+        if search:
+            from django.db.models import Q
+            queryset = queryset.filter(
+                Q(code__icontains=search) |
+                Q(name__icontains=search) |
+                Q(product__name__icontains=search)
+            )
+
         return queryset.order_by("-created_at")
+
+    @action(detail=False, methods=['get'], url_path='search-with-stock')
+    def search_with_stock(self, request):
+        """
+        Search SKUs and return them with current warehouse inventory.
+        Query params: search (string), page (int), page_size (int, default 50)
+        """
+        from django.db.models import Q, Sum
+        from apps.inventory.models import InventoryBalance
+
+        search = request.query_params.get('search', '')
+        page = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 50))
+
+        queryset = SKU.objects.filter(
+            company_id=request.user.company_id, status="active"
+        ).exclude(product__code='RAW-FABRICS').select_related("product")
+
+        if search:
+            queryset = queryset.filter(
+                Q(code__icontains=search) |
+                Q(name__icontains=search) |
+                Q(product__name__icontains=search)
+            )
+
+        total = queryset.count()
+        skus_page = queryset.order_by('product__name', 'name')[(page - 1) * page_size:page * page_size]
+        sku_ids = [s.id for s in skus_page]
+
+        # Bulk fetch inventory for these SKUs
+        stock_qs = InventoryBalance.objects.filter(
+            sku_id__in=sku_ids,
+            company_id=request.user.company_id,
+            status='active',
+        ).values('sku_id').annotate(total_stock=Sum('quantity_on_hand'))
+        stock_map = {str(s['sku_id']): float(s['total_stock'] or 0) for s in stock_qs}
+
+        results = []
+        for s in skus_page:
+            results.append({
+                'id': str(s.id),
+                'code': s.code,
+                'name': s.name,
+                'product_name': s.product.name if s.product else '',
+                'size': s.size or '',
+                'base_price': str(s.base_price),
+                'warehouse_stock': stock_map.get(str(s.id), 0),
+            })
+
+        from rest_framework.response import Response
+        return Response({
+            'count': total,
+            'page': page,
+            'page_size': page_size,
+            'results': results,
+        })
 
 
 class SKUBarcodeViewSet(TenantScopedViewSet):

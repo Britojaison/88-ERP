@@ -1,9 +1,10 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import {
     Box, Typography, Paper, Button, Chip, Dialog, DialogTitle, DialogContent, DialogActions,
     TextField, Grid, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
     IconButton, Tooltip, LinearProgress, Select, MenuItem, FormControl, InputLabel,
     Snackbar, Alert, Card, CardContent, Divider, Tabs, Tab, Badge,
+    Autocomplete, CircularProgress,
 } from '@mui/material'
 import {
     Add, CheckCircle, PlayArrow, Inventory as InventoryIcon, Close as CloseIcon,
@@ -43,9 +44,61 @@ const TYPE_LABELS: Record<string, string> = {
     urgent_restock: '🔴 Urgent Restock',
 }
 
+interface SKUOption {
+    id: string
+    code: string
+    name: string
+    product_name: string
+    size: string
+    base_price: string
+    warehouse_stock: number
+}
+
+// Debounced SKU search hook
+function useSKUSearch() {
+    const [options, setOptions] = useState<SKUOption[]>([])
+    const [loading, setLoading] = useState(false)
+    const [totalCount, setTotalCount] = useState(0)
+    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+    const search = useCallback((query: string) => {
+        if (timerRef.current) clearTimeout(timerRef.current)
+        timerRef.current = setTimeout(async () => {
+            setLoading(true)
+            try {
+                const data = await mdmService.searchSKUsWithStock({
+                    search: query,
+                    page: 1,
+                    page_size: 50,
+                })
+                setOptions(data.results)
+                setTotalCount(data.count)
+            } catch (e) {
+                console.error('SKU search failed:', e)
+            }
+            setLoading(false)
+        }, 300)
+    }, [])
+
+    // Load initial set
+    const loadInitial = useCallback(async () => {
+        setLoading(true)
+        try {
+            const data = await mdmService.searchSKUsWithStock({ page: 1, page_size: 50 })
+            setOptions(data.results)
+            setTotalCount(data.count)
+        } catch (e) {
+            console.error('SKU initial load failed:', e)
+        }
+        setLoading(false)
+    }, [])
+
+    return { options, loading, totalCount, search, loadInitial }
+}
+
 export default function ProductionOrders() {
     const [orders, setOrders] = useState<ProductionOrder[]>([])
-    const [skus, setSkus] = useState<SKU[]>([])
+    const [_skus, setSkus] = useState<SKU[]>([])
     const [locations, setLocations] = useState<Location[]>([])
     const [loading, setLoading] = useState(true)
     const [tabFilter, setTabFilter] = useState('all')
@@ -54,6 +107,9 @@ export default function ProductionOrders() {
     const [openReceiveDialog, setOpenReceiveDialog] = useState(false)
     const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({ open: false, message: '', severity: 'info' })
     const [dashboard, setDashboard] = useState<any>(null)
+
+    // SKU search state for each line
+    const [lineSelectedSKUs, setLineSelectedSKUs] = useState<(SKUOption | null)[]>([null])
 
     // Create form state
     const [createForm, setCreateForm] = useState<{
@@ -74,6 +130,8 @@ export default function ProductionOrders() {
 
     // Receive form state
     const [receiveForm, setReceiveForm] = useState<{ sku_id: string; quantity: number; rejected: number }[]>([])
+
+    const skuSearch = useSKUSearch()
 
     const loadData = useCallback(async () => {
         setLoading(true)
@@ -216,6 +274,7 @@ export default function ProductionOrders() {
             ...prev,
             lines: [...prev.lines, { sku: '', planned_quantity: 1 }],
         }))
+        setLineSelectedSKUs(prev => [...prev, null])
     }
 
     const removeLine = (index: number) => {
@@ -223,6 +282,7 @@ export default function ProductionOrders() {
             ...prev,
             lines: prev.lines.filter((_, i) => i !== index),
         }))
+        setLineSelectedSKUs(prev => prev.filter((_, i) => i !== index))
     }
 
     const warehouses = locations.filter(l => l.location_type === 'warehouse')
@@ -492,7 +552,10 @@ export default function ProductionOrders() {
                             notes: '',
                             lines: [{ sku: '', planned_quantity: 1 }],
                         })
+                        setLineSelectedSKUs([null])
                         setOpenCreateDialog(true)
+                        // Pre-load SKU options
+                        void skuSearch.loadInitial()
                     }}>
                         New Production Order
                     </Button>
@@ -701,28 +764,90 @@ export default function ProductionOrders() {
                     </Box>
 
                     {createForm.lines.map((line, idx) => (
-                        <Grid container spacing={2} key={idx} sx={{ mb: 1 }}>
+                        <Grid container spacing={2} key={idx} sx={{ mb: 1.5 }}>
                             <Grid item xs={12} sm={7}>
-                                <FormControl fullWidth size="small">
-                                    <InputLabel>SKU</InputLabel>
-                                    <Select
-                                        value={line.sku}
-                                        label="SKU"
-                                        onChange={(e) => {
-                                            const val = e.target.value
-                                            setCreateForm(prev => ({
-                                                ...prev,
-                                                lines: prev.lines.map((l, i) => i === idx ? { ...l, sku: val } : l),
-                                            }))
-                                        }}
-                                    >
-                                        {skus.filter(s => !s.code?.startsWith('FAB-')).map(s => (
-                                            <MenuItem key={s.id} value={s.id}>
-                                                {s.code} — {s.name}
-                                            </MenuItem>
-                                        ))}
-                                    </Select>
-                                </FormControl>
+                                <Autocomplete
+                                    size="small"
+                                    options={skuSearch.options}
+                                    loading={skuSearch.loading}
+                                    value={lineSelectedSKUs[idx] || null}
+                                    getOptionLabel={(option) => `${option.code} — ${option.product_name}${option.size ? ` (${option.size})` : ''}`}
+                                    isOptionEqualToValue={(option, value) => option.id === value.id}
+                                    filterOptions={(x) => x}
+                                    onInputChange={(_e, value, reason) => {
+                                        if (reason === 'input') {
+                                            skuSearch.search(value)
+                                        }
+                                    }}
+                                    onOpen={() => {
+                                        if (skuSearch.options.length === 0) {
+                                            void skuSearch.loadInitial()
+                                        }
+                                    }}
+                                    onChange={(_e, newValue) => {
+                                        setLineSelectedSKUs(prev => prev.map((s, i) => i === idx ? newValue : s))
+                                        setCreateForm(prev => ({
+                                            ...prev,
+                                            lines: prev.lines.map((l, i) => i === idx ? { ...l, sku: newValue?.id || '' } : l),
+                                        }))
+                                    }}
+                                    renderInput={(params) => (
+                                        <TextField
+                                            {...params}
+                                            label="Search SKU or Product"
+                                            placeholder="Type to search by SKU code, product name..."
+                                            InputProps={{
+                                                ...params.InputProps,
+                                                endAdornment: (
+                                                    <>
+                                                        {skuSearch.loading ? <CircularProgress color="inherit" size={18} /> : null}
+                                                        {params.InputProps.endAdornment}
+                                                    </>
+                                                ),
+                                            }}
+                                        />
+                                    )}
+                                    renderOption={(props, option) => (
+                                        <li {...props} key={option.id}>
+                                            <Box sx={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 0.5 }}>
+                                                <Box sx={{ minWidth: 0, flex: 1 }}>
+                                                    <Typography variant="body2" sx={{ fontWeight: 600, color: '#0f6d6a', fontFamily: 'monospace' }}>
+                                                        {option.code}
+                                                    </Typography>
+                                                    <Typography variant="caption" color="text.secondary" noWrap>
+                                                        {option.product_name}{option.size ? ` · ${option.size}` : ''}
+                                                    </Typography>
+                                                </Box>
+                                                <Chip
+                                                    label={`Stock: ${option.warehouse_stock}`}
+                                                    size="small"
+                                                    sx={{
+                                                        ml: 1,
+                                                        fontWeight: 700,
+                                                        fontSize: '0.7rem',
+                                                        flexShrink: 0,
+                                                        ...(option.warehouse_stock <= 0
+                                                            ? { bgcolor: '#fef2f2', color: '#dc2626' }
+                                                            : option.warehouse_stock <= 10
+                                                                ? { bgcolor: '#fef3c7', color: '#92400e' }
+                                                                : { bgcolor: '#f0fdf4', color: '#16a34a' })
+                                                    }}
+                                                />
+                                            </Box>
+                                        </li>
+                                    )}
+                                    noOptionsText={
+                                        skuSearch.loading ? 'Searching...' : 'No SKUs found. Try a different search.'
+                                    }
+                                    ListboxProps={{
+                                        style: { maxHeight: 300 },
+                                    }}
+                                />
+                                {lineSelectedSKUs[idx] && (
+                                    <Typography variant="caption" sx={{ mt: 0.5, display: 'block', color: lineSelectedSKUs[idx]!.warehouse_stock <= 0 ? '#dc2626' : '#16a34a' }}>
+                                        Warehouse stock: {lineSelectedSKUs[idx]!.warehouse_stock} units
+                                    </Typography>
+                                )}
                             </Grid>
                             <Grid item xs={8} sm={4}>
                                 <TextField
@@ -747,6 +872,12 @@ export default function ProductionOrders() {
                             </Grid>
                         </Grid>
                     ))}
+
+                    {skuSearch.totalCount > 50 && (
+                        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                            Showing top 50 of {skuSearch.totalCount} SKUs. Type to search for more.
+                        </Typography>
+                    )}
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setOpenCreateDialog(false)}>Cancel</Button>
