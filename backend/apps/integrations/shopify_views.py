@@ -530,110 +530,66 @@ class ShopifyStoreViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'])
     def product_demand(self, request, pk=None):
         """
-        Aggregated product demand — fetches orders LIVE from Shopify API
-        with proper date filtering so numbers actually reflect the chosen period.
-        Results are cached for 5 minutes per store+period to avoid slow repeated fetches.
+        Aggregated product demand from synced ShopifyOrder DB (fast, no timeout).
+        Use sync=true to trigger a fresh pull from Shopify API first.
         """
         store = self.get_object()
         from datetime import datetime, timedelta
         from django.utils import timezone as tz
         from django.core.cache import cache
-        import time as _time
+        from apps.integrations.shopify_models import ShopifyOrder
+        from django.db.models import Sum, Count, F
+        import json as _json
 
-        days = request.query_params.get('days')  # e.g. 7, 14, 30
+        days = request.query_params.get('days')
         date_from = request.query_params.get('date_from')
         date_to = request.query_params.get('date_to')
-
-        print(f"\n{'='*60}")
-        print(f"PRODUCT_DEMAND called: days={days}, date_from={date_from}, date_to={date_to}")
-        print(f"Full query params: {dict(request.query_params)}")
+        sync_requested = request.query_params.get('sync') == 'true'
 
         # Build cache key
         cache_key = f"product_demand_{store.id}_{days or 'all'}_{date_from or ''}_{date_to or ''}"
-        print(f"Cache key: {cache_key}")
-        
-        # Bypass cache if sync=true
-        sync_requested = request.query_params.get('sync') == 'true'
-        cached = cache.get(cache_key) if not sync_requested else None
-        
-        if cached:
-            print(f"CACHE HIT! Returning cached data: orders={cached.get('total_orders')}, revenue={cached.get('total_revenue')}")
-            print(f"{'='*60}\n")
-            return Response(cached)
 
-        # Build Shopify API query params
+        # Return cached result unless sync is requested
+        if not sync_requested:
+            cached = cache.get(cache_key)
+            if cached:
+                return Response(cached)
+
+        # If sync=true, trigger a live Shopify pull into the DB first
+        if sync_requested:
+            try:
+                from apps.integrations.shopify_service import ShopifyService
+                now = tz.now()
+                if days:
+                    cutoff = now - timedelta(days=int(days))
+                    ShopifyService.sync_orders(
+                        store,
+                        start_date=cutoff.date().isoformat(),
+                        end_date=now.date().isoformat()
+                    )
+                elif date_from:
+                    ShopifyService.sync_orders(
+                        store,
+                        start_date=date_from,
+                        end_date=date_to or tz.now().date().isoformat()
+                    )
+                else:
+                    ShopifyService.sync_orders(store)
+            except Exception as e:
+                logger.warning(f"Live sync during product_demand failed: {e}")
+
+        # Build date filter for DB query
         now = tz.now()
-        params = {
-            'status': 'any',
-            'limit': 250,
-        }
-
+        orders_qs = ShopifyOrder.objects.filter(store=store)
         if days:
             cutoff = now - timedelta(days=int(days))
-            params['created_at_min'] = cutoff.isoformat()
+            orders_qs = orders_qs.filter(processed_at__gte=cutoff)
         elif date_from:
-            params['created_at_min'] = date_from
+            orders_qs = orders_qs.filter(processed_at__date__gte=date_from)
             if date_to:
-                params['created_at_max'] = date_to
+                orders_qs = orders_qs.filter(processed_at__date__lte=date_to)
 
-        # Fetch orders from Shopify API with cursor-based pagination
-        # NOTE: since_id pagination does NOT work with created_at_min/max on Shopify.
-        # We must use Link-header cursor pagination (page_info) instead.
-        try:
-            import requests as http_requests
-            import re
-
-            client = ShopifyAPIClient(store)
-            all_orders = []
-            url = f"{client.base_url}/orders.json"
-            current_params = dict(params)
-
-            while True:
-                resp = http_requests.get(
-                    url, headers=client.headers, params=current_params, timeout=30
-                )
-                if resp.status_code == 429:
-                    retry_after = float(resp.headers.get('Retry-After', '2.0'))
-                    _time.sleep(retry_after)
-                    resp = http_requests.get(
-                        url, headers=client.headers, params=current_params, timeout=30
-                    )
-                resp.raise_for_status()
-                data = resp.json()
-                orders_page = data.get('orders', [])
-                all_orders.extend(orders_page)
-
-                if len(orders_page) < 250:
-                    break
-
-                # Parse Link header for next page cursor
-                link_header = resp.headers.get('Link', '')
-                next_match = re.search(r'<([^>]+)>;\s*rel="next"', link_header)
-                if not next_match:
-                    break
-
-                # The next URL contains page_info param — use it directly
-                next_url = next_match.group(1)
-                # Extract page_info from the next URL
-                from urllib.parse import urlparse, parse_qs
-                parsed = urlparse(next_url)
-                qs = parse_qs(parsed.query)
-                page_info = qs.get('page_info', [None])[0]
-                if not page_info:
-                    break
-
-                # For subsequent pages, only pass page_info and limit (Shopify requirement)
-                current_params = {'page_info': page_info, 'limit': 250}
-                _time.sleep(0.5)
-        except Exception as e:
-            logger.error(f"Failed to fetch orders from Shopify: {e}")
-            return Response(
-                {'error': f'Failed to fetch orders from Shopify: {str(e)}'},
-                status=status.HTTP_502_BAD_GATEWAY
-            )
-
-        print(f"LIVE FETCH complete: {len(all_orders)} orders fetched from Shopify for days={days}")
-        # Aggregate line items across all orders
+        # Aggregate line items from stored shopify_data JSON
         demand = defaultdict(lambda: {
             'title': '',
             'variant_title': '',
@@ -647,24 +603,21 @@ class ShopifyStoreViewSet(viewsets.ModelViewSet):
         total_revenue = 0.0
         earliest_date = None
         latest_date = None
+        order_count = 0
 
-        for order in all_orders:
-            order_total = float(order.get('total_price', 0))
+        for order in orders_qs.only('total_price', 'processed_at', 'shopify_data'):
+            order_total = float(order.total_price or 0)
             total_revenue += order_total
+            order_count += 1
 
-            order_date_str = order.get('created_at', '')
-            if order_date_str:
-                try:
-                    from dateutil.parser import parse as parse_date
-                    order_dt = parse_date(order_date_str)
-                    if earliest_date is None or order_dt < earliest_date:
-                        earliest_date = order_dt
-                    if latest_date is None or order_dt > latest_date:
-                        latest_date = order_dt
-                except Exception:
-                    pass
+            if order.processed_at:
+                if earliest_date is None or order.processed_at < earliest_date:
+                    earliest_date = order.processed_at
+                if latest_date is None or order.processed_at > latest_date:
+                    latest_date = order.processed_at
 
-            for item in order.get('line_items', []):
+            line_items = order.shopify_data.get('line_items', []) if order.shopify_data else []
+            for item in line_items:
                 sku = item.get('sku', '')
                 title = item.get('title', 'Unknown')
                 variant = item.get('variant_title', '')
@@ -676,21 +629,23 @@ class ShopifyStoreViewSet(viewsets.ModelViewSet):
                 demand[key]['total_quantity'] += int(item.get('quantity', 0))
                 demand[key]['total_revenue'] += float(item.get('price', 0)) * int(item.get('quantity', 0))
                 demand[key]['order_count'] += 1
-                demand[key]['shopify_product_id'] = item.get('product_id')
+                if not demand[key]['shopify_product_id']:
+                    demand[key]['shopify_product_id'] = item.get('product_id')
 
         # Enrich with current inventory from ShopifyProduct table
         result = []
         for key, d in demand.items():
             current_stock = None
-            product_match = None
             if d['sku']:
                 product_match = ShopifyProduct.objects.filter(
                     store=store, shopify_sku=d['sku']
-                ).first()
+                ).only('shopify_inventory_quantity').first()
             elif d['shopify_product_id']:
                 product_match = ShopifyProduct.objects.filter(
                     store=store, shopify_product_id=d['shopify_product_id']
-                ).first()
+                ).only('shopify_inventory_quantity').first()
+            else:
+                product_match = None
 
             if product_match:
                 current_stock = product_match.shopify_inventory_quantity
@@ -705,10 +660,8 @@ class ShopifyStoreViewSet(viewsets.ModelViewSet):
                 'current_stock': current_stock,
             })
 
-        # Sort by total quantity sold descending
         result.sort(key=lambda x: x['total_quantity_sold'], reverse=True)
 
-        # Build period label from actual dates
         if earliest_date and latest_date:
             period_label = f"{earliest_date.strftime('%b %d, %Y')} – {latest_date.strftime('%b %d, %Y')}"
         else:
@@ -718,14 +671,16 @@ class ShopifyStoreViewSet(viewsets.ModelViewSet):
             'total_products': len(result),
             'total_units_sold': sum(r['total_quantity_sold'] for r in result),
             'total_revenue': round(total_revenue, 2),
-            'total_orders': len(all_orders),
+            'total_orders': order_count,
             'period': period_label,
             'order_date_from': earliest_date.isoformat() if earliest_date else None,
             'order_date_to': latest_date.isoformat() if latest_date else None,
             'items': result,
         }
-        print(f"RESPONSE: days={days}, orders={len(all_orders)}, revenue={round(total_revenue, 2)}, period={period_label}")
-        print(f"{'='*60}\n")
+
+        # Cache for 10 minutes
+        cache.set(cache_key, response_data, 600)
+        return Response(response_data)
 
         # Cache for 5 minutes (300 seconds)
         cache.set(cache_key, response_data, 300)
