@@ -70,6 +70,15 @@ function TabPanel(props: TabPanelProps) {
   )
 }
 
+const optimizeShopifyImage = (url: string | null | undefined, width: number = 80) => {
+  if (!url) return '';
+  if (!url.includes('cdn.shopify.com')) return url;
+
+  // Shopify CDN supports appending width parameter to dramatically reduce download and decode time
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}width=${width}`;
+};
+
 export default function ShopifyIntegration() {
   const [stores, setStores] = useState<ShopifyStore[]>([])
   const [selectedStore, setSelectedStore] = useState<ShopifyStore | null>(null)
@@ -857,8 +866,19 @@ export default function ShopifyIntegration() {
                                 {product.shopify_image_url ? (
                                   <Box
                                     component="img"
-                                    src={product.shopify_image_url}
-                                    sx={{ width: 40, height: 40, borderRadius: 1, mr: 2, objectFit: 'cover' }}
+                                    src={optimizeShopifyImage(product.shopify_image_url, 80)}
+                                    // Hardware acceleration for images and lazy loading
+                                    loading="lazy"
+                                    decoding="async"
+                                    sx={{
+                                      width: 40,
+                                      height: 40,
+                                      borderRadius: 1,
+                                      mr: 2,
+                                      objectFit: 'cover',
+                                      flexShrink: 0, // Prevent flickering
+                                      backgroundColor: 'action.hover'
+                                    }}
                                   />
                                 ) : (
                                   <Box sx={{ width: 40, height: 40, borderRadius: 1, mr: 2, bgcolor: 'action.hover', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
