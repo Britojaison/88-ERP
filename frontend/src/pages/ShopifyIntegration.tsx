@@ -180,7 +180,10 @@ export default function ShopifyIntegration() {
   }
 
   const totalSales = useMemo(() => {
-    return productDemand?.total_revenue?.toFixed(2) || '0.00'
+    return (productDemand?.total_revenue || 0).toLocaleString('en-IN', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    })
   }, [productDemand])
 
   const loadStoreData = async (storeId: string) => {
@@ -529,7 +532,7 @@ export default function ShopifyIntegration() {
   }
 
   return (
-    <Box>
+    <Box sx={{ p: { xs: 2, sm: 3 } }}>
       <PageHeader
         title="Shopify Integration"
         subtitle="Connect, sync, and monitor your Shopify storefront data."
@@ -638,8 +641,8 @@ export default function ShopifyIntegration() {
               </Tabs>
 
               <TabPanel value={tabValue} index={0}>
-                <Grid container spacing={3}>
-                  <Grid item xs={12} md={4} lg={2.4}>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6} md={4} lg={2.4}>
                     <Card sx={{ height: '100%', borderTop: '4px solid', borderColor: 'primary.main' }}>
                       <CardContent>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
@@ -648,8 +651,8 @@ export default function ShopifyIntegration() {
                           </Typography>
                           <Inventory color="primary" sx={{ opacity: 0.5 }} />
                         </Box>
-                        <Typography variant="h3" sx={{ fontWeight: 700, mb: 1 }}>
-                          {syncStatus?.products?.total || 0}
+                        <Typography variant="h4" sx={{ fontWeight: 700, mb: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {(syncStatus?.products?.total || 0).toLocaleString()}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
                           Shopify Variants
@@ -657,7 +660,7 @@ export default function ShopifyIntegration() {
                       </CardContent>
                     </Card>
                   </Grid>
-                  <Grid item xs={12} md={4} lg={2.4}>
+                  <Grid item xs={12} sm={6} md={4} lg={2.4}>
                     <Card sx={{ height: '100%', borderTop: '4px solid', borderColor: 'success.main' }}>
                       <CardContent>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
@@ -666,8 +669,8 @@ export default function ShopifyIntegration() {
                           </Typography>
                           <CheckCircle color="success" sx={{ opacity: 0.5 }} />
                         </Box>
-                        <Typography variant="h3" sx={{ fontWeight: 700, mb: 1, color: 'success.main' }}>
-                          {syncStatus?.products?.synced || 0}
+                        <Typography variant="h4" sx={{ fontWeight: 700, mb: 1, color: 'success.main', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {(syncStatus?.products?.synced || 0).toLocaleString()}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
                           Mapped to ERP
@@ -675,7 +678,7 @@ export default function ShopifyIntegration() {
                       </CardContent>
                     </Card>
                   </Grid>
-                  <Grid item xs={12} md={4} lg={2.4}>
+                  <Grid item xs={12} sm={6} md={4} lg={2.4}>
                     <Card sx={{ height: '100%', borderTop: '4px solid', borderColor: 'warning.main' }}>
                       <CardContent>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
@@ -684,8 +687,8 @@ export default function ShopifyIntegration() {
                           </Typography>
                           <Info color="warning" sx={{ opacity: 0.5 }} />
                         </Box>
-                        <Typography variant="h3" sx={{ fontWeight: 700, mb: 1, color: 'warning.main' }}>
-                          {syncStatus?.products?.pending || 0}
+                        <Typography variant="h4" sx={{ fontWeight: 700, mb: 1, color: 'warning.main', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {(syncStatus?.products?.pending || 0).toLocaleString()}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
                           Needs Mapping
@@ -693,7 +696,7 @@ export default function ShopifyIntegration() {
                       </CardContent>
                     </Card>
                   </Grid>
-                  <Grid item xs={12} md={6} lg={2.4}>
+                  <Grid item xs={12} sm={6} md={4} lg={2.4}>
                     <Card sx={{ height: '100%', borderTop: '4px solid', borderColor: 'info.main' }}>
                       <CardContent>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
@@ -702,8 +705,8 @@ export default function ShopifyIntegration() {
                           </Typography>
                           <ShoppingCart color="info" sx={{ opacity: 0.5 }} />
                         </Box>
-                        <Typography variant="h3" sx={{ fontWeight: 700, mb: 1 }}>
-                          {productDemand?.total_orders || 0}
+                        <Typography variant="h4" sx={{ fontWeight: 700, mb: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {(productDemand?.total_orders || 0).toLocaleString()}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
                           Synced Orders
@@ -711,7 +714,7 @@ export default function ShopifyIntegration() {
                       </CardContent>
                     </Card>
                   </Grid>
-                  <Grid item xs={12} md={6} lg={2.4}>
+                  <Grid item xs={12} sm={6} md={4} lg={2.4}>
                     <Card sx={{ height: '100%', borderTop: '4px solid', borderColor: 'secondary.main' }}>
                       <CardContent>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
@@ -720,7 +723,7 @@ export default function ShopifyIntegration() {
                           </Typography>
                           <MonetizationOn color="secondary" sx={{ opacity: 0.5 }} />
                         </Box>
-                        <Typography variant="h3" sx={{ fontWeight: 700, mb: 1, color: 'secondary.main' }}>
+                        <Typography variant="h4" sx={{ fontWeight: 700, mb: 1, color: 'secondary.main', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {'\u20B9'}{totalSales}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
