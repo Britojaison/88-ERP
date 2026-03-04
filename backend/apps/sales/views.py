@@ -65,8 +65,18 @@ class SalesTransactionViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='summary')
     def summary(self, request):
         """Get sales summary statistics including Shopify orders"""
-        from apps.integrations.shopify_models import ShopifyOrder
+        from django.core.cache import cache
+        from django.db.models import Sum, Count
         
+        date_from = self.request.query_params.get('date_from')
+        date_to = self.request.query_params.get('date_to')
+        
+        # Build cache key
+        cache_key = f"sales_summary_{request.user.company_id}_{date_from or 'none'}_{date_to or 'none'}"
+        cached = cache.get(cache_key)
+        if cached:
+            return Response(cached)
+
         # POS Stats
         pos_summary = self.get_queryset().aggregate(
             total_sales=Sum('total_amount'),
@@ -79,9 +89,6 @@ class SalesTransactionViewSet(viewsets.ModelViewSet):
         shopify_qs = ShopifyOrder.objects.filter(
             store__company_id=request.user.company_id
         )
-        
-        date_from = self.request.query_params.get('date_from')
-        date_to = self.request.query_params.get('date_to')
         
         if date_from:
             shopify_qs = shopify_qs.filter(processed_at__gte=date_from)
@@ -113,7 +120,7 @@ class SalesTransactionViewSet(viewsets.ModelViewSet):
         total_transactions = (pos_summary['total_transactions'] or 0) + (shopify_summary['total_transactions'] or 0)
         total_refunds = float(returns_summary['total_refunds'] or 0)
         
-        return Response({
+        result = {
             'total_sales': total_sales,
             'net_sales': total_sales - total_refunds,
             'total_transactions': total_transactions,
@@ -123,11 +130,25 @@ class SalesTransactionViewSet(viewsets.ModelViewSet):
             'online_sales': float(shopify_summary['total_sales'] or 0),
             'total_refunds': total_refunds,
             'return_count': returns_summary['count'] or 0,
-        })
+        }
+
+        # Cache for 5 minutes
+        cache.set(cache_key, result, 300)
+
+        return Response(result)
 
     @action(detail=False, methods=['get'], url_path='by-channel')
     def by_channel(self, request):
         """Sales breakdown by channel (POS + Shopify)"""
+        from django.core.cache import cache
+        from django.db.models import Sum, Count
+
+        # Cache for 5 minutes
+        cache_key = f"sales_by_channel_{request.user.company_id}"
+        cached = cache.get(cache_key)
+        if cached:
+            return Response(cached)
+
         from apps.integrations.shopify_models import ShopifyOrder
         
         # 1. POS Channels
@@ -152,25 +173,27 @@ class SalesTransactionViewSet(viewsets.ModelViewSet):
         online_rev = float(shopify_stats['total_sales'] or 0)
         online_count = shopify_stats['transaction_count'] or 0
         
-        # Merge Shopify into 'online' if exists, else add new
-        found = False
-        for c in pos_by_channel:
-            if c['sales_channel'] == 'online':
-                c['total_sales'] += online_rev
-                c['transaction_count'] += online_count
-                c['avg_value'] = c['total_sales'] / c['transaction_count'] if c['transaction_count'] > 0 else 0
-                found = True
-                break
+        if online_count > 0:
+            # Check if 'online' channel already exists in pos_by_channel
+            online_entry = next((item for item in pos_by_channel if item['sales_channel'] == 'online'), None)
+            if online_entry:
+                online_entry['total_sales'] += online_rev
+                online_entry['transaction_count'] += online_count
+                online_entry['avg_value'] = online_entry['total_sales'] / online_entry['transaction_count']
+            else:
+                pos_by_channel.append({
+                    'sales_channel': 'online (shopify)',
+                    'total_sales': online_rev,
+                    'transaction_count': online_count,
+                    'avg_value': online_rev / online_count
+                })
+
+        result = sorted(pos_by_channel, key=lambda x: x['total_sales'], reverse=True)
         
-        if not found and online_count > 0:
-            pos_by_channel.append({
-                'sales_channel': 'online',
-                'total_sales': online_rev,
-                'transaction_count': online_count,
-                'avg_value': online_rev / online_count if online_count > 0 else 0
-            })
+        # Cache results for 5 minutes
+        cache.set(cache_key, result, 300)
             
-        return Response(sorted(pos_by_channel, key=lambda x: x['total_sales'], reverse=True))
+        return Response(result)
 
     @action(detail=False, methods=['get'], url_path='by-store')
     def by_store(self, request):
@@ -207,6 +230,7 @@ class SalesTransactionViewSet(viewsets.ModelViewSet):
         """Compare Store vs Online sales over time — reads from DB (auto-synced every 12h)"""
         from datetime import timedelta, date as date_type
         from django.utils import timezone
+        from django.core.cache import cache
         
         end_date_str = request.query_params.get('end_date')
         start_date_str = request.query_params.get('start_date')
@@ -220,6 +244,12 @@ class SalesTransactionViewSet(viewsets.ModelViewSet):
             start_date = date_type.fromisoformat(start_date_str)
         else:
             start_date = end_date - timedelta(days=30)
+
+        # Check cache first (5 minute TTL)
+        cache_key = f"channel_cmp_{request.user.company_id}_{start_date}_{end_date}"
+        cached = cache.get(cache_key)
+        if cached:
+            return Response(cached)
             
         day_count = (end_date - start_date).days + 1
             
@@ -270,6 +300,9 @@ class SalesTransactionViewSet(viewsets.ModelViewSet):
                 date_map[date_str]['online'] += float(sale['total'] or 0)
                 
         data = sorted(list(date_map.values()), key=lambda x: x['date'])
+
+        # Cache for 5 minutes
+        cache.set(cache_key, data, 300)
         
         return Response(data)
 

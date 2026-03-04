@@ -227,7 +227,7 @@ export default function ShopifyIntegration() {
     }
   }
 
-  const loadDemandData = async (storeId: string, period?: string, sync = false) => {
+  const loadDemandData = async (storeId: string, period?: string) => {
     const p = period !== undefined ? period : demandPeriodRef.current
 
     // Cancel any previous in-flight demand request
@@ -244,7 +244,7 @@ export default function ShopifyIntegration() {
     try {
       const res = await shopifyService.getProductDemand(
         storeId,
-        p ? { days: parseInt(p), sync: sync as any } : { sync: sync as any } as any,
+        p ? { days: parseInt(p) } : {} as any,
         abortController.signal
       )
       // Only update state if this is still the latest request
