@@ -41,20 +41,20 @@ export default function Login() {
 
     try {
       const response = await authService.login({ email, password })
-      
+
       dispatch(
         setCredentials({
           user: response.user,
           token: response.access,
         }),
       )
-      
+
       navigate('/')
     } catch (err: any) {
       console.error('Login error:', err)
       setError(
-        err.response?.data?.detail || 
-        err.response?.data?.message || 
+        err.response?.data?.detail ||
+        err.response?.data?.message ||
         'Invalid email or password. Please try again.'
       )
     } finally {
@@ -154,11 +154,11 @@ export default function Login() {
                 ),
               }}
             />
-            <Button 
-              fullWidth 
-              type="submit" 
-              variant="contained" 
-              size="large" 
+            <Button
+              fullWidth
+              type="submit"
+              variant="contained"
+              size="large"
               sx={{ mt: 2, py: 1.35 }}
               disabled={loading}
             >
@@ -168,7 +168,7 @@ export default function Login() {
 
           <Divider sx={{ my: 2.5 }} />
           <Typography variant="caption" color="text.secondary" display="block">
-            Demo: admin@88erp.com / admin123
+            Demo: admin@88erp.com / Admin123
           </Typography>
         </Paper>
       </Box>
