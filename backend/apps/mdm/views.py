@@ -2,7 +2,8 @@
 API Views for Master Data Management.
 """
 import re
-from rest_framework import viewsets, status
+from django.db import IntegrityError
+from rest_framework import viewsets, status, serializers
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -115,11 +116,44 @@ class TenantScopedViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         print(f"[{self.__class__.__name__}] Performing CREATE. Data: {self.request.data}")
         try:
-            serializer.save(company_id=self.request.user.company_id)
+            # The HiddenField in TenantModelSerializer now handles the company automatically.
+            # This enables DRF's UniqueTogetherValidator to work correctly.
+            serializer.save()
             print(f"[{self.__class__.__name__}] Create successful.")
+        except IntegrityError as e:
+            error_msg = str(e).lower()
+            print(f"[{self.__class__.__name__}] Create FAILED (IntegrityError): {error_msg}")
+            # Parse common DB constraint errors into user-friendly messages
+            if 'unique' in error_msg or 'duplicate' in error_msg:
+                raise serializers.ValidationError(
+                    {'detail': 'A record with this code already exists. Please use a different code.'}
+                )
+            elif 'null' in error_msg and 'not-null' in error_msg or 'null value' in error_msg:
+                # Catch fields like offer_tag or lifecycle_status that were problematic
+                missing_field = error_msg.split('"')[1] if '"' in error_msg else "A required field"
+                raise serializers.ValidationError(
+                    {'detail': f'Missing or invalid value for field: {missing_field}'}
+                )
+            else:
+                raise serializers.ValidationError(
+                    {'detail': f'Database error: {error_msg}'}
+                )
         except Exception as e:
             print(f"[{self.__class__.__name__}] Create FAILED: {str(e)}")
             raise e
+
+
+    def perform_update(self, serializer):
+        try:
+            serializer.save()
+        except IntegrityError as e:
+            error_msg = str(e).lower()
+            if 'unique' in error_msg or 'duplicate' in error_msg:
+                raise serializers.ValidationError(
+                    {'detail': 'A record with this code already exists.'}
+                )
+            raise serializers.ValidationError({'detail': f'Database error: {error_msg}'})
+
 
 
 class BusinessUnitViewSet(TenantScopedViewSet):
@@ -265,17 +299,22 @@ class ProductViewSet(TenantScopedViewSet):
                 continue
             
             # Create SKU
-            sku = SKU.objects.create(
-                code=sku_code,
-                name=f"{product.name} - {size}",
-                product=product,
-                size=size,
-                base_price=selling_price,
-                cost_price=mrp,
-                company_id=request.user.company_id,
-                status='active'
-            )
-            created_skus.append(sku)
+            try:
+                sku = SKU.objects.create(
+                    code=sku_code,
+                    name=f"{product.name} - {size}",
+                    product=product,
+                    size=size,
+                    base_price=selling_price,
+                    cost_price=mrp,
+                    company_id=request.user.company_id,
+                    status='active'
+                )
+                created_skus.append(sku)
+            except IntegrityError:
+                # SKU code already exists or other constraint violation
+                skipped_sizes.append(size)
+                continue
         
         # Serialize created SKUs
         serializer = SKUSerializer(created_skus, many=True)

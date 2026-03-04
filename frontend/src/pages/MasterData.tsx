@@ -315,30 +315,28 @@ export default function MasterData() {
         await mdmService.createProductVariants(product.id, variantForm)
       }
 
-      setProductForm({ code: '', name: '', description: '' })
-      setProductImageFile(null)
-      setProductImagePreview('')
-      setVariantForm({ sizes: [], selling_price: '', mrp: '' })
-      setSkuForm({
-        code: '',
-        name: '',
-        product: '',
-        base_price: '',
-        cost_price: '',
-        weight: '',
-        size: '',
-        is_serialized: false,
-        is_batch_tracked: false,
-      })
-
       setOpenProductDialog(false)
-
       setSnackbar({ open: true, message: 'Product created successfully.', severity: 'success' })
 
-      // Small delay to ensure database transactions are committed before fetching
+      // Small delay to let transition finish before heavy re-renders/resets
       setTimeout(() => {
+        setProductForm({ code: '', name: '', description: '' })
+        setProductImageFile(null)
+        setProductImagePreview('')
+        setVariantForm({ sizes: [], selling_price: '', mrp: '' })
+        setSkuForm({
+          code: '',
+          name: '',
+          product: '',
+          base_price: '',
+          cost_price: '',
+          weight: '',
+          size: '',
+          is_serialized: false,
+          is_batch_tracked: false,
+        })
         void loadData();
-      }, 500);
+      }, 300);
 
     } catch (error: any) {
       console.error('Create product error:', error)
@@ -366,21 +364,19 @@ export default function MasterData() {
     try {
       const result = await mdmService.createProductVariants(selectedProduct.id, variantForm, productImageFile || undefined)
       setOpenVariantsDialog(false)
-      setVariantForm({ sizes: [], selling_price: '', mrp: '' })
-      setProductImageFile(null)
-      setProductImagePreview('')
-      setSelectedProduct(null)
-
-      // Small delay to ensure database transactions are committed before fetching
-      setTimeout(() => {
-        void loadData();
-      }, 500);
-
       setSnackbar({
         open: true,
         message: `Created ${result.created} SKUs. ${result.skipped > 0 ? `Skipped ${result.skipped} existing sizes.` : ''}`,
         severity: 'success'
       })
+
+      setTimeout(() => {
+        setVariantForm({ sizes: [], selling_price: '', mrp: '' })
+        setProductImageFile(null)
+        setProductImagePreview('')
+        setSelectedProduct(null)
+        void loadData();
+      }, 300);
     } catch (error) {
       setSnackbar({ open: true, message: 'Failed to create variants.', severity: 'error' })
     }
@@ -394,11 +390,14 @@ export default function MasterData() {
     try {
       await mdmService.createFabric(fabricForm, fabricPhotoFile || undefined)
       setOpenFabricDialog(false)
-      setFabricForm({ name: '', color: '', fabric_type: '', total_meters: '', cost_per_meter: '', dispatch_unit: '', notes: '' })
-      setFabricPhotoFile(null)
-      setFabricPhotoPreview('')
-      setTimeout(() => { void loadData() }, 500)
       setSnackbar({ open: true, message: 'Fabric created successfully with auto-generated SKU!', severity: 'success' })
+
+      setTimeout(() => {
+        setFabricForm({ name: '', color: '', fabric_type: '', total_meters: '', cost_per_meter: '', dispatch_unit: '', notes: '' })
+        setFabricPhotoFile(null)
+        setFabricPhotoPreview('')
+        void loadData()
+      }, 300)
     } catch (error: any) {
       setSnackbar({ open: true, message: error?.response?.data?.detail || 'Failed to create fabric.', severity: 'error' })
     }
@@ -440,8 +439,8 @@ export default function MasterData() {
         business_unit: locationForm.business_unit || (businessUnits.length > 0 ? businessUnits[0].id : '')
       })
       setOpenLocationDialog(false)
-      setTimeout(() => { void loadData() }, 300)
       setSnackbar({ open: true, message: 'Location created successfully!', severity: 'success' })
+      setTimeout(() => { void loadData() }, 300)
     } catch (error: any) {
       setSnackbar({ open: true, message: error?.response?.data?.detail || 'Failed to create location.', severity: 'error' })
     }
@@ -463,8 +462,8 @@ export default function MasterData() {
         is_inventory_location: true,
       })
       setOpenWarehouseDialog(false)
-      setTimeout(() => { void loadData() }, 300)
       setSnackbar({ open: true, message: 'Warehouse created successfully!', severity: 'success' })
+      setTimeout(() => { void loadData() }, 300)
     } catch (error: any) {
       setSnackbar({ open: true, message: error?.response?.data?.detail || 'Failed to create warehouse.', severity: 'error' })
     }
@@ -486,8 +485,8 @@ export default function MasterData() {
         is_inventory_location: true,
       })
       setOpenStoreDialog(false)
-      setTimeout(() => { void loadData() }, 300)
       setSnackbar({ open: true, message: 'Store created successfully!', severity: 'success' })
+      setTimeout(() => { void loadData() }, 300)
     } catch (error: any) {
       setSnackbar({ open: true, message: error?.response?.data?.detail || 'Failed to create store.', severity: 'error' })
     }
