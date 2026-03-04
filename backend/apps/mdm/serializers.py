@@ -17,6 +17,16 @@ from .models import (
     Fabric,
 )
 
+class CompanyDefault:
+    """Helper to provide current user's company and enable DRF validators."""
+    requires_context = True
+    def __call__(self, serializer_field):
+        return serializer_field.context['request'].user.company
+
+class TenantModelSerializer(serializers.ModelSerializer):
+    """Base serializer for all tenant-aware models."""
+    company = serializers.HiddenField(default=CompanyDefault())
+
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     """Custom JWT serializer that includes user information."""
@@ -68,53 +78,36 @@ class UserSerializer(serializers.ModelSerializer):
         instance.save()
         return instance
 
-class BusinessUnitSerializer(serializers.ModelSerializer):
+class BusinessUnitSerializer(TenantModelSerializer):
     class Meta:
         model = BusinessUnit
         fields = '__all__'
-        extra_kwargs = {'company': {'required': False}}
-        validators = []
 
 
-class LocationSerializer(serializers.ModelSerializer):
+class LocationSerializer(TenantModelSerializer):
     class Meta:
         model = Location
         fields = '__all__'
-        extra_kwargs = {'company': {'required': False}}
-        validators = []
 
 
-class UserSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = User
-        fields = ['id', 'email', 'username', 'first_name', 'last_name', 'company', 'is_staff', 'is_active']
-        read_only_fields = ['id']
-
-
-class CustomerSerializer(serializers.ModelSerializer):
+class CustomerSerializer(TenantModelSerializer):
     class Meta:
         model = Customer
         fields = '__all__'
-        extra_kwargs = {'company': {'required': False}}
-        validators = []
 
 
-class VendorSerializer(serializers.ModelSerializer):
+class VendorSerializer(TenantModelSerializer):
     class Meta:
         model = Vendor
         fields = '__all__'
-        extra_kwargs = {'company': {'required': False}}
-        validators = []
 
 
-class ProductSerializer(serializers.ModelSerializer):
+class ProductSerializer(TenantModelSerializer):
     image_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
         fields = '__all__'
-        extra_kwargs = {'company': {'required': False}}
-        validators = []
         
     def get_image_url(self, obj):
         if obj.image:
@@ -125,15 +118,13 @@ class ProductSerializer(serializers.ModelSerializer):
         return None
 
 
-class StyleSerializer(serializers.ModelSerializer):
+class StyleSerializer(TenantModelSerializer):
     class Meta:
         model = Style
         fields = '__all__'
-        extra_kwargs = {'company': {'required': False}}
-        validators = []
 
 
-class SKUSerializer(serializers.ModelSerializer):
+class SKUSerializer(TenantModelSerializer):
     product_code = serializers.ReadOnlyField(source='product.code')
     product_name = serializers.ReadOnlyField(source='product.name')
     style_code = serializers.ReadOnlyField(source='style.code')
@@ -143,13 +134,13 @@ class SKUSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'company', 'product', 'product_code', 'product_name', 'style', 'style_code',
             'code', 'name', 'base_price', 'cost_price', 'weight', 'size',
-            'is_serialized', 'is_batch_tracked', 'status', 'created_at', 'updated_at'
+            'lifecycle_status', 'is_serialized', 'is_batch_tracked', 
+            'min_stock_level', 'is_best_seller', 'movement_classification',
+            'status', 'created_at', 'updated_at'
         ]
-        extra_kwargs = {'company': {'required': False}}
-        validators = []
 
 
-class SKUBarcodeSerializer(serializers.ModelSerializer):
+class SKUBarcodeSerializer(TenantModelSerializer):
     barcode_value = serializers.CharField(max_length=255, required=False, allow_blank=True)
     product_name = serializers.SerializerMethodField()
     sku_code = serializers.SerializerMethodField()
@@ -161,8 +152,6 @@ class SKUBarcodeSerializer(serializers.ModelSerializer):
             'is_primary', 'display_code', 'label_title', 'size_label',
             'selling_price', 'mrp', 'status', 'created_at', 'updated_at'
         ]
-        extra_kwargs = {'company': {'required': False}}
-        validators = []
     
     def get_product_name(self, obj):
         """Get the product name from the related SKU."""
@@ -233,7 +222,7 @@ class SKUBarcodeSerializer(serializers.ModelSerializer):
         return attrs
 
 
-class FabricSerializer(serializers.ModelSerializer):
+class FabricSerializer(TenantModelSerializer):
     remaining_meters = serializers.SerializerMethodField()
     vendor_name = serializers.SerializerMethodField()
     approved_by_name = serializers.SerializerMethodField()
@@ -253,12 +242,10 @@ class FabricSerializer(serializers.ModelSerializer):
             'status', 'created_at', 'updated_at',
         ]
         extra_kwargs = {
-            'company': {'required': False},
             'photo': {'required': False},
             'code': {'required': False},
             'sku': {'required': False},
         }
-        validators = []
 
     def get_remaining_meters(self, obj):
         return float(obj.total_meters) - float(obj.used_meters)
