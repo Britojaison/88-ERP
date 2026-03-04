@@ -51,6 +51,7 @@ export default function MasterData() {
   const [tabValue, setTabValue] = useState(0)
   const [products, setProducts] = useState<Product[]>([])
   const [skus, setSkus] = useState<SKU[]>([])
+  // @ts-ignore: TS6133
   const [companies, setCompanies] = useState<Company[]>([])
   // @ts-ignore: TS6133
   const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>([])
