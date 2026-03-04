@@ -103,11 +103,19 @@ class InventoryBalanceViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, 
         from django.db.models import Sum
         from apps.sales.models import SalesTransactionLine
         from django.utils import timezone
+        from django.core.cache import cache
         import datetime
 
         days = int(request.query_params.get("days", "30"))
         fast_threshold = float(request.query_params.get("fast_threshold", "20"))
         slow_threshold = float(request.query_params.get("slow_threshold", "1"))
+
+        # Check cache first (5 minute TTL)
+        cache_key = f"velocity_{request.user.company_id}_{days}_{fast_threshold}_{slow_threshold}"
+        cached = cache.get(cache_key)
+        if cached:
+            return Response(cached)
+
         period_ago = timezone.now() - datetime.timedelta(days=days)
         
         # 1. Get current inventory by sku
@@ -193,7 +201,7 @@ class InventoryBalanceViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, 
         slow = sorted(slow, key=lambda x: x['sold_period'], reverse=True)
         dead = sorted(dead, key=lambda x: x['current_stock'], reverse=True)
         
-        return Response({
+        result = {
             "period_days": days,
             "thresholds": {"fast": fast_threshold, "slow": slow_threshold},
             "summary": {
@@ -204,7 +212,12 @@ class InventoryBalanceViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, 
             "fast_moving": fast[:50],
             "slow_moving": slow[:50],
             "dead_stock": dead[:50]
-        })
+        }
+
+        # Cache for 5 minutes
+        cache.set(cache_key, result, 300)
+
+        return Response(result)
 
 
 class InventoryMovementViewSet(viewsets.ModelViewSet):
@@ -1534,6 +1547,7 @@ class DailyStockReportViewSet(viewsets.ViewSet):
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=['get'], url_path='daily-sales-report')
+    @action(detail=False, methods=['get'], url_path='daily-sales')
     def daily_sales_report(self, request):
         """
         Comprehensive daily sales report with top products, payment breakdown, discount totals.
@@ -1542,19 +1556,17 @@ class DailyStockReportViewSet(viewsets.ViewSet):
         from apps.sales.models import SalesTransaction, SalesTransactionLine
         from apps.integrations.shopify_models import ShopifyOrder, ShopifyStore
         from apps.integrations.shopify_service import ShopifyService
+        from django.core.cache import cache
         from django.db.models.functions import TruncDate
 
         target_date = request.query_params.get('date', str(timezone.now().date()))
         store_id = request.query_params.get('store')
-        do_sync = request.query_params.get('sync') == 'true'
 
-        if do_sync:
-            stores = ShopifyStore.objects.filter(company_id=request.user.company_id, status='active')
-            for store in stores:
-                try:
-                    ShopifyService.sync_orders(store, start_date=target_date, end_date=target_date)
-                except Exception:
-                    pass
+        # Cache for 5 minutes
+        cache_key = f"daily_sales_{request.user.company_id}_{target_date}_{store_id or 'all'}"
+        cached = cache.get(cache_key)
+        if cached:
+            return Response(cached)
 
         txn_qs = SalesTransaction.objects.filter(
             company_id=request.user.company_id,
@@ -1636,7 +1648,7 @@ class DailyStockReportViewSet(viewsets.ViewSet):
             total=Sum('total_amount'),
         ).order_by('-total'))
 
-        return Response({
+        result = {
             'date': target_date,
             'overview': {
                 'total_revenue': float(overview['total_revenue'] or 0),
@@ -1649,7 +1661,12 @@ class DailyStockReportViewSet(viewsets.ViewSet):
             'channel_breakdown': channel_breakdown,
             'top_products': list(line_qs),
             'customer_breakdown': customer_breakdown,
-        })
+        }
+
+        # Cache for 5 minutes
+        cache.set(cache_key, result, 300)
+
+        return Response(result)
 
     @action(detail=False, methods=['get'], url_path='weekly-stock-velocity')
     def weekly_stock_velocity(self, request):
@@ -1660,9 +1677,16 @@ class DailyStockReportViewSet(viewsets.ViewSet):
         """
         from apps.sales.models import SalesTransactionLine
         from datetime import timedelta
+        from django.core.cache import cache
 
         period = int(request.query_params.get('period', 7))
         location_id = request.query_params.get('location')
+
+        # Build cache key
+        cache_key = f"weekly_velocity_{request.user.company_id}_{period}_{location_id or 'all'}"
+        cached = cache.get(cache_key)
+        if cached:
+            return Response(cached)
 
         cutoff = timezone.now() - timedelta(days=period)
 
@@ -1768,7 +1792,7 @@ class DailyStockReportViewSet(viewsets.ViewSet):
         slow.sort(key=lambda x: x['sold_in_period'], reverse=True)
         dead.sort(key=lambda x: x['current_stock'], reverse=True)
 
-        return Response({
+        result = {
             'period_days': period,
             'fast_threshold': fast_threshold,
             'summary': {
@@ -1781,7 +1805,12 @@ class DailyStockReportViewSet(viewsets.ViewSet):
             'fast_moving': fast[:50],
             'slow_moving': slow[:50],
             'dead_stock': dead[:50],
-        })
+        }
+
+        # Cache for 5 minutes
+        cache.set(cache_key, result, 300)
+
+        return Response(result)
 
     @action(detail=False, methods=['get'], url_path='monthly-turnover-margin')
     def monthly_turnover_margin(self, request):
@@ -1790,12 +1819,24 @@ class DailyStockReportViewSet(viewsets.ViewSet):
         Query params: month (YYYY-MM), location (id)
         Returns per-SKU and aggregate turnover ratio, margin %, COGS, revenue.
         """
+        from django.core.cache import cache
+        month_str = request.query_params.get('month', '')
+        location_id = request.query_params.get('location', '')
+
+        # Build cache key
+        cache_key = f"monthly_turnover_{request.user.company_id}_{month_str}_{location_id or 'all'}"
+        cached = cache.get(cache_key)
+        if cached:
+            return Response(cached)
+
         try:
-            return self._monthly_turnover_margin_inner(request)
+            response = self._monthly_turnover_margin_inner(request)
+            if response.status_code == 200:
+                cache.set(cache_key, response.data, 300)
+            return response
         except Exception as e:
             import logging
             logging.getLogger(__name__).warning(f"Monthly margin report error: {e}")
-            month_str = request.query_params.get('month', '')
             return Response({
                 'month': month_str,
                 'overview': {

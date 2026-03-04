@@ -8,17 +8,21 @@ class IntegrationsConfig(AppConfig):
     verbose_name = 'External Integrations'
 
     def ready(self):
-        # Only start the scheduler in the main process.
-        # In Django's dev server, `ready()` is called twice (once for the reloader child).
-        # RUN_MAIN is set only in the reloader child, so we skip startup there.
-        # In production (Gunicorn), RUN_MAIN is not set, so it starts normally.
+        # In Django's dev server, ready() is called twice.
+        # RUN_MAIN='true' is the reloader child — skip it.
         if os.environ.get('RUN_MAIN') == 'true':
-            # Dev server reloader child process — skip (main process will start it)
             return
 
-        try:
-            from .scheduler import start_scheduler
-            start_scheduler()
-        except Exception as e:
-            import logging
-            logging.getLogger(__name__).error(f"Failed to start Shopify scheduler: {e}")
+        # Start the scheduler in a background thread so it never blocks
+        # the Gunicorn worker from booting (avoids WORKER TIMEOUT).
+        import threading
+
+        def _deferred_start():
+            try:
+                from .scheduler import start_scheduler
+                start_scheduler()
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).error(f"Failed to start Shopify scheduler: {e}")
+
+        threading.Thread(target=_deferred_start, daemon=True).start()

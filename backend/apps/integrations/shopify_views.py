@@ -558,7 +558,7 @@ class ShopifyStoreViewSet(viewsets.ModelViewSet):
     def product_demand(self, request, pk=None):
         """
         Aggregated product demand from synced ShopifyOrder DB (fast, no timeout).
-        Use sync=true to trigger a fresh pull from Shopify API first.
+        Data is auto-synced every 12 hours by the background scheduler.
         """
         store = self.get_object()
         from datetime import datetime, timedelta
@@ -571,39 +571,14 @@ class ShopifyStoreViewSet(viewsets.ModelViewSet):
         days = request.query_params.get('days')
         date_from = request.query_params.get('date_from')
         date_to = request.query_params.get('date_to')
-        sync_requested = request.query_params.get('sync') == 'true'
 
         # Build cache key
         cache_key = f"product_demand_{store.id}_{days or 'all'}_{date_from or ''}_{date_to or ''}"
 
-        # Return cached result unless sync is requested
-        if not sync_requested:
-            cached = cache.get(cache_key)
-            if cached:
-                return Response(cached)
-
-        # If sync=true, trigger a live Shopify pull into the DB first
-        if sync_requested:
-            try:
-                from apps.integrations.shopify_service import ShopifyService
-                now = tz.now()
-                if days:
-                    cutoff = now - timedelta(days=int(days))
-                    ShopifyService.sync_orders(
-                        store,
-                        start_date=cutoff.date().isoformat(),
-                        end_date=now.date().isoformat()
-                    )
-                elif date_from:
-                    ShopifyService.sync_orders(
-                        store,
-                        start_date=date_from,
-                        end_date=date_to or tz.now().date().isoformat()
-                    )
-                else:
-                    ShopifyService.sync_orders(store)
-            except Exception as e:
-                logger.warning(f"Live sync during product_demand failed: {e}")
+        # Return cached result if available
+        cached = cache.get(cache_key)
+        if cached:
+            return Response(cached)
 
         # Build date filter for DB query
         now = tz.now()
