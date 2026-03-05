@@ -63,3 +63,5 @@ coverage.xml
 # Migrations (optional - uncomment if you want to ignore)
 # */migrations/*.py
 # !*/migrations/__init__.py
+
+mcp.json
