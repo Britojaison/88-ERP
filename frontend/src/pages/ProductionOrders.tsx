@@ -169,20 +169,35 @@ export default function ProductionOrders() {
         }
 
         try {
-            const payload: CreateProductionOrderPayload = {
+            const payload: any = {
                 order_type: createForm.order_type,
                 destination: createForm.destination,
                 order_date: createForm.order_date,
-                expected_delivery: createForm.expected_delivery || null,
-                notes: createForm.notes,
                 lines: validLines,
             }
-            const newOrder = await productionOrderService.createOrder(payload)
+            if (createForm.expected_delivery) {
+                payload.expected_delivery = createForm.expected_delivery
+            }
+            if (createForm.notes) {
+                payload.notes = createForm.notes
+            }
+
+            const newOrder = await productionOrderService.createOrder(payload as CreateProductionOrderPayload)
             setOpenCreateDialog(false)
             setSnackbar({ open: true, message: `Production Order ${newOrder.order_number} created!`, severity: 'success' })
             void loadData()
         } catch (error: any) {
-            setSnackbar({ open: true, message: error?.response?.data?.detail || 'Failed to create order.', severity: 'error' })
+            let errorMsg = 'Failed to create order.'
+            if (error.response?.data) {
+                if (typeof error.response.data === 'string') {
+                    errorMsg = error.response.data
+                } else if (error.response.data.detail) {
+                    errorMsg = error.response.data.detail
+                } else {
+                    errorMsg = JSON.stringify(error.response.data)
+                }
+            }
+            setSnackbar({ open: true, message: errorMsg, severity: 'error' })
         }
     }
 

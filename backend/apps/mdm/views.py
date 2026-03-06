@@ -458,6 +458,7 @@ class SKUBarcodeViewSet(TenantScopedViewSet):
         return queryset.order_by("-created_at")
 
     def perform_create(self, serializer):
+        from django.db import IntegrityError
         # Auto-generate barcode_value if not provided
         if not serializer.validated_data.get('barcode_value'):
             sku = serializer.validated_data.get('sku')
@@ -465,7 +466,15 @@ class SKUBarcodeViewSet(TenantScopedViewSet):
                 barcode_value = BarcodeService.build_default_value(sku.code)
                 serializer.validated_data['barcode_value'] = barcode_value
         
-        serializer.save(company_id=self.request.user.company_id)
+        try:
+            serializer.save(company_id=self.request.user.company_id)
+        except IntegrityError as e:
+            error_msg = str(e).lower()
+            if 'unique' in error_msg or 'duplicate' in error_msg:
+                raise serializers.ValidationError(
+                    {'barcode_value': 'A barcode with this value already exists.'}
+                )
+            raise serializers.ValidationError({'detail': f'Database error: {error_msg}'})
 
     @action(detail=True, methods=["get"], url_path="label")
     def label(self, request, pk=None):
