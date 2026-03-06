@@ -70,7 +70,7 @@ class ShopifyAPIClient:
     def get_all_products(self) -> List[Dict]:
         """Get ALL products from Shopify using pagination."""
         all_products = []
-        params = {'limit': 250}
+        params = {'limit': 250, 'status': 'active,archived,draft'}
         
         while True:
             response = self._make_request('GET', 'products.json', params=params)
@@ -82,7 +82,7 @@ class ShopifyAPIClient:
             
             # Use since_id pagination
             last_id = products[-1]['id']
-            params = {'limit': 250, 'since_id': last_id}
+            params = {'limit': 250, 'since_id': last_id, 'status': 'active,archived,draft'}
             time.sleep(0.5)  # Be gentle with rate limits
         
         return all_products
