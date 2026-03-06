@@ -20,7 +20,7 @@ export const PERMISSION_CATEGORIES: PermissionCategory[] = [
         permissions: [
             { code: 'dashboard.view', name: 'Dashboard' },
             { code: 'mdm.product.view', name: 'Master Data' },
-            { code: 'mdm.documents.view', name: 'Documents' },
+
             { code: 'inv.view', name: 'Inventory' },
             { code: 'inv.barcodes', name: 'Barcodes' },
             { code: 'inv.receiving', name: 'Receiving' },

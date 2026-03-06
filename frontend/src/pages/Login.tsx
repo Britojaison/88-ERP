@@ -88,7 +88,7 @@ export default function Login() {
           88 ERP Platform
         </Typography>
         <Typography variant="h6" sx={{ maxWidth: 520, opacity: 0.92 }}>
-          Metadata-driven operations for inventory, documents, workflow, and integrations.
+          Retail POS and inventory operations for your business.
         </Typography>
         <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mt: 3 }}>
           <Chip label="Audit Ready" sx={{ bgcolor: 'rgba(255,255,255,0.16)', color: 'white' }} />

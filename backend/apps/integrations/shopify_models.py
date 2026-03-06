@@ -331,14 +331,7 @@ class ShopifyOrder(BaseModel):
     shopify_order_id = models.BigIntegerField(unique=True)
     order_number = models.CharField(max_length=100)
     
-    # ERP mapping
-    erp_document = models.OneToOneField(
-        'documents.Document',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='shopify_order'
-    )
+    # ERP mapping removed
     
     # Data
     order_status = models.CharField(max_length=50)
@@ -388,14 +381,7 @@ class ShopifyDraftOrder(BaseModel):
     store = models.ForeignKey(ShopifyStore, on_delete=models.CASCADE, related_name='draft_orders')
     shopify_draft_order_id = models.BigIntegerField(unique=True)
     
-    # ERP mapping
-    erp_document = models.OneToOneField(
-        'documents.Document',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='shopify_draft_order'
-    )
+    # ERP mapping removed
     
     status = models.CharField(max_length=50)
     total_price = models.DecimalField(max_digits=15, decimal_places=2)

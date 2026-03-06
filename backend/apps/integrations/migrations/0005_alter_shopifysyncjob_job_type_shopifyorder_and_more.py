@@ -11,7 +11,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('documents', '__first__'),
+
         ('integrations', '0004_shopifyproduct_shopify_image_url'),
     ]
 
@@ -41,7 +41,7 @@ class Migration(migrations.Migration):
                 ('shopify_data', models.JSONField(default=dict)),
                 ('processed_at', models.DateTimeField(blank=True, null=True)),
                 ('created_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.PROTECT, related_name='%(class)s_created', to=settings.AUTH_USER_MODEL)),
-                ('erp_document', models.OneToOneField(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='shopify_order', to='documents.document')),
+
                 ('store', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='orders', to='integrations.shopifystore')),
                 ('updated_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.PROTECT, related_name='%(class)s_updated', to=settings.AUTH_USER_MODEL)),
             ],
@@ -107,7 +107,7 @@ class Migration(migrations.Migration):
                 ('total_price', models.DecimalField(decimal_places=2, max_digits=15)),
                 ('shopify_data', models.JSONField(default=dict)),
                 ('created_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.PROTECT, related_name='%(class)s_created', to=settings.AUTH_USER_MODEL)),
-                ('erp_document', models.OneToOneField(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='shopify_draft_order', to='documents.document')),
+
                 ('store', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='draft_orders', to='integrations.shopifystore')),
                 ('updated_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.PROTECT, related_name='%(class)s_updated', to=settings.AUTH_USER_MODEL)),
             ],

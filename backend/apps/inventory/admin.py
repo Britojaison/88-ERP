@@ -14,7 +14,7 @@ class InventoryMovementAdmin(admin.ModelAdmin):
     list_display = ['movement_date', 'movement_type', 'sku', 'from_location', 'to_location', 'quantity', 'status']
     search_fields = ['sku__code', 'reference_number']
     list_filter = ['movement_type', 'movement_date', 'status']
-    readonly_fields = ['movement_type', 'movement_date', 'sku', 'from_location', 'to_location', 'quantity', 'unit_cost', 'total_cost', 'document', 'reference_number']
+    readonly_fields = ['movement_type', 'movement_date', 'sku', 'from_location', 'to_location', 'quantity', 'unit_cost', 'total_cost', 'reference_number']
     
     def has_add_permission(self, request):
         return False

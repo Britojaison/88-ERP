@@ -21,7 +21,6 @@ from .serializers import (
 )
 from rest_framework.pagination import PageNumberPagination
 from apps.mdm.models import SKU, Location, SKUBarcode
-from apps.documents.models import Document, DocumentLine
 
 
 class InventoryPagination(PageNumberPagination):
@@ -127,7 +126,6 @@ class InventoryBalanceViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, 
         )
         
         # 2. Get sales in period (Unified: POS + Shopify)
-        from apps.documents.models import DocumentLine
         from apps.sales.models import SalesTransactionLine
         
         # POS sales
@@ -138,23 +136,10 @@ class InventoryBalanceViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, 
         ).values('sku__id').annotate(
             sold_in_period=Sum('quantity')
         )
-        
-        # Shopify/Sales Order sales
-        order_sales = DocumentLine.objects.filter(
-            sku__company_id=request.user.company_id,
-            document__document_type__code='sales_order',
-            document__document_date__gte=period_ago.date(),
-            status='active'
-        ).values('sku__id').annotate(
-            sold_in_period=Sum('quantity')
-        )
 
         sales_dict = {}
         for item in pos_sales:
             sales_dict[item['sku__id']] = float(item['sold_in_period'] or 0)
-        for item in order_sales:
-            sku_id = item['sku__id']
-            sales_dict[sku_id] = sales_dict.get(sku_id, 0) + float(item['sold_in_period'] or 0)
 
         fast, slow, dead = [], [], []
         sku_updates = []
@@ -227,7 +212,7 @@ class InventoryMovementViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = InventoryMovement.objects.filter(
             sku__company_id=self.request.user.company_id
-        ).select_related("sku", "from_location", "to_location", "document")
+        ).select_related("sku", "from_location", "to_location")
 
         movement_type = self.request.query_params.get("movement_type")
         if movement_type:
@@ -507,7 +492,7 @@ class GoodsReceiptScanViewSet(viewsets.GenericViewSet):
     def get_queryset(self):
         queryset = GoodsReceiptScan.objects.filter(
             company_id=self.request.user.company_id, status="active"
-        ).select_related("sku", "barcode", "location", "document")
+        ).select_related("sku", "barcode", "location")
         
         search = self.request.query_params.get("search")
         if search:
@@ -566,17 +551,7 @@ class GoodsReceiptScanViewSet(viewsets.GenericViewSet):
         # Validate document if provided
         document = None
         if data.get("document_id"):
-            try:
-                document = Document.objects.get(
-                    id=data["document_id"], 
-                    company_id=request.user.company_id,
-                    status="active"
-                )
-            except Document.DoesNotExist:
-                return Response(
-                    {"error": "Document not found or inactive."},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+            pass # documents module removed
 
         # Step 1: Try exact barcode match
         barcode = SKUBarcode.objects.filter(
@@ -615,7 +590,6 @@ class GoodsReceiptScanViewSet(viewsets.GenericViewSet):
                 company_id=request.user.company_id,
                 barcode_value=barcode_value,
                 location=location,
-                document=document,
                 quantity=quantity,
                 result=GoodsReceiptScan.RESULT_UNKNOWN,
                 message=f"Barcode/SKU '{barcode_value}' not recognized.",
@@ -632,7 +606,6 @@ class GoodsReceiptScanViewSet(viewsets.GenericViewSet):
                 sku=sku,
                 barcode=barcode,
                 location=location,
-                document=document,
                 quantity=quantity,
                 batch_number=batch_number,
                 serial_number=serial_number,
@@ -643,71 +616,7 @@ class GoodsReceiptScanViewSet(viewsets.GenericViewSet):
             )
             return Response(GoodsReceiptScanSerializer(log).data, status=status.HTTP_200_OK)
 
-        # Document validation
-        if document:
-            line = DocumentLine.objects.filter(
-                document=document, 
-                sku=sku, 
-                status="active"
-            ).first()
-            
-            if not line:
-                result = GoodsReceiptScan.RESULT_MISMATCH
-                msg = f"SKU {sku.code} is not part of document {document.document_number}."
-                log = GoodsReceiptScan.objects.create(
-                    company_id=request.user.company_id,
-                    barcode_value=barcode_value,
-                    sku=sku,
-                    barcode=barcode,
-                    location=location,
-                    document=document,
-                    quantity=quantity,
-                    batch_number=batch_number,
-                    serial_number=serial_number,
-                    result=result,
-                    message=msg,
-                    created_by=request.user,
-                    updated_by=request.user,
-                )
-                return Response(GoodsReceiptScanSerializer(log).data, status=status.HTTP_200_OK)
-
-            # Check for over-receipt
-            ordered_qty = line.quantity
-            received_qty = (
-                InventoryMovement.objects.filter(
-                    document=document,
-                    sku=sku,
-                    movement_type=InventoryMovement.MOVEMENT_TYPE_RECEIPT,
-                    status="active",
-                )
-                .aggregate(total=Sum("quantity"))
-                .get("total")
-                or Decimal("0")
-            )
-            
-            if strict and (received_qty + quantity > ordered_qty):
-                result = GoodsReceiptScan.RESULT_OVER_RECEIPT
-                msg = (
-                    f"Over receipt blocked. Ordered: {ordered_qty}, "
-                    f"Already received: {received_qty}, Attempting: {quantity}, "
-                    f"Remaining: {ordered_qty - received_qty}."
-                )
-                log = GoodsReceiptScan.objects.create(
-                    company_id=request.user.company_id,
-                    barcode_value=barcode_value,
-                    sku=sku,
-                    barcode=barcode,
-                    location=location,
-                    document=document,
-                    quantity=quantity,
-                    batch_number=batch_number,
-                    serial_number=serial_number,
-                    result=result,
-                    message=msg,
-                    created_by=request.user,
-                    updated_by=request.user,
-                )
-                return Response(GoodsReceiptScanSerializer(log).data, status=status.HTTP_200_OK)
+        # Document validation skipped since module removed
 
         # Create inventory movement
         try:
@@ -719,7 +628,6 @@ class GoodsReceiptScanViewSet(viewsets.GenericViewSet):
                 quantity=quantity,
                 unit_cost=sku.cost_price,
                 total_cost=quantity * sku.cost_price,
-                document=document,
                 reference_number=f"SCAN:{barcode_value}",
                 notes=f"Goods receipt via barcode scan. Batch: {batch_number or 'N/A'}, Serial: {serial_number or 'N/A'}",
                 created_by=request.user,
@@ -818,7 +726,6 @@ class GoodsReceiptScanViewSet(viewsets.GenericViewSet):
                 sku=sku,
                 barcode=barcode,
                 location=location,
-                document=document,
                 quantity=quantity,
                 batch_number=batch_number,
                 serial_number=serial_number,

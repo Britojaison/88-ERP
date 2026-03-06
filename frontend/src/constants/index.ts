@@ -10,7 +10,7 @@ export const ROUTES = {
   LOGIN: '/login',
   DASHBOARD: '/',
   MASTER_DATA: '/master-data',
-  DOCUMENTS: '/documents',
+
   INVENTORY: '/inventory',
   REPORTS: '/reports',
   SETTINGS: '/settings',

@@ -22,23 +22,15 @@ urlpatterns = [
     path('api/auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     
     # Metadata Management
-    path('api/', include('apps.core.metadata_urls')),
+    # path('api/', include('apps.core.metadata_urls')),
     
     # ERP Modules
     path('api/mdm/', include('apps.mdm.urls')),
-    path('api/attributes/', include('apps.attributes.urls')),
     path('api/rbac/', include('apps.rbac.urls')),
-    path('api/workflow/', include('apps.workflow.urls')),
-    path('api/documents/', include('apps.documents.urls')),
     path('api/inventory/', include('apps.inventory.urls')),
     path('api/sales/', include('apps.sales.urls')),
-    path('api/config/', include('apps.config.urls')),
-    path('api/rules/', include('apps.rules.urls')),
     path('api/numbering/', include('apps.numbering.urls')),
-    path('api/calendar/', include('apps.calendar.urls')),
-    path('api/audit/', include('apps.audit.urls')),
     path('api/reporting/', include('apps.reporting.urls')),
-    path('api/imports/', include('apps.imports.urls')),
     path('api/search/', include('apps.search.urls')),
     path('api/integrations/', include('apps.integrations.urls')),
 ]

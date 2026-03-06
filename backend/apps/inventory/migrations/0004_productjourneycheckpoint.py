@@ -12,7 +12,7 @@ class Migration(migrations.Migration):
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
         ('mdm', '0003_sku_lifecycle_status'),
-        ('documents', '__first__'),
+
         ('inventory', '0003_damageditem'),
     ]
 
@@ -32,7 +32,7 @@ class Migration(migrations.Migration):
                 ('user_name', models.CharField(blank=True, max_length=255)),
                 ('company', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='%(class)s_set', to='mdm.company')),
                 ('created_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.PROTECT, related_name='%(class)s_created', to=settings.AUTH_USER_MODEL)),
-                ('document', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to='documents.document')),
+
                 ('location', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to='mdm.location')),
                 ('sku', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='journey_checkpoints', to='mdm.sku')),
                 ('updated_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.PROTECT, related_name='%(class)s_updated', to=settings.AUTH_USER_MODEL)),

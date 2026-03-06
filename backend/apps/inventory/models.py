@@ -142,14 +142,7 @@ class InventoryMovement(BaseModel):
     unit_cost = models.DecimalField(max_digits=15, decimal_places=2)
     total_cost = models.DecimalField(max_digits=15, decimal_places=2)
     
-    # Reference to source document
-    document = models.ForeignKey(
-        'documents.Document',
-        on_delete=models.PROTECT,
-        null=True,
-        blank=True,
-        related_name='inventory_movements'
-    )
+    # Reference to source document removed (was app.documents)
     
     reference_number = models.CharField(max_length=100, blank=True)
     notes = models.TextField(blank=True)
@@ -211,13 +204,7 @@ class GoodsReceiptScan(TenantAwareModel):
         on_delete=models.PROTECT,
         related_name='goods_receipt_scans'
     )
-    document = models.ForeignKey(
-        'documents.Document',
-        on_delete=models.PROTECT,
-        null=True,
-        blank=True,
-        related_name='goods_receipt_scans'
-    )
+    # document removed
 
     quantity = models.DecimalField(max_digits=15, decimal_places=3, default=1)
     batch_number = models.CharField(max_length=100, blank=True)
@@ -406,12 +393,7 @@ class ProductJourneyCheckpoint(TenantAwareModel):
         on_delete=models.PROTECT, 
         related_name='journey_checkpoints'
     )
-    document = models.ForeignKey(
-        'documents.Document', 
-        on_delete=models.SET_NULL, 
-        null=True, 
-        blank=True
-    )
+    # document removed
     stage = models.CharField(max_length=50, choices=STAGE_CHOICES)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES)
     location = models.ForeignKey(

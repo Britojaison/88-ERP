@@ -12,7 +12,7 @@ class Migration(migrations.Migration):
     dependencies = [
         ('mdm', '0001_initial'),
         ('inventory', '0001_initial'),
-        ('documents', '__first__'),
+
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
@@ -22,11 +22,7 @@ class Migration(migrations.Migration):
             name='created_by',
             field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.PROTECT, related_name='%(class)s_created', to=settings.AUTH_USER_MODEL),
         ),
-        migrations.AddField(
-            model_name='inventorymovement',
-            name='document',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.PROTECT, related_name='inventory_movements', to='documents.document'),
-        ),
+
         migrations.AddField(
             model_name='inventorymovement',
             name='from_location',
@@ -87,11 +83,7 @@ class Migration(migrations.Migration):
             name='created_by',
             field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.PROTECT, related_name='%(class)s_created', to=settings.AUTH_USER_MODEL),
         ),
-        migrations.AddField(
-            model_name='goodsreceiptscan',
-            name='document',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.PROTECT, related_name='goods_receipt_scans', to='documents.document'),
-        ),
+
         migrations.AddField(
             model_name='goodsreceiptscan',
             name='location',

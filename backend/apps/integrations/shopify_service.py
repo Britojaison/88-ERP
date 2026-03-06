@@ -13,7 +13,6 @@ from .shopify_models import (
     ShopifyOrder, ShopifyDraftOrder, ShopifyDiscount, ShopifyGiftCard
 )
 from apps.mdm.models import Product, SKU, Location, Customer
-from apps.documents.models import Document, DocumentType, DocumentLine
 import logging
 
 logger = logging.getLogger(__name__)
@@ -1178,60 +1177,7 @@ class ShopifyService:
             }
         )
         
-        # Mapping to ERP Document (Sales Order)
-        if not s_order.erp_document:
-            try:
-                # Find or create customer
-                email = order_data.get('customer', {}).get('email')
-                customer = None
-                if email:
-                    # Provide a code to avoid IntegrityError if creating new customer
-                    customer, _ = Customer.objects.get_or_create(
-                        company_id=store.company_id,
-                        email=email,
-                        defaults={
-                            'code': email[:50], 
-                            'name': s_order.customer_name or email,
-                            'status': 'active'
-                        }
-                    )
-                
-                # Create ERP Document
-                doc_type = DocumentType.objects.get(company_id=store.company_id, code='sales_order')
-                from apps.numbering.models import NumberingSequence
-                doc_number = NumberingSequence.objects.get(id=doc_type.numbering_sequence_id).get_next_number()
-                
-                erp_doc = Document.objects.create(
-                    company_id=store.company_id,
-                    document_type=doc_type,
-                    document_number=doc_number,
-                    document_date=timezone.now().date(),
-                    customer=customer,
-                    external_reference=s_order.order_number,
-                    total_amount=s_order.total_price,
-                    notes=f"Shopify Order #{s_order.order_number}"
-                )
-                
-                # Add Lines
-                for idx, item in enumerate(order_data.get('line_items', [])):
-                    sku = None
-                    if item.get('sku'):
-                        sku = SKU.objects.filter(company_id=store.company_id, code=item['sku']).first()
-                    
-                    DocumentLine.objects.create(
-                        document=erp_doc,
-                        line_number=idx + 1,
-                        sku=sku or SKU.objects.first(), # Fallback if SKU not found
-                        quantity=item.get('quantity', 1),
-                        unit_price=item.get('price', 0),
-                        line_amount=float(item.get('price', 0)) * int(item.get('quantity', 1))
-                    )
-                
-                s_order.erp_document = erp_doc
-                s_order.save()
-            except Exception as e:
-                logger.error(f"Failed to create ERP document for order {order_id}: {e}")
-                
+        # ERP document mapping removed as documents app was uninstalled
         return s_order
 
     @staticmethod

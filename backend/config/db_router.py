@@ -16,22 +16,12 @@ class LogicalDatabaseRouter:
     
     SCHEMA_MAPPING = {
         # Metadata schema
-        'attributes': 'metadata',
         'rbac': 'metadata',
-        'workflow': 'metadata',
-        'config': 'metadata',
-        'rules': 'metadata',
         'numbering': 'metadata',
-        'calendar': 'metadata',
         
         # Transactional schema
         'mdm': 'transactions',
-        'documents': 'transactions',
         'inventory': 'transactions',
-        'imports': 'transactions',
-        
-        # Audit schema (append-only)
-        'audit': 'audit',
         
         # Analytics schema
         'reporting': 'analytics',
