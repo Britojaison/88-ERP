@@ -152,6 +152,7 @@ class SKUBarcodeSerializer(TenantModelSerializer):
             'is_primary', 'display_code', 'label_title', 'size_label',
             'selling_price', 'mrp', 'status', 'created_at', 'updated_at'
         ]
+        validators = []
     
     def get_product_name(self, obj):
         """Get the product name from the related SKU."""

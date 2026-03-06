@@ -149,10 +149,28 @@ export default function InventoryBarcodes() {
       // Reload data to update available SKUs list
       await loadData()
     } catch (error: any) {
-      const errorMsg = error.response?.data?.barcode_value ? 'This barcode value is already assigned.' :
-        error.response?.data?.non_field_errors?.[0] ||
-        error.response?.data?.sku?.[0] ||
-        'Failed to assign barcode. Please check your inputs.'
+      let errorMsg = 'Failed to assign barcode. Please check your inputs.'
+      if (error.response?.data) {
+        if (error.response.data.barcode_value) {
+          errorMsg = Array.isArray(error.response.data.barcode_value) ? error.response.data.barcode_value[0] : 'This barcode value is already assigned.'
+        } else if (error.response.data.display_code) {
+          errorMsg = error.response.data.display_code[0]
+        } else if (error.response.data.label_title) {
+          errorMsg = error.response.data.label_title[0]
+        } else if (error.response.data.selling_price) {
+          errorMsg = error.response.data.selling_price[0]
+        } else if (error.response.data.mrp) {
+          errorMsg = error.response.data.mrp[0]
+        } else if (error.response.data.sku) {
+          errorMsg = error.response.data.sku[0]
+        } else if (error.response.data.detail) {
+          errorMsg = error.response.data.detail
+        } else if (typeof error.response.data === 'string') {
+          errorMsg = error.response.data
+        } else {
+          errorMsg = JSON.stringify(error.response.data)
+        }
+      }
       setSnackbar({ open: true, message: errorMsg, severity: 'error' })
     } finally {
       setLoading(false)

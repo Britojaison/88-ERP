@@ -2128,6 +2128,8 @@ class ProductionOrderViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         """Create a Production Order with lines in one request."""
         serializer = ProductionOrderCreateSerializer(data=request.data)
+        if not serializer.is_valid():
+            print("PO VALIDATION ERRORS:", serializer.errors)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
