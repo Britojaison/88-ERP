@@ -146,8 +146,8 @@ export default function MasterData() {
   const loadData = async () => {
     try {
       const [productData, skuData, companyData, businessUnitData, locationData, fabricData] = await Promise.all([
-        mdmService.getProducts(),
-        mdmService.getSKUs(),
+        mdmService.getProducts({ hide_shopify: true }),
+        mdmService.getSKUs({ hide_shopify: true }),
         mdmService.getCompanies(),
         mdmService.getBusinessUnits(),
         mdmService.getLocations(),

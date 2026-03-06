@@ -216,9 +216,16 @@ class ProductViewSet(TenantScopedViewSet):
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_queryset(self):
-        return Product.objects.filter(
+        qs = Product.objects.filter(
             company_id=self.request.user.company_id, status="active"
-        ).order_by("-created_at")
+        )
+        
+        if self.request.query_params.get('hide_shopify') == 'true':
+            from apps.integrations.shopify_models import ShopifyProduct
+            shopify_product_ids = ShopifyProduct.objects.filter(erp_product__isnull=False).values_list('erp_product_id', flat=True)
+            qs = qs.exclude(id__in=shopify_product_ids).exclude(code__startswith='SHOP-').exclude(code__startswith='SP-')
+            
+        return qs.order_by("-created_at")
 
     def create(self, request, *args, **kwargs):
         print(f"[ProductViewSet] CREATE request data: {request.data}")
@@ -363,6 +370,11 @@ class SKUViewSet(TenantScopedViewSet):
         exclude_fabrics = self.request.query_params.get("exclude_fabrics")
         if exclude_fabrics and exclude_fabrics.lower() == 'true':
             queryset = queryset.exclude(product__code='RAW-FABRICS')
+
+        if self.request.query_params.get('hide_shopify') == 'true':
+            from apps.integrations.shopify_models import ShopifyProduct
+            shopify_sku_ids = ShopifyProduct.objects.filter(erp_sku__isnull=False).values_list('erp_sku_id', flat=True)
+            queryset = queryset.exclude(id__in=shopify_sku_ids).exclude(code__startswith='SHOP-').exclude(code__startswith='SP-')
 
         # Search by SKU code, SKU name, or product name
         search = self.request.query_params.get("search")

@@ -1007,10 +1007,24 @@ class ProductionKanbanViewSet(viewsets.ViewSet):
         from .models import ProductJourneyCheckpoint
 
         # Fetch SKUs in_production or newly active (ready/storage)
+        # We only want items that have at least one journey checkpoint (meaning they were approved or restocking)
+        # And we exclude auto-synced Shopify items that aren't actually in production
+        from django.db.models import Count, Q
         skus = SKU.objects.filter(
             company_id=request.user.company_id,
             lifecycle_status__in=[SKU.LIFECYCLE_IN_PRODUCTION, SKU.LIFECYCLE_ACTIVE],
             status='active'
+        ).annotate(
+            checkpoint_count=Count('journey_checkpoints')
+        ).filter(
+            # Must have at least one checkpoint (approval/restock)
+            # OR be explicitly in production status
+            Q(checkpoint_count__gt=0) | Q(lifecycle_status=SKU.LIFECYCLE_IN_PRODUCTION)
+        ).exclude(
+            # Still exclude synced shopify items from Kanban if they have no history (just synced stock)
+            Q(code__startswith='SHOP-') & Q(checkpoint_count=0)
+        ).exclude(
+            Q(code__startswith='SP-') & Q(checkpoint_count=0)
         ).prefetch_related(
             Prefetch(
                 'journey_checkpoints',

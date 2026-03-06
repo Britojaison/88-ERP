@@ -48,21 +48,25 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS('\nSync completed successfully!'))
 
     def remove_dummy_data(self):
-        """Remove dummy data safely."""
-        self.stdout.write('Removing dummy data...')
+        """Remove dummy data safely and clear old mappings."""
+        self.stdout.write('Cleaning up old mappings for re-sync...')
         
-        # Just clear inventory - keep products/SKUs to avoid FK issues
-        deleted = InventoryBalance.objects.all().delete()[0]
-        self.stdout.write(f'  - Deleted {deleted} inventory balances')
+        # Clear existing mappings so they re-sync to the correct company
+        updated = ShopifyProduct.objects.update(erp_product=None, erp_sku=None, sync_status='pending')
+        self.stdout.write(f'  - Reset {updated} Shopify product mappings')
+
+        # Just clear inventory for the Shopify location
+        deleted = InventoryBalance.objects.filter(location__code='SHOPIFY-WH').delete()[0]
+        self.stdout.write(f'  - Deleted {deleted} inventory balances for SHOPIFY-WH')
 
     def get_or_create_company(self):
-        """Get or create Shopify company."""
-        company, created = Company.objects.get_or_create(
-            code='SHOPIFY',
-            defaults={'name': 'Shopify Store', 'status': 'active'}
-        )
-        if created:
-            self.stdout.write(f'  - Created company: {company.name}')
+        """Get the main 88GB company."""
+        company = Company.objects.filter(code='88GB').first()
+        if not company:
+            company, created = Company.objects.get_or_create(
+                code='SHOPIFY',
+                defaults={'name': 'Shopify Store', 'status': 'active'}
+            )
         return company
 
     def get_or_create_business_unit(self, company):
@@ -123,133 +127,135 @@ class Command(BaseCommand):
         errors = 0
         processed = 0
 
-        # Process in batches
-        while True:
-            batch = list(ShopifyProduct.objects.filter(
-                erp_product__isnull=True
-            ).select_related('store')[:batch_size])
-            
-            if not batch:
-                break
+        from django.db.models.signals import post_save
+        from apps.mdm.signals import sync_sku_to_shopify_on_save
+        
+        # Disconnect signal to avoid background push tasks failing during mass sync
+        post_save.disconnect(sync_sku_to_shopify_on_save, sender=SKU)
+        
+        try:
+            # Process in batches
+            while True:
+                batch = list(ShopifyProduct.objects.filter(
+                    erp_product__isnull=True
+                ).select_related('store')[:batch_size])
+                
+                if not batch:
+                    break
 
-            for sp in batch:
-                try:
-                    with transaction.atomic():
-                        # Generate unique product code
-                        base_product_code = f'SHOP-{sp.shopify_product_id}'
-                        product_code = self.generate_unique_code(
-                            base_product_code, Product
+                for sp in batch:
+                    try:
+                        with transaction.atomic():
+                            # Generate unique product code
+                            base_product_code = f'SHOP-{sp.shopify_product_id}'
+                            product_code = self.generate_unique_code(
+                                base_product_code, Product
+                            )
+
+                            # Create product
+                            product, p_created = Product.objects.get_or_create(
+                                code=product_code,
+                                company=company,
+                                defaults={
+                                    'name': sp.shopify_title[:255],
+                                    'description': self.build_description(sp),
+                                    'status': 'active',
+                                }
+                            )
+                            if p_created:
+                                created_products += 1
+
+                            # Generate unique SKU code - use Shopify SKU directly
+                            if sp.shopify_sku:
+                                base_sku_code = sp.shopify_sku
+                            else:
+                                # Fallback: use product ID + variant ID if no SKU
+                                base_sku_code = f'SKU-{sp.shopify_product_id}'
+                                if sp.shopify_variant_id:
+                                    base_sku_code = f'{base_sku_code}-V{sp.shopify_variant_id}'
+
+                            sku_code = self.generate_unique_code(base_sku_code, SKU)
+
+                            # Create SKU
+                            sku, s_created = SKU.objects.get_or_create(
+                                code=sku_code,
+                                defaults={
+                                    'product': product,
+                                    'name': sp.shopify_title[:255],
+                                    'base_price': sp.shopify_price or Decimal('0.00'),
+                                    'cost_price': sp.shopify_price or Decimal('0.00'),
+                                    'company': company,
+                                    'status': 'active',
+                                    'lifecycle_status': 'active',
+                                }
+                            )
+                            if s_created:
+                                created_skus += 1
+
+                                # Create barcode if available
+                                if sp.shopify_barcode:
+                                    try:
+                                        barcode, b_created = SKUBarcode.objects.get_or_create(
+                                            barcode_value=sp.shopify_barcode[:255],
+                                            defaults={
+                                                'sku': sku,
+                                                'barcode_type': 'ean13',
+                                                'is_primary': True,
+                                                'label_title': sp.shopify_title[:255],
+                                                'company': company,
+                                                'status': 'active',
+                                            }
+                                        )
+                                        if b_created:
+                                            created_barcodes += 1
+                                    except Exception:
+                                        pass  # Skip if barcode already exists
+
+                            # Link to Shopify
+                            sp.erp_product = product
+                            sp.erp_sku = sku
+                            sp.sync_status = 'synced'
+                            sp.sync_error = ''
+                            sp.save()
+
+                            # Create/update inventory
+                            qty = sp.shopify_inventory_quantity or 0
+                            balance, b_created = InventoryBalance.objects.update_or_create(
+                                sku=sku,
+                                location=location,
+                                company=company,
+                                defaults={
+                                    'quantity_on_hand': qty,
+                                    'quantity_available': qty,
+                                    'quantity_reserved': 0,
+                                    'average_cost': sp.shopify_price or Decimal('0.00'),
+                                    'condition': 'new',
+                                    'status': 'active',
+                                }
+                            )
+                            if b_created:
+                                created_balances += 1
+
+                            processed += 1
+
+                    except Exception as e:
+                        errors += 1
+                        error_msg = str(e)[:200]
+                        self.stdout.write(
+                            self.style.ERROR(f'  X Error syncing {sp.shopify_product_id}: {error_msg}')
                         )
-
-                        # Create product
-                        product, p_created = Product.objects.get_or_create(
-                            code=product_code,
-                            company=company,
-                            defaults={
-                                'name': sp.shopify_title[:255],
-                                'description': self.build_description(sp),
-                                'status': 'active',
-                            }
-                        )
-                        if p_created:
-                            created_products += 1
-
-                        # Generate unique SKU code - use Shopify SKU directly
-                        if sp.shopify_sku:
-                            base_sku_code = sp.shopify_sku
-                        else:
-                            # Fallback: use product ID + variant ID if no SKU
-                            base_sku_code = f'SKU-{sp.shopify_product_id}'
-                            if sp.shopify_variant_id:
-                                base_sku_code = f'{base_sku_code}-V{sp.shopify_variant_id}'
-
-                        sku_code = self.generate_unique_code(base_sku_code, SKU)
-
-                        # Create SKU
-                        sku, s_created = SKU.objects.get_or_create(
-                            code=sku_code,
-                            defaults={
-                                'product': product,
-                                'name': sp.shopify_title[:255],
-                                'base_price': sp.shopify_price or Decimal('0.00'),
-                                'cost_price': sp.shopify_price or Decimal('0.00'),
-                                'company': company,
-                                'status': 'active',
-                            }
-                        )
-                        if s_created:
-                            created_skus += 1
-
-                            # Create barcode if available
-                            if sp.shopify_barcode:
-                                try:
-                                    barcode, b_created = SKUBarcode.objects.get_or_create(
-                                        barcode_value=sp.shopify_barcode[:255],
-                                        defaults={
-                                            'sku': sku,
-                                            'barcode_type': 'ean13',
-                                            'is_primary': True,
-                                            'label_title': sp.shopify_title[:255],
-                                            'company': company,
-                                            'status': 'active',
-                                        }
-                                    )
-                                    if b_created:
-                                        created_barcodes += 1
-                                except Exception:
-                                    pass  # Skip if barcode already exists
-
-                        # Link to Shopify
-                        sp.erp_product = product
-                        sp.erp_sku = sku
-                        sp.sync_status = 'synced'
-                        sp.sync_error = ''
+                        
+                        # Mark as error in Shopify product
+                        sp.sync_status = 'error'
+                        sp.sync_error = error_msg
                         sp.save()
 
-                        # Create/update inventory
-                        qty = sp.shopify_inventory_quantity or 0
-                        balance, b_created = InventoryBalance.objects.update_or_create(
-                            sku=sku,
-                            location=location,
-                            company=company,
-                            defaults={
-                                'quantity_on_hand': qty,
-                                'quantity_available': qty,
-                                'quantity_reserved': 0,
-                                'average_cost': sp.shopify_price or Decimal('0.00'),
-                                'condition': 'new',
-                                'status': 'active',
-                            }
-                        )
-                        if b_created:
-                            created_balances += 1
+                # Progress update
+                self.stdout.write(f'  Progress: {processed}/{total} ({(processed/total*100):.1f}%)')
 
-                        processed += 1
-
-                except Exception as e:
-                    errors += 1
-                    error_msg = str(e)[:200]
-                    self.stdout.write(
-                        self.style.ERROR(f'  X Error syncing {sp.shopify_product_id}: {error_msg}')
-                    )
-                    
-                    # Mark as error in Shopify product
-                    sp.sync_status = 'error'
-                    sp.sync_error = error_msg
-                    sp.save()
-
-            # Progress update
-            self.stdout.write(f'  Progress: {processed}/{total} ({(processed/total*100):.1f}%)')
-
-        # Final summary
-        self.stdout.write(self.style.SUCCESS(f'\nSync Summary:'))
-        self.stdout.write(f'  Products created: {created_products}')
-        self.stdout.write(f'  SKUs created: {created_skus}')
-        self.stdout.write(f'  Barcodes created: {created_barcodes}')
-        self.stdout.write(f'  Inventory balances created: {created_balances}')
-        self.stdout.write(f'  Total processed: {processed}')
-        if errors > 0:
-            self.stdout.write(self.style.WARNING(f'  Errors: {errors}'))
+        finally:
+            # Re-connect signal
+            post_save.connect(sync_sku_to_shopify_on_save, sender=SKU)
 
     def build_description(self, sp):
         """Build product description from Shopify data."""
