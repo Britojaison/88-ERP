@@ -171,6 +171,7 @@ class Command(BaseCommand):
                                 'base_price': shopify_product.shopify_price or Decimal('0.00'),
                                 'cost_price': shopify_product.shopify_price or Decimal('0.00'),
                                 'status': 'active',
+                                'lifecycle_status': 'active',
                             }
                         )
                         if created:
