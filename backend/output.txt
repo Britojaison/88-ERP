@@ -1,0 +1,22 @@
+
+--- Testing data1 ---
+Response status: 201
+
+--- Testing data2 ---
+Response status: 400
+Response data: {'error': {'code': 'GENERIC_ERROR', 'message': "{'barcode_value': ErrorDetail(string='A barcode with this value already exists.', code='invalid')}", 'details': {'barcode_value': ErrorDetail(string='A barcode with this value already exists.', code='invalid')}}}
+
+--- Testing data3 ---
+Traceback (most recent call last):
+  File "C:\Users\jeril\OneDrive\Desktop\88gb\erp\88-ERP\backend\test_barcode.py", line 35, in <module>
+    req = factory.post('/api/mdm/sku-barcodes/', data, format='json')
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\test\client.py", line 480, in post
+    post_data = self._encode_data(data, content_type)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\test\client.py", line 423, in _encode_data
+    return encode_multipart(BOUNDARY, data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\jeril\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\test\client.py", line 292, in encode_multipart
+    raise TypeError(
+TypeError: Cannot encode None for key 'barcode_value' as POST data. Did you mean to pass an empty string or omit the value?

@@ -289,10 +289,28 @@ export default function InventoryBarcodes() {
             <Grid container spacing={2}>
               <Grid item xs={12} md={6}>
                 <Autocomplete
-                  options={skuList}
+                  options={form.sku && !skuList.some(s => s.id === form.sku) ? [...skuList, {
+                    id: form.sku,
+                    code: form.display_code,
+                    name: form.label_title,
+                    size: form.size_label,
+                    base_price: form.selling_price,
+                    cost_price: form.mrp
+                  } as SKU] : skuList}
                   getOptionLabel={(option) => `${option.code} - ${option.name}${option.size ? ` (${option.size})` : ''}`}
-                  value={skuList.find(s => s.id === form.sku) || null}
-                  onInputChange={(_, value) => setSkuSearch(value)}
+                  value={form.sku ? {
+                    id: form.sku,
+                    code: form.display_code,
+                    name: form.label_title,
+                    size: form.size_label,
+                    base_price: form.selling_price,
+                    cost_price: form.mrp
+                  } as SKU : null}
+                  onInputChange={(_, value, reason) => {
+                    if (reason === 'input' || reason === 'clear') {
+                      setSkuSearch(value)
+                    }
+                  }}
                   onChange={(_event, newValue) => {
                     if (newValue) {
                       setForm((prev) => ({
