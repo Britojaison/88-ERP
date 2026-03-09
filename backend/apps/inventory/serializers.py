@@ -71,7 +71,6 @@ class InventoryMovementSerializer(serializers.ModelSerializer):
             "quantity",
             "unit_cost",
             "total_cost",
-            "document",
             "reference_number",
             "notes",
             "created_at",
