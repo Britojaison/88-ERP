@@ -7,6 +7,7 @@ export interface InventoryBalance {
   sku: string
   sku_code?: string
   sku_name?: string
+  product_name?: string
   location: string
   location_code?: string
   quantity_on_hand: string
