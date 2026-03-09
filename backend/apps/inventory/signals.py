@@ -10,30 +10,34 @@ logger = logging.getLogger(__name__)
 @receiver(post_save, sender=InventoryBalance)
 def sync_inventory_to_shopify_on_save(sender, instance, **kwargs):
     """
-    When InventoryBalance changes, push the new quantity_available to Shopify asynchronously.
+    When InventoryBalance changes, push the new quantity_available from SHOPIFY-WH to Shopify.
     """
     try:
         from apps.integrations.shopify_models import ShopifyStore
         
-        # Find all connected Shopify stores for this company
+        # 1. Only respond if the change happened at SHOPIFY-WH
+        if instance.location.code != 'SHOPIFY-WH':
+            return
+
+        # 2. Find connected Shopify stores for THIS company
         stores = ShopifyStore.objects.filter(company_id=instance.company_id, is_connected=True)
         if not stores.exists():
             return
 
         from django.db.models import Sum
         
-        # We calculate the total warehouse stock to push to Shopify.
-        # This calculation happens NOW, within the current transaction.
+        # 3. Calculate total stock for SHOPIFY-WH location(s) for THIS company
         warehouse_qty = InventoryBalance.objects.filter(
+            company_id=instance.company_id,
             sku=instance.sku,
-            location__location_type='warehouse',
+            location__code='SHOPIFY-WH',
             status='active'
         ).aggregate(total=Sum('quantity_available'))['total'] or 0
 
         qty = int(warehouse_qty)
         
         for store in stores:
-            logger.info(f"Scheduling background Shopify inventory sync for SKU: {instance.sku.code}")
+            logger.info(f"Syncing SHOPIFY-WH stock ({qty}) to Shopify for SKU: {instance.sku.code}")
             # Use on_commit to ensure the thread only starts after the DB transaction is successful.
             transaction.on_commit(
                 lambda s=store, i=instance.sku.id, q=qty: threading.Thread(
@@ -49,18 +53,12 @@ def push_inventory(store, sku_id, quantity):
     import logging
     logger = logging.getLogger(__name__)
     try:
-        ShopifyService.push_inventory_to_shopify(store, sku_id, quantity)
-        logger.info(f"Successfully pushed inventory to Shopify for SKU ID {sku_id}.")
+        # PUSH ONLY — never create new products from the background signal
+        # This prevents the creation of duplicates reported by the user.
+        result = ShopifyService.push_inventory_to_shopify(store, sku_id, quantity)
+        logger.info(f"Shopify Sync Success: SKU ID {sku_id} set to {quantity}. Result: {result}")
     except ValueError as e:
-        if "not mapped to a Shopify product" in str(e):
-            logger.info(f"SKU {sku_id} not mapped to Shopify. Pushing SKU first...")
-            try:
-                ShopifyService.push_sku_to_shopify(store, sku_id)
-                ShopifyService.push_inventory_to_shopify(store, sku_id, quantity)
-                logger.info(f"Successfully pushed SKU and inventory to Shopify for SKU ID {sku_id}.")
-            except Exception as inner_e:
-                logger.error(f"Failed to push SKU and inventory: {inner_e}")
-        else:
-            logger.error(f"ValueError while pushing inventory to Shopify: {e}")
+        # Log mapping issues but do NOT call push_sku_to_shopify
+        logger.warning(f"Shopify Sync Skipped: SKU ID {sku_id} is not mapped correctly: {e}")
     except Exception as e:
-        logger.error(f"Background thread failed to push inventory to Shopify: {e}")
+        logger.error(f"Shopify Sync Failed: {e}")

@@ -220,6 +220,7 @@ export const mdmService = {
         size: string
         base_price: string
         warehouse_stock: number
+        is_offer_eligible: boolean
       }>
     }
   },

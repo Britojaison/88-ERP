@@ -308,10 +308,11 @@ class SalesTransactionViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'], url_path='pos-checkout')
     def pos_checkout(self, request):
-        """Process a POS checkout with discounts, customer data, and inventory deduction."""
+        """Process a POS checkout with discounts, customer data, and inventory deduction.
+        Deducts from SHOPIFY-WH warehouse (not store) and syncs to Shopify."""
         from django.db import transaction
         from apps.mdm.models import SKU, Location, Customer
-        from apps.inventory.models import InventoryBalance
+        from apps.inventory.models import InventoryBalance, InventoryMovement
         from django.utils import timezone
         from decimal import Decimal, ROUND_HALF_UP
         import uuid
@@ -373,6 +374,14 @@ class SalesTransactionViewSet(viewsets.ModelViewSet):
                 # 2. Process Items with Mix & Match Offers
                 line_data = []
                 offer_buckets = {'b1g1': [], 'b2g1': [], 'b3g1': []}
+
+                # ── Resolve SHOPIFY-WH warehouse once ──
+                shopify_wh = Location.objects.filter(
+                    company_id=request.user.company_id,
+                    code='SHOPIFY-WH'
+                ).first()
+                if not shopify_wh:
+                    raise Exception("Shopify Warehouse (SHOPIFY-WH) location not found. Please set it up first.")
                 
                 # Fetch all SKUs and build initial line measurements
                 for idx, item in enumerate(items):
@@ -410,17 +419,38 @@ class SalesTransactionViewSet(viewsets.ModelViewSet):
                     total_line_discount = entry['offer_discount'] + entry['manual_discount']
                     line_total = entry['gross_total'] - total_line_discount
 
-                    # Deduct inventory
-                    inv_balance, _ = InventoryBalance.objects.get_or_create(
+                    # ── Deduct inventory from SHOPIFY-WH warehouse (not store) ──
+                    wh_balance, _ = InventoryBalance.objects.get_or_create(
                         company_id=request.user.company_id,
                         sku=sku,
-                        location=store,
+                        location=shopify_wh,
                         condition=InventoryBalance.CONDITION_NEW,
                         defaults={'quantity_on_hand': 0, 'quantity_reserved': 0, 'quantity_available': 0}
                     )
-                    inv_balance.quantity_on_hand -= quantity
-                    inv_balance.quantity_available = inv_balance.quantity_on_hand - inv_balance.quantity_reserved
-                    inv_balance.save()
+
+                    if wh_balance.quantity_available < quantity:
+                        raise Exception(
+                            f"Insufficient warehouse stock for {sku.code}. "
+                            f"Available: {int(wh_balance.quantity_available)}, Requested: {quantity}"
+                        )
+
+                    wh_balance.quantity_on_hand -= quantity
+                    wh_balance.quantity_available = wh_balance.quantity_on_hand - wh_balance.quantity_reserved
+                    wh_balance.save()
+
+                    # Create transfer movement for audit trail (WH → Store)
+                    InventoryMovement.objects.create(
+                        sku=sku,
+                        movement_type=InventoryMovement.MOVEMENT_TYPE_TRANSFER,
+                        movement_date=timezone.now(),
+                        from_location=shopify_wh,
+                        to_location=store,
+                        quantity=quantity,
+                        unit_cost=sku.cost_price or 0,
+                        total_cost=(sku.cost_price or 0) * quantity,
+                        reference_number=receipt_num,
+                        notes=f"Auto-transfer for POS sale {receipt_num}",
+                    )
 
                     SalesTransactionLine.objects.create(
                         transaction=txn,
@@ -453,11 +483,13 @@ class SalesTransactionViewSet(viewsets.ModelViewSet):
                 txn.item_count = item_count
                 txn.save()
 
+
             data = self.get_serializer(txn).data
             data['receipt_number'] = receipt_num
             return Response(data, status=status.HTTP_201_CREATED)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 
@@ -539,14 +571,19 @@ class ReturnTransactionViewSet(viewsets.ModelViewSet):
 
                     total_refund += line.line_total
 
-                    # Update Inventory Balance based on condition
-                    # Sellable items go back to 'new' condition, damaged items go to 'damaged'
+                    # ── Return stock to SHOPIFY-WH warehouse (not store) ──
                     inv_condition = InventoryBalance.CONDITION_DAMAGED if condition == 'damaged' else InventoryBalance.CONDITION_NEW
-                    
+
+                    shopify_wh = Location.objects.filter(
+                        company_id=request.user.company_id,
+                        code='SHOPIFY-WH'
+                    ).first()
+                    return_location = shopify_wh if shopify_wh else store
+
                     inv_balance, _ = InventoryBalance.objects.get_or_create(
                         company_id=request.user.company_id,
                         sku=line.sku,
-                        location=store,
+                        location=return_location,
                         condition=inv_condition,
                         defaults={'quantity_on_hand': 0, 'quantity_reserved': 0, 'quantity_available': 0}
                     )
@@ -554,14 +591,21 @@ class ReturnTransactionViewSet(viewsets.ModelViewSet):
                     inv_balance.quantity_available = inv_balance.quantity_on_hand - inv_balance.quantity_reserved
                     inv_balance.save()
 
+                    # Track the returned SKU for Shopify sync
+                    if not hasattr(self, '_return_line_data'):
+                        self._return_line_data = []
+                    self._return_line_data.append({'sku': line.sku, 'quantity': line.quantity})
+
                 ret_tx.refund_amount = total_refund
                 ret_tx.save()
 
-                return Response({
-                    'message': 'Return processed successfully',
-                    'return_number': return_number,
-                    'refund_amount': total_refund
-                }, status=status.HTTP_201_CREATED)
+
+
+            return Response({
+                'message': 'Return processed successfully',
+                'return_number': return_number,
+                'refund_amount': total_refund
+            }, status=status.HTTP_201_CREATED)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 

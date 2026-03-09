@@ -416,13 +416,21 @@ class SKUViewSet(TenantScopedViewSet):
         skus_page = queryset.order_by('product__name', 'name')[(page - 1) * page_size:page * page_size]
         sku_ids = [s.id for s in skus_page]
 
-        # Bulk fetch inventory for these SKUs
-        stock_qs = InventoryBalance.objects.filter(
-            sku_id__in=sku_ids,
-            company_id=request.user.company_id,
-            status='active',
-        ).values('sku_id').annotate(total_stock=Sum('quantity_on_hand'))
-        stock_map = {str(s['sku_id']): float(s['total_stock'] or 0) for s in stock_qs}
+        # Bulk fetch inventory for these SKUs at SHOPIFY-WH
+        from apps.mdm.models import Location
+        try:
+            wh = Location.objects.get(code='SHOPIFY-WH', company_id=request.user.company_id)
+            stock_qs = InventoryBalance.objects.filter(
+                sku_id__in=sku_ids,
+                location=wh,
+                company_id=request.user.company_id,
+                status='active',
+            )
+            stock_map = {str(s.sku_id): float(s.quantity_available or 0) for s in stock_qs}
+            offer_map = {str(s.sku_id): s.is_offer_eligible for s in stock_qs}
+        except Location.DoesNotExist:
+            stock_map = {}
+            offer_map = {}
 
         results = []
         for s in skus_page:
@@ -434,6 +442,7 @@ class SKUViewSet(TenantScopedViewSet):
                 'size': s.size or '',
                 'base_price': str(s.base_price),
                 'warehouse_stock': stock_map.get(str(s.id), 0),
+                'is_offer_eligible': offer_map.get(str(s.id), False),
             })
 
         from rest_framework.response import Response

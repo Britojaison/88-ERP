@@ -68,23 +68,50 @@ class ShopifyAPIClient:
         return response
     
     def get_all_products(self) -> List[Dict]:
-        """Get ALL products from Shopify using pagination."""
+        """Get ALL products from Shopify using cursor-based pagination (Link header)."""
+        import re
         all_products = []
         params = {'limit': 250, 'status': 'active,archived,draft'}
         
+        url = f"{self.base_url}/products.json"
+        current_params = params
+        
         while True:
-            response = self._make_request('GET', 'products.json', params=params)
-            products = response.get('products', [])
+            response = requests.get(url, headers=self.headers, params=current_params, timeout=30)
+            
+            if response.status_code == 429:
+                retry_after = float(response.headers.get('Retry-After', '2.0'))
+                time.sleep(retry_after)
+                continue
+                
+            response.raise_for_status()
+            data = response.json()
+            products = data.get('products', [])
             all_products.extend(products)
             
-            if len(products) < 250:
+            # Check for next page in Link header
+            link_header = response.headers.get('Link', '')
+            if not link_header or 'rel="next"' not in link_header:
+                break
+                
+            # Extract page_info from the next link
+            next_match = re.search(r'<([^>]+)>;\s*rel="next"', link_header)
+            if not next_match:
                 break
             
-            # Use since_id pagination
-            last_id = products[-1]['id']
-            params = {'limit': 250, 'since_id': last_id, 'status': 'active,archived,draft'}
-            time.sleep(0.5)  # Be gentle with rate limits
-        
+            next_url = next_match.group(1)
+            from urllib.parse import urlparse, parse_qs
+            parsed = urlparse(next_url)
+            qs = parse_qs(parsed.query)
+            page_info = qs.get('page_info', [None])[0]
+            
+            if not page_info:
+                break
+                
+            # For next calls, only page_info and limit are allowed
+            current_params = {'page_info': page_info, 'limit': 250}
+            time.sleep(0.5)
+
         return all_products
     
     def get_product(self, product_id: int) -> Dict:
@@ -368,8 +395,13 @@ class ShopifyService:
             total_variants = sum(len(p.get('variants', [])) for p in products)
             job.total_items = total_variants
             job.save(update_fields=['total_items'])
-            
             for i, shopify_product in enumerate(products):
+                # Check for cancellation before processing each product
+                if job.is_cancelled():
+                    logger.info(f"Product sync job {job.id} was cancelled.")
+                    # Stop processing and exit - DO NOT call job.save() because it might overwrite the 'cancelled' status
+                    return
+
                 try:
                     ShopifyService._process_product(store, shopify_product, job)
                 except Exception as e:
@@ -480,8 +512,69 @@ class ShopifyService:
             shopify_product.save()
             
             job.processed_items += 1
-            job.save(update_fields=['processed_items', 'created_items', 'updated_items', 'failed_items'])
+            # Move save to parent loop or frequent intervals to avoid too many DB writes
+            # job.save(update_fields=['processed_items', 'created_items', 'updated_items', 'failed_items'])
     
+    @staticmethod
+    def create_erp_sku_from_shopify(shopify_product: ShopifyProduct) -> SKU:
+        """Create a new ERP SKU and Product from Shopify data."""
+        from apps.mdm.models import Product, SKU, SKUBarcode
+        
+        with transaction.atomic():
+            # 1. Get or create the ERP Product
+            # We use shopify_product_id as a hint in description or we could add a field to Product if needed.
+            # But for now, let's just use the title.
+            erp_product, created = Product.objects.get_or_create(
+                company_id=shopify_product.store.company_id,
+                name=shopify_product.shopify_title,
+                defaults={
+                    'code': f"SHP-{shopify_product.shopify_product_id}",
+                    'description': f"Imported from Shopify (ID: {shopify_product.shopify_product_id})",
+                    'status': 'active'
+                }
+            )
+            
+            # 2. Create the SKU
+            sku_code = shopify_product.shopify_sku or f"SHP-VAR-{shopify_product.shopify_variant_id}"
+            
+            # Ensure SKU code is unique for this company
+            if SKU.objects.filter(company_id=shopify_product.store.company_id, code=sku_code).exists():
+                # If SKU exists but isn't mapped, we'll just link it instead of creating
+                sku = SKU.objects.get(company_id=shopify_product.store.company_id, code=sku_code)
+            else:
+                sku = SKU.objects.create(
+                    company_id=shopify_product.store.company_id,
+                    product=erp_product,
+                    code=sku_code,
+                    name=shopify_product.shopify_title,
+                    base_price=shopify_product.shopify_price or 0,
+                    cost_price=0,  # Default cost to 0 for imported items
+                    status='active',
+                    lifecycle_status='active'
+                )
+            
+            # 3. Create barcode if available
+            if shopify_product.shopify_barcode:
+                SKUBarcode.objects.get_or_create(
+                    company_id=shopify_product.store.company_id,
+                    sku=sku,
+                    barcode_value=shopify_product.shopify_barcode,
+                    defaults={
+                        'barcode_type': 'code128',
+                        'is_primary': True,
+                        'status': 'active'
+                    }
+                )
+            
+            # 4. Update the mapping
+            shopify_product.erp_sku = sku
+            shopify_product.erp_product = erp_product
+            shopify_product.sync_status = 'synced'
+            shopify_product.sync_error = ''
+            shopify_product.save()
+            
+            return sku
+
     @staticmethod
     def sync_inventory(store: ShopifyStore) -> ShopifySyncJob:
         """Sync inventory levels from Shopify (creates its own job)."""
@@ -516,6 +609,12 @@ class ShopifyService:
                 job.save(update_fields=['total_items'])
                 
                 for level in inventory_levels:
+                    # Check for cancellation
+                    if job.is_cancelled():
+                        logger.info(f"Inventory sync job {job.id} was cancelled.")
+                        # Stop processing and exit - DO NOT call job.save() because it might overwrite the 'cancelled' status
+                        return
+
                     try:
                         ShopifyService._process_inventory_level(
                             store, location_id, location_name, level, job

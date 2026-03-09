@@ -55,6 +55,7 @@ export default function POSCheckout() {
 
     const [skus, setSkus] = useState<SKU[]>([])
     const [storeBalances, setStoreBalances] = useState<InventoryBalance[]>([])
+    const [warehouseLocationId, setWarehouseLocationId] = useState<string>('')
     const [searchQuery, setSearchQuery] = useState('')
     const [loading, setLoading] = useState(false)
     const [stockFilter, setStockFilter] = useState<'all' | 'in_stock' | 'out_of_stock'>('all')
@@ -111,30 +112,109 @@ export default function POSCheckout() {
     useEffect(() => {
         fetchStores()
         fetchSKUs()
+        fetchWarehouseLocation()
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
+    // Fetch warehouse (SHOPIFY-WH) inventory — the source of truth for POS
     const fetchBalances = async () => {
-        if (!selectedStore) return
+        if (!warehouseLocationId) return
         try {
-            const data = await inventoryService.getBalances({ location: selectedStore, page_size: 1000 })
+            const data = await inventoryService.getBalances({ location: warehouseLocationId, page_size: 1000 })
             const list = Array.isArray(data) ? data : (data as any).results || []
             setStoreBalances(list)
         } catch (err) {
-            console.error('Failed to load store balances', err)
+            console.error('Failed to load warehouse balances', err)
+        }
+    }
+
+    // Find the SHOPIFY-WH warehouse location on mount
+    const fetchWarehouseLocation = async () => {
+        try {
+            const data = await mdmService.getLocations()
+            const wh = data.find(loc => (loc.code === 'SHOPIFY-WH' || loc.name.includes('Shopify Warehouse')))
+            if (wh) setWarehouseLocationId(wh.id)
+            else {
+                // Try to find any warehouse if SHOPIFY-WH is missing
+                const anyWh = data.find(loc => loc.location_type === 'warehouse')
+                if (anyWh) setWarehouseLocationId(anyWh.id)
+            }
+        } catch (err) {
+            console.error('Failed to find warehouse location', err)
         }
     }
 
     useEffect(() => {
         if (selectedStore) {
-            fetchBalances()
             fetchTransactions()
         } else {
-            setStoreBalances([])
             setRecentTransactions([])
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedStore])
+
+    // Refetch warehouse balances when warehouse location is resolved
+    useEffect(() => {
+        if (warehouseLocationId) {
+            fetchBalances()
+        } else {
+            setStoreBalances([])
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [warehouseLocationId])
+
+    const fetchSearchSKUs = async (query: string) => {
+        setLoading(true)
+        try {
+            const data = await mdmService.searchSKUsWithStock({ search: query, page_size: 50 })
+            const results = data.results || []
+            // Map results back to SKU interface for compatibility
+            const mappedSKUs = results.map(r => ({
+                id: r.id,
+                code: r.code,
+                name: r.name,
+                product_name: r.product_name,
+                size: r.size,
+                base_price: r.base_price,
+                // These will be used directly from SKU object now
+                warehouse_stock: r.warehouse_stock,
+                is_offer_eligible: r.is_offer_eligible
+            } as any))
+            setSkus(mappedSKUs)
+
+            // Sync storeBalances for these results so addToCart works
+            const newBalances: InventoryBalance[] = results.map(r => ({
+                id: `tmp-${r.id}`,
+                sku: r.id,
+                sku_code: r.code,
+                quantity_available: r.warehouse_stock.toString(),
+                quantity_on_hand: r.warehouse_stock.toString(),
+                is_offer_eligible: r.is_offer_eligible,
+                condition: 'new'
+            } as any))
+
+            setStoreBalances(prev => {
+                const filtered = prev.filter(p => !results.find(r => r.id === p.sku))
+                return [...filtered, ...newBalances]
+            })
+        } catch (err) {
+            console.error('Failed to search SKUs', err)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (searchQuery.trim().length >= 2) {
+                fetchSearchSKUs(searchQuery)
+            } else if (searchQuery.trim().length === 0) {
+                fetchSKUs()
+            }
+        }, 500)
+        return () => clearTimeout(timer)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [searchQuery])
 
     const fetchStores = async () => {
         try {
@@ -151,7 +231,7 @@ export default function POSCheckout() {
     const fetchSKUs = async () => {
         setLoading(true)
         try {
-            const data = await mdmService.getSKUs({ exclude_fabrics: true, page_size: 1000 })
+            const data = await mdmService.getSKUs({ exclude_fabrics: true, page_size: 50 })
             // Unwrap pagination if applicable
             const skuList = Array.isArray(data) ? data : (data as any).results || []
             setSkus(skuList)
@@ -163,12 +243,6 @@ export default function POSCheckout() {
     }
 
     const filteredSKUs = skus.filter(s => {
-        const matchesSearch = !s.code.startsWith('FAB-') && (
-            s.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            s.name.toLowerCase().includes(searchQuery.toLowerCase())
-        )
-        if (!matchesSearch) return false
-
         if (stockFilter !== 'all') {
             const balance = storeBalances.find(b => b.sku === s.id)
             const available = balance ? parseFloat(balance.quantity_available.toString()) : 0
@@ -177,9 +251,8 @@ export default function POSCheckout() {
             if (stockFilter === 'in_stock' && netAvailable <= 0) return false
             if (stockFilter === 'out_of_stock' && netAvailable > 0) return false
         }
-
         return true
-    }).slice(0, 50) // Limit display
+    }).slice(0, 50)
 
     const addToCart = (sku: SKU) => {
         const balance = storeBalances.find(b => b.sku === sku.id)
@@ -188,7 +261,7 @@ export default function POSCheckout() {
         const currentCartQty = existing ? existing.quantity : 0
 
         if (currentCartQty >= available) {
-            setFeedback({ type: 'error', msg: `Stockout! Cannot add more ${sku.code}. Only ${available} units available.` })
+            setFeedback({ type: 'error', msg: `Stockout! Cannot add more ${sku.code}. Only ${available} units in warehouse.` })
             return
         }
 
@@ -352,7 +425,7 @@ export default function POSCheckout() {
         <Box>
             <PageHeader
                 title="Store POS Terminal"
-                subtitle="Quickly ring up customers, log sales, and deduct store inventory automatically."
+                subtitle="Ring up customers using centralized warehouse inventory. Stock is deducted from the Shopify Warehouse and synced online automatically."
             />
 
             {feedback && !lastSale && (
@@ -744,7 +817,7 @@ export default function POSCheckout() {
                                                                     fontWeight: 'bold'
                                                                 }}
                                                             >
-                                                                {available} left
+                                                                WH: {available}
                                                             </Typography>
                                                         )
                                                     })()}

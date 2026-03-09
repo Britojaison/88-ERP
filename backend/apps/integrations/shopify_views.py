@@ -11,6 +11,7 @@ from rest_framework.views import APIView
 from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
+from django.utils import timezone
 from django.conf import settings
 from .shopify_models import (
     ShopifyStore, ShopifyProduct, ShopifyInventoryLevel,
@@ -140,7 +141,8 @@ class ShopifyOrderSerializer(serializers.ModelSerializer):
         ]
 
     def get_erp_document_number(self, obj):
-        return obj.erp_document.document_number if obj.erp_document else None
+        # ERP mapping removed from model
+        return None
 
     def get_line_items(self, obj):
         """Extract line items from stored Shopify order JSON."""
@@ -192,7 +194,8 @@ class ShopifyDraftOrderSerializer(serializers.ModelSerializer):
         ]
 
     def get_erp_document_number(self, obj):
-        return obj.erp_document.document_number if obj.erp_document else None
+        # ERP mapping removed from model
+        return None
 
     def get_line_items(self, obj):
         raw_items = obj.shopify_data.get('line_items', []) if obj.shopify_data else []
@@ -424,6 +427,14 @@ class ShopifyStoreViewSet(viewsets.ModelViewSet):
         """Trigger product sync in background."""
         store = self.get_object()
         
+        # Check for existing running job (SINGLETON)
+        existing_job = ShopifySyncJob.objects.filter(store=store, job_status='running').first()
+        if existing_job:
+            return Response({
+                'error': f'A sync job ({existing_job.job_type}) is already running for this store.',
+                'job_id': str(existing_job.id)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         # Create job immediately so we can return the ID
         job = ShopifySyncJob.objects.create(
             store=store,
@@ -439,20 +450,84 @@ class ShopifyStoreViewSet(viewsets.ModelViewSet):
                 ShopifyService._do_product_sync(store, job)
             except Exception as e:
                 logger.error(f"Background product sync failed: {e}")
-        
-        thread = threading.Thread(target=_run_sync, daemon=True)
-        thread.start()
+                job.job_status = 'failed'
+                job.error_log = str(e)
+                job.save()
+
+        threading.Thread(target=_run_sync, daemon=True).start()
         
         return Response({
             'job_id': str(job.id),
             'status': 'running',
-            'message': f'Product sync started in background (job {job.id})'
+            'message': 'Product sync started in background'
+        }, status=status.HTTP_202_ACCEPTED)
+
+    @action(detail=True, methods=['post'])
+    def bulk_create_missing_erp_skus(self, request, pk=None):
+        """Auto-create ERP Products/SKUs for all pending Shopify items."""
+        store = self.get_object()
+        
+        pending_count = ShopifyProduct.objects.filter(store=store, sync_status='pending').count()
+        if pending_count == 0:
+            return Response({'message': 'No pending products to create.'})
+
+        # Create a job to track progress
+        job = ShopifySyncJob.objects.create(
+            store=store,
+            job_type='bulk_create_erp',
+            job_status='running',
+            total_items=pending_count
+        )
+
+        def _run_bulk_create():
+            try:
+                import django
+                django.db.connections.close_all()
+                
+                pending_products = ShopifyProduct.objects.filter(store=store, sync_status='pending')
+                for p in pending_products:
+                    if job.job_status == 'cancelled':
+                        break
+                    try:
+                        ShopifyService.create_erp_sku_from_shopify(p)
+                        job.processed_items += 1
+                        job.updated_items += 1
+                    except Exception as e:
+                        job.failed_items += 1
+                        job.error_log += f"\nError creating {p.shopify_sku}: {str(e)}"
+                    
+                    if job.processed_items % 20 == 0:
+                        job.save(update_fields=['processed_items', 'updated_items', 'failed_items', 'error_log'])
+                
+                job.job_status = 'completed' if job.job_status != 'cancelled' else 'cancelled'
+                job.completed_at = timezone.now()
+                job.save()
+            except Exception as e:
+                job.job_status = 'failed'
+                job.error_log = f"Critical bulk creation error: {str(e)}"
+                job.save()
+
+        threading.Thread(target=_run_bulk_create, daemon=True).start()
+
+        return Response({
+            'job_id': str(job.id),
+            'message': f'Started bulk creation for {pending_count} products.',
+            'status': 'running'
         })
     
     @action(detail=True, methods=['post'])
     def sync_inventory(self, request, pk=None):
         """Trigger inventory sync in background."""
         store = self.get_object()
+
+        # SINGLETON check
+        existing_job = ShopifySyncJob.objects.filter(store=store, job_status='running').first()
+        if existing_job:
+            return Response({
+                'error': f'A sync job ({existing_job.job_type}) is already running for this store.',
+                'job_id': str(existing_job.id)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         job = ShopifySyncJob.objects.create(store=store, job_type='inventory', job_status='running')
         threading.Thread(target=lambda: ShopifyService._do_inventory_sync(store, job), daemon=True).start()
         return Response({'job_id': str(job.id), 'status': 'running'})
@@ -464,6 +539,14 @@ class ShopifyStoreViewSet(viewsets.ModelViewSet):
         This is the single "Sync Now" action — all reports read from DB automatically.
         """
         store = self.get_object()
+
+        # SINGLETON check
+        existing_job = ShopifySyncJob.objects.filter(store=store, job_status='running').first()
+        if existing_job:
+            return Response({
+                'error': f'A sync job ({existing_job.job_type}) is already running for this store.',
+                'job_id': str(existing_job.id)
+            }, status=status.HTTP_400_BAD_REQUEST)
 
         def _run_full_sync():
             try:
@@ -488,6 +571,15 @@ class ShopifyStoreViewSet(viewsets.ModelViewSet):
     def sync_orders(self, request, pk=None):
         """Trigger order sync in background."""
         store = self.get_object()
+
+        # SINGLETON check
+        existing_job = ShopifySyncJob.objects.filter(store=store, job_status='running').first()
+        if existing_job:
+            return Response({
+                'error': f'A sync job ({existing_job.job_type}) is already running for this store.',
+                'job_id': str(existing_job.id)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         job = ShopifySyncJob.objects.create(store=store, job_type='orders', job_status='running')
         threading.Thread(target=lambda: ShopifyService.sync_orders(store), daemon=True).start()
         return Response({'job_id': str(job.id), 'status': 'running'})
@@ -496,6 +588,15 @@ class ShopifyStoreViewSet(viewsets.ModelViewSet):
     def sync_draft_orders(self, request, pk=None):
         """Sync draft orders."""
         store = self.get_object()
+
+        # SINGLETON check
+        existing_job = ShopifySyncJob.objects.filter(store=store, job_status='running').first()
+        if existing_job:
+            return Response({
+                'error': f'A sync job ({existing_job.job_type}) is already running for this store.',
+                'job_id': str(existing_job.id)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         job = ShopifySyncJob.objects.create(store=store, job_type='draft_orders', job_status='running')
         threading.Thread(target=lambda: ShopifyService.sync_draft_orders(store), daemon=True).start()
         return Response({'job_id': str(job.id), 'status': 'running'})
@@ -504,6 +605,15 @@ class ShopifyStoreViewSet(viewsets.ModelViewSet):
     def sync_discounts(self, request, pk=None):
         """Sync price rules and discounts."""
         store = self.get_object()
+
+        # SINGLETON check
+        existing_job = ShopifySyncJob.objects.filter(store=store, job_status='running').first()
+        if existing_job:
+            return Response({
+                'error': f'A sync job ({existing_job.job_type}) is already running for this store.',
+                'job_id': str(existing_job.id)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         job = ShopifySyncJob.objects.create(store=store, job_type='discounts', job_status='running')
         threading.Thread(target=lambda: ShopifyService.sync_discounts(store), daemon=True).start()
         return Response({'job_id': str(job.id), 'status': 'running'})
@@ -845,6 +955,21 @@ class ShopifyProductViewSet(viewsets.ReadOnlyModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+    @action(detail=True, methods=['post'])
+    def create_erp_sku(self, request, pk=None):
+        """Create a new ERP SKU from this Shopify product."""
+        shopify_product = self.get_object()
+        try:
+            from .shopify_service import ShopifyService
+            sku = ShopifyService.create_erp_sku_from_shopify(shopify_product)
+            return Response({
+                'success': True,
+                'sku_id': str(sku.id),
+                'message': f"Created ERP SKU: {sku.code}"
+            })
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
 
 class ShopifySyncJobViewSet(viewsets.ReadOnlyModelViewSet):
     """
@@ -862,6 +987,23 @@ class ShopifySyncJobViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.filter(store_id=store_id)
         
         return queryset.order_by('-started_at')
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        """Mark a job as cancelled so background loop stops."""
+        job = self.get_object()
+        if job.job_status != 'running':
+            return Response({
+                'error': f'Job is already in {job.job_status} state and cannot be cancelled.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        job.job_status = 'cancelled'
+        job.save()
+        
+        return Response({
+            'success': True,
+            'message': 'Sync job marked for cancellation. It will stop after the current item finishes.'
+        })
 
 
 @method_decorator(csrf_exempt, name='dispatch')

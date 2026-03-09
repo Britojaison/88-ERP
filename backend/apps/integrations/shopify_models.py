@@ -284,6 +284,7 @@ class ShopifySyncJob(BaseModel):
             ('discounts', 'Discounts'),
             ('gift_cards', 'Gift Cards'),
             ('full_sync', 'Full Sync'),
+            ('bulk_create_erp', 'Bulk Create ERP'),
         ]
     )
     
@@ -294,12 +295,21 @@ class ShopifySyncJob(BaseModel):
             ('running', 'Running'),
             ('completed', 'Completed'),
             ('failed', 'Failed'),
+            ('cancelled', 'Cancelled'),
         ],
         default='running'
     )
     
     started_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)
+
+    def is_cancelled(self):
+        """Refetch from DB to see if status was changed to cancelled."""
+        if not self.id:
+            return False
+        # We use .only() for efficiency as we only need the status
+        status = ShopifySyncJob.objects.filter(id=self.id).values_list('job_status', flat=True).first()
+        return status == 'cancelled'
     
     # Statistics
     total_items = models.IntegerField(default=0)

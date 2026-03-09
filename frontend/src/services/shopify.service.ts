@@ -286,4 +286,22 @@ export const shopifyService = {
     const response = await api.post(`/integrations/shopify/stores/${storeId}/sync-now/`)
     return response.data
   },
+
+  /** Cancel a running sync job. */
+  cancelSyncJob: async (jobId: string): Promise<{ success: boolean; message: string }> => {
+    const response = await api.post(`/integrations/shopify/sync-jobs/${jobId}/cancel/`)
+    return response.data
+  },
+
+  /** Create an ERP SKU from a Shopify product Mapping. */
+  createERPSKU: async (id: string): Promise<{ success: boolean; message: string; sku_id?: string }> => {
+    const response = await api.post(`/integrations/shopify/products/${id}/create_erp_sku/`)
+    return response.data
+  },
+
+  /** Bulk create ERP SKUs for all pending items in a store. */
+  bulkCreateERPItems: async (storeId: string): Promise<{ job_id: string; message: string; status: string }> => {
+    const response = await api.post(`/integrations/shopify/stores/${storeId}/bulk_create_missing_erp_skus/`)
+    return response.data
+  },
 }

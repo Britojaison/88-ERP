@@ -51,6 +51,7 @@ import {
   LocalOffer,
   MonetizationOn,
   Assessment,
+  AddCircleOutline
 } from '@mui/icons-material'
 import { shopifyService, ShopifyStore, ShopifyProduct, ShopifySyncJob, ShopifyDraftOrder, ShopifyDiscount, ProductDemandResponse } from '../services/shopify.service'
 import PageHeader from '../components/ui/PageHeader'
@@ -281,12 +282,14 @@ export default function ShopifyIntegration() {
     try {
       const res = await shopifyService.syncNow(selectedStore.id)
       setSnackbar({ open: true, message: res.message || 'Sync started in background!', severity: 'success' })
+      // Refresh sync jobs list so they can see the new job
+      loadSyncJobPage(1)
       // Reload demand data after a short delay to show updated results
       setTimeout(() => {
         if (selectedStore) loadDemandData(selectedStore.id)
       }, 5000)
-    } catch (e) {
-      setSnackbar({ open: true, message: 'Failed to start sync. Please try again.', severity: 'error' })
+    } catch (e: any) {
+      setSnackbar({ open: true, message: e.response?.data?.error || 'Failed to start sync. Please try again.', severity: 'error' })
     } finally {
       setSyncingNow(false)
     }
@@ -426,7 +429,48 @@ export default function ShopifyIntegration() {
     } catch (error: any) {
       setSnackbar({
         open: true,
-        message: 'Failed to start product sync',
+        message: error.response?.data?.error || 'Failed to start product sync',
+        severity: 'error'
+      })
+    }
+  }
+
+  const handleBulkCreateERP = async () => {
+    if (!selectedStore) return
+    try {
+      setSyncingNow(true)
+      const res = await shopifyService.bulkCreateERPItems(selectedStore.id)
+      setSnackbar({
+        open: true,
+        message: res.message,
+        severity: 'info'
+      })
+      // Refresh sync jobs list
+      setTimeout(() => loadStoreData(selectedStore.id), 2000)
+    } catch (err: any) {
+      setSnackbar({
+        open: true,
+        message: err.response?.data?.error || 'Failed to start bulk creation',
+        severity: 'error'
+      })
+    } finally {
+      setSyncingNow(false)
+    }
+  }
+
+  const handleCreateERPSKU = async (mappingId: string) => {
+    try {
+      const res = await shopifyService.createERPSKU(mappingId)
+      setSnackbar({
+        open: true,
+        message: res.message,
+        severity: 'success'
+      })
+      if (selectedStore) loadProductPage(productPage)
+    } catch (err: any) {
+      setSnackbar({
+        open: true,
+        message: err.response?.data?.error || 'Failed to create ERP SKU',
         severity: 'error'
       })
     }
@@ -445,7 +489,7 @@ export default function ShopifyIntegration() {
     } catch (error: any) {
       setSnackbar({
         open: true,
-        message: 'Failed to start inventory sync',
+        message: error.response?.data?.error || 'Failed to start inventory sync',
         severity: 'error'
       })
     }
@@ -460,8 +504,12 @@ export default function ShopifyIntegration() {
       const result = await shopifyService.syncDraftOrders(store.id)
       setSnackbar({ open: true, message: result.message, severity: 'info' })
       setTimeout(() => loadStoreData(store.id), 2000)
-    } catch (error) {
-      setSnackbar({ open: true, message: 'Failed to sync draft orders', severity: 'error' })
+    } catch (error: any) {
+      setSnackbar({
+        open: true,
+        message: error.response?.data?.error || 'Failed to start draft order sync',
+        severity: 'error'
+      })
     }
   }
 
@@ -470,8 +518,12 @@ export default function ShopifyIntegration() {
       const result = await shopifyService.syncDiscounts(store.id)
       setSnackbar({ open: true, message: result.message, severity: 'info' })
       setTimeout(() => loadStoreData(store.id), 2000)
-    } catch (error) {
-      setSnackbar({ open: true, message: 'Failed to sync discounts', severity: 'error' })
+    } catch (error: any) {
+      setSnackbar({
+        open: true,
+        message: error.response?.data?.error || 'Failed to start discount sync',
+        severity: 'error'
+      })
     }
   }
 
@@ -485,6 +537,26 @@ export default function ShopifyIntegration() {
       })
     } catch (error) {
       setSnackbar({ open: true, message: 'Connection test failed', severity: 'error' })
+    }
+  }
+
+  const handleCancelJob = async (jobId: string) => {
+    try {
+      const result = await shopifyService.cancelSyncJob(jobId)
+      setSnackbar({
+        open: true,
+        message: result.message,
+        severity: 'success'
+      })
+      if (selectedStore) {
+        loadSyncJobPage(syncJobPage)
+      }
+    } catch (error: any) {
+      setSnackbar({
+        open: true,
+        message: error.response?.data?.error || 'Failed to cancel sync job',
+        severity: 'error'
+      })
     }
   }
 
@@ -741,17 +813,32 @@ export default function ShopifyIntegration() {
                       Shopify data syncs automatically every 12 hours. Use "Sync Now" to pull the latest data immediately.
                     </Typography>
                   </Box>
-                  <Button
-                    variant="contained"
-                    color="secondary"
-                    size="large"
-                    startIcon={syncingNow ? <CircularProgress size={18} color="inherit" /> : <Sync />}
-                    onClick={handleSyncNow}
-                    disabled={syncingNow}
-                    sx={{ minWidth: 160, fontWeight: 700 }}
-                  >
-                    {syncingNow ? 'Syncing...' : 'Sync Now'}
-                  </Button>
+                  <Box sx={{ display: 'flex', gap: 2 }}>
+                    {syncStatus?.products?.pending > 0 && (
+                      <Button
+                        variant="outlined"
+                        color="primary"
+                        size="large"
+                        startIcon={<AddCircleOutline />}
+                        onClick={handleBulkCreateERP}
+                        disabled={syncingNow}
+                        sx={{ minWidth: 200, fontWeight: 700 }}
+                      >
+                        Bulk Create ERP Missing Items
+                      </Button>
+                    )}
+                    <Button
+                      variant="contained"
+                      color="secondary"
+                      size="large"
+                      startIcon={syncingNow ? <CircularProgress size={18} color="inherit" /> : <Sync />}
+                      onClick={handleSyncNow}
+                      disabled={syncingNow}
+                      sx={{ minWidth: 160, fontWeight: 700 }}
+                    >
+                      {syncingNow ? 'Syncing...' : 'Sync Now'}
+                    </Button>
+                  </Box>
                 </Paper>
               </TabPanel>
 
@@ -923,6 +1010,17 @@ export default function ShopifyIntegration() {
                                   size="small"
                                   color={product.sync_status === 'synced' ? 'success' : 'warning'}
                                 />
+                                {product.sync_status === 'pending' && (
+                                  <Button
+                                    size="small"
+                                    variant="outlined"
+                                    color="primary"
+                                    onClick={() => handleCreateERPSKU(product.id)}
+                                    sx={{ mt: 0.5, fontSize: '0.65rem', py: 0 }}
+                                  >
+                                    Create in ERP
+                                  </Button>
+                                )}
                                 {product.erp_sku_code && (
                                   <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center' }}>
                                     <CheckCircle sx={{ fontSize: 12, mr: 0.5, color: 'success.main' }} />
@@ -1417,6 +1515,7 @@ export default function ShopifyIntegration() {
                         <TableCell sx={{ fontWeight: 'bold' }}>Duration</TableCell>
                         <TableCell sx={{ fontWeight: 'bold' }}>Items</TableCell>
                         <TableCell sx={{ fontWeight: 'bold' }}>Progress</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold' }}>Actions</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -1447,6 +1546,17 @@ export default function ShopifyIntegration() {
                                 {job.total_items > 0 ? Math.round((job.processed_items / job.total_items) * 100) : 0}%
                               </Typography>
                             </Box>
+                          </TableCell>
+                          <TableCell>
+                            {job.status === 'running' && (
+                              <Button
+                                size="small"
+                                color="error"
+                                onClick={() => handleCancelJob(job.id)}
+                              >
+                                Cancel
+                              </Button>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}
