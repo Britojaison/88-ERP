@@ -28,7 +28,7 @@ import {
   IconButton,
   Tooltip,
 } from '@mui/material'
-import { Add, CheckCircle, Cancel, Delete as DeleteIcon, PhotoCamera as PhotoCameraIcon, Collections as CollectionsIcon } from '@mui/icons-material'
+import { Add, CheckCircle, Cancel, Delete as DeleteIcon, PhotoCamera as PhotoCameraIcon, Collections as CollectionsIcon, Edit as EditIcon } from '@mui/icons-material'
 import PageHeader from '../components/ui/PageHeader'
 import { mdmService, type BusinessUnit, type Company, type Location, type Product, type SKU, type Fabric } from '../services/mdm.service'
 
@@ -51,25 +51,20 @@ export default function MasterData() {
   const [tabValue, setTabValue] = useState(0)
   const [products, setProducts] = useState<Product[]>([])
   const [skus, setSkus] = useState<SKU[]>([])
-  // @ts-ignore: TS6133
   const [companies, setCompanies] = useState<Company[]>([])
-  // @ts-ignore: TS6133
   const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>([])
   const [locations, setLocations] = useState<Location[]>([])
   const [fabrics, setFabrics] = useState<Fabric[]>([])
   const [fabricFilter, setFabricFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all')
   const [openProductDialog, setOpenProductDialog] = useState(false)
-  // @ts-ignore: TS6133
   const [openSkuDialog, setOpenSkuDialog] = useState(false)
-  // @ts-ignore: TS6133
-  const [openCompanyDialog, setOpenCompanyDialog] = useState(false)
-  // @ts-ignore: TS6133
-  const [openLocationDialog, setOpenLocationDialog] = useState(false)
   const [openVariantsDialog, setOpenVariantsDialog] = useState(false)
   const [openFabricDialog, setOpenFabricDialog] = useState(false)
   const [openRejectDialog, setOpenRejectDialog] = useState(false)
   const [openStoreDialog, setOpenStoreDialog] = useState(false)
   const [openWarehouseDialog, setOpenWarehouseDialog] = useState(false)
+  const [editWarehouseId, setEditWarehouseId] = useState<string | null>(null)
+  const [editStoreId, setEditStoreId] = useState<string | null>(null)
   const [rejectFabricId, setRejectFabricId] = useState('')
   const [rejectReason, setRejectReason] = useState('')
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; type: string; id: string; name: string }>({ open: false, type: '', id: '', name: '' })
@@ -111,7 +106,6 @@ export default function MasterData() {
   const [fabricPhotoPreview, setFabricPhotoPreview] = useState('')
   const [productImageFile, setProductImageFile] = useState<File | null>(null)
   const [productImagePreview, setProductImagePreview] = useState('')
-  // @ts-ignore: TS6133
   const [skuForm, setSkuForm] = useState({
     code: '',
     name: '',
@@ -122,22 +116,6 @@ export default function MasterData() {
     size: '',
     is_serialized: false,
     is_batch_tracked: false,
-  })
-  // @ts-ignore: TS6133
-  const [companyForm, setCompanyForm] = useState({
-    code: '',
-    name: '',
-    legal_name: '',
-    tax_id: '',
-    currency: 'INR',
-  })
-  // @ts-ignore: TS6133
-  const [locationForm, setLocationForm] = useState({
-    code: '',
-    name: '',
-    location_type: 'warehouse' as Location['location_type'],
-    business_unit: '',
-    is_inventory_location: true,
   })
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>(
     { open: false, message: '', severity: 'info' },
@@ -194,10 +172,12 @@ export default function MasterData() {
       setOpenFabricDialog(true)
       return
     } else if (tabValue === 3) {
+      setEditWarehouseId(null)
       setWarehouseForm({ code: '', name: '', email: '', opening_date: '', business_unit: '' })
       setOpenWarehouseDialog(true)
       return
     } else if (tabValue === 4) {
+      setEditStoreId(null)
       setStoreForm({ code: '', name: '', email: '', opening_date: '', business_unit: '' })
       setOpenStoreDialog(true)
       return
@@ -380,68 +360,67 @@ export default function MasterData() {
     }
   }
 
-  const handleCreateLocation = async () => {
-    if (!locationForm.code || !locationForm.name) {
-      setSnackbar({ open: true, message: 'Location Code and Name are required.', severity: 'error' })
-      return
-    }
-    // ensure business_unit is passed (even if empty, though API might require it. We will send existing bu or null)
-    try {
-      await mdmService.createLocation({
-        ...locationForm,
-        business_unit: locationForm.business_unit || (businessUnits.length > 0 ? businessUnits[0].id : '')
-      })
-      setOpenLocationDialog(false)
-      setSnackbar({ open: true, message: 'Location created successfully!', severity: 'success' })
-      setTimeout(() => { void loadData() }, 300)
-    } catch (error: any) {
-      setSnackbar({ open: true, message: error?.response?.data?.detail || 'Failed to create location.', severity: 'error' })
-    }
-  }
 
-  const handleCreateWarehouse = async () => {
+
+  const handleSaveWarehouse = async () => {
     if (!warehouseForm.code || !warehouseForm.name) {
       setSnackbar({ open: true, message: 'Warehouse Code and Name are required.', severity: 'error' })
       return
     }
     try {
-      await mdmService.createLocation({
+      const payload = {
         code: warehouseForm.code,
         name: warehouseForm.name,
         email: warehouseForm.email,
         opening_date: warehouseForm.opening_date,
-        location_type: 'warehouse',
+        location_type: 'warehouse' as const,
         business_unit: warehouseForm.business_unit || (businessUnits.length > 0 ? businessUnits[0].id : ''),
         is_inventory_location: true,
-      })
+      }
+
+      if (editWarehouseId) {
+        await mdmService.updateLocation(editWarehouseId, payload)
+        setSnackbar({ open: true, message: 'Warehouse updated successfully!', severity: 'success' })
+      } else {
+        await mdmService.createLocation(payload)
+        setSnackbar({ open: true, message: 'Warehouse created successfully!', severity: 'success' })
+      }
+
       setOpenWarehouseDialog(false)
-      setSnackbar({ open: true, message: 'Warehouse created successfully!', severity: 'success' })
       setTimeout(() => { void loadData() }, 300)
     } catch (error: any) {
-      setSnackbar({ open: true, message: error?.response?.data?.detail || 'Failed to create warehouse.', severity: 'error' })
+      setSnackbar({ open: true, message: error?.response?.data?.detail || 'Failed to save warehouse.', severity: 'error' })
     }
   }
 
-  const handleCreateStore = async () => {
+  const handleSaveStore = async () => {
     if (!storeForm.code || !storeForm.name) {
       setSnackbar({ open: true, message: 'Store Code and Name are required.', severity: 'error' })
       return
     }
     try {
-      await mdmService.createLocation({
+      const payload = {
         code: storeForm.code,
         name: storeForm.name,
         email: storeForm.email,
         opening_date: storeForm.opening_date,
-        location_type: 'store',
+        location_type: 'store' as const,
         business_unit: storeForm.business_unit || (businessUnits.length > 0 ? businessUnits[0].id : ''),
         is_inventory_location: true,
-      })
+      }
+
+      if (editStoreId) {
+        await mdmService.updateLocation(editStoreId, payload)
+        setSnackbar({ open: true, message: 'Store updated successfully!', severity: 'success' })
+      } else {
+        await mdmService.createLocation(payload)
+        setSnackbar({ open: true, message: 'Store created successfully!', severity: 'success' })
+      }
+
       setOpenStoreDialog(false)
-      setSnackbar({ open: true, message: 'Store created successfully!', severity: 'success' })
       setTimeout(() => { void loadData() }, 300)
     } catch (error: any) {
-      setSnackbar({ open: true, message: error?.response?.data?.detail || 'Failed to create store.', severity: 'error' })
+      setSnackbar({ open: true, message: error?.response?.data?.detail || 'Failed to save store.', severity: 'error' })
     }
   }
 
@@ -752,6 +731,25 @@ export default function MasterData() {
                       <TableCell>{wh.email || '-'}</TableCell>
                       <TableCell>{wh.opening_date ? new Date(wh.opening_date).toLocaleDateString() : '-'}</TableCell>
                       <TableCell>
+                        <Tooltip title="Edit warehouse">
+                          <IconButton
+                            size="small"
+                            color="info"
+                            onClick={() => {
+                              setEditWarehouseId(wh.id)
+                              setWarehouseForm({
+                                code: wh.code,
+                                name: wh.name,
+                                email: wh.email || '',
+                                opening_date: wh.opening_date || '',
+                                business_unit: wh.business_unit || '',
+                              })
+                              setOpenWarehouseDialog(true)
+                            }}
+                          >
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
                         <Tooltip title="Delete warehouse">
                           <IconButton size="small" color="error" onClick={() => setDeleteConfirm({ open: true, type: 'warehouse', id: wh.id, name: wh.name })}>
                             <DeleteIcon fontSize="small" />
@@ -795,6 +793,25 @@ export default function MasterData() {
                       <TableCell>{store.email || '-'}</TableCell>
                       <TableCell>{store.opening_date ? new Date(store.opening_date).toLocaleDateString() : '-'}</TableCell>
                       <TableCell>
+                        <Tooltip title="Edit store">
+                          <IconButton
+                            size="small"
+                            color="info"
+                            onClick={() => {
+                              setEditStoreId(store.id)
+                              setStoreForm({
+                                code: store.code,
+                                name: store.name,
+                                email: store.email || '',
+                                opening_date: store.opening_date || '',
+                                business_unit: store.business_unit || '',
+                              })
+                              setOpenStoreDialog(true)
+                            }}
+                          >
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
                         <Tooltip title="Delete store">
                           <IconButton size="small" color="error" onClick={() => setDeleteConfirm({ open: true, type: 'store', id: store.id, name: store.name })}>
                             <DeleteIcon fontSize="small" />
@@ -1292,58 +1309,11 @@ export default function MasterData() {
         </DialogActions>
       </Dialog >
 
-      {/* Create Location Dialog */}
-      < Dialog open={openLocationDialog} onClose={() => setOpenLocationDialog(false)} maxWidth="sm" fullWidth >
-        <DialogTitle>Create Location</DialogTitle>
-        <DialogContent>
-          <TextField
-            fullWidth margin="normal" label="Location Code" required
-            value={locationForm.code}
-            onChange={(e) => setLocationForm(prev => ({ ...prev, code: e.target.value }))}
-            placeholder="e.g. STORE-01"
-          />
-          <TextField
-            fullWidth margin="normal" label="Name" required
-            value={locationForm.name}
-            onChange={(e) => setLocationForm(prev => ({ ...prev, name: e.target.value }))}
-            placeholder="e.g. MG Road Branch"
-          />
-          <FormControl fullWidth margin="normal">
-            <InputLabel>Location Type</InputLabel>
-            <Select
-              value={locationForm.location_type}
-              label="Location Type"
-              onChange={(e) => setLocationForm(prev => ({ ...prev, location_type: e.target.value as any }))}
-            >
-              <MenuItem value="warehouse">Warehouse</MenuItem>
-              <MenuItem value="store">Retail Store</MenuItem>
-              <MenuItem value="factory">Factory</MenuItem>
-              <MenuItem value="office">Office</MenuItem>
-            </Select>
-          </FormControl>
-          <FormControl fullWidth margin="normal">
-            <InputLabel>Business Unit</InputLabel>
-            <Select
-              value={locationForm.business_unit}
-              label="Business Unit"
-              onChange={(e) => setLocationForm(prev => ({ ...prev, business_unit: e.target.value }))}
-            >
-              <MenuItem value="" disabled>Select Business Unit</MenuItem>
-              {businessUnits.map((bu) => (
-                <MenuItem key={bu.id} value={bu.id}>{bu.name}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenLocationDialog(false)}>Cancel</Button>
-          <Button variant="contained" onClick={() => void handleCreateLocation()}>Create Location</Button>
-        </DialogActions>
-      </Dialog >
+
 
       {/* Create Warehouse Dialog */}
       < Dialog open={openWarehouseDialog} onClose={() => setOpenWarehouseDialog(false)} maxWidth="sm" fullWidth >
-        <DialogTitle>Create New Warehouse</DialogTitle>
+        <DialogTitle>{editWarehouseId ? 'Edit Warehouse' : 'Create New Warehouse'}</DialogTitle>
         <DialogContent>
           <TextField
             fullWidth margin="normal" label="Warehouse Code" required
@@ -1387,13 +1357,13 @@ export default function MasterData() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpenWarehouseDialog(false)}>Cancel</Button>
-          <Button variant="contained" onClick={() => void handleCreateWarehouse()}>Create Warehouse</Button>
+          <Button variant="contained" onClick={() => void handleSaveWarehouse()}>{editWarehouseId ? 'Save Changes' : 'Create Warehouse'}</Button>
         </DialogActions>
       </Dialog >
 
       {/* Create Store Dialog */}
       < Dialog open={openStoreDialog} onClose={() => setOpenStoreDialog(false)} maxWidth="sm" fullWidth >
-        <DialogTitle>Create New Store</DialogTitle>
+        <DialogTitle>{editStoreId ? 'Edit Store' : 'Create New Store'}</DialogTitle>
         <DialogContent>
           <TextField
             fullWidth margin="normal" label="Store Code" required
@@ -1437,7 +1407,7 @@ export default function MasterData() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpenStoreDialog(false)}>Cancel</Button>
-          <Button variant="contained" onClick={() => void handleCreateStore()}>Create Store</Button>
+          <Button variant="contained" onClick={() => void handleSaveStore()}>{editStoreId ? 'Save Changes' : 'Create Store'}</Button>
         </DialogActions>
       </Dialog >
 

@@ -359,9 +359,9 @@ class InventoryMovementViewSet(viewsets.ModelViewSet):
 
             store = ShopifyStore.objects.filter(
                 company_id=location.company_id,
-                is_active=True
+                status=ShopifyStore.STATUS_ACTIVE
             ).first()
-            if not store:
+            if not store or not store.auto_sync_inventory:
                 return
 
             new_qty = int(balance.quantity_available)
@@ -397,8 +397,9 @@ class InventoryMovementViewSet(viewsets.ModelViewSet):
 
             # Run in background thread so the response isn't delayed
             threading.Thread(target=_push, daemon=True).start()
-        except Exception:
-            pass  # Shopify integration not configured — silently skip
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"Failed to initiate Shopify sync: {e}")
 
     @action(detail=False, methods=["get"], url_path="alerts")
     def alerts(self, request):

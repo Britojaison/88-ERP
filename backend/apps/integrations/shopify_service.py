@@ -657,52 +657,62 @@ class ShopifyService:
         ).first()
         
         if existing and existing.shopify_product_id:
-            # Update existing Shopify product/variant
-            variant_data = {
-                'id': existing.shopify_variant_id,
-                'sku': sku.code,
-                'price': str(sku.base_price),
-                'inventory_management': 'shopify',
-            }
-            if sku.size:
-                variant_data['option1'] = sku.size
-
-            # Update product with title, description, and variant
-            product_data = {
-                'id': existing.shopify_product_id,
-                'title': sku.product.name,
-                'body_html': sku.product.description or '',
-                'variants': [variant_data]
-            }
-
-            # Update image if available
-            if sku.product.image:
-                try:
-                    import base64
-                    with sku.product.image.open('rb') as image_file:
-                        encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
-                        product_data['images'] = [{
-                            'attachment': encoded_string,
-                            'filename': f"{sku.code}.jpg"
-                        }]
-                except Exception as e:
-                    logger.warning(f"Failed to encode product image for Shopify update: {e}")
-            
-            result = client.update_product(existing.shopify_product_id, product_data)
-            
-            existing.shopify_title = result.get('title', sku.product.name)
-            existing.shopify_price = sku.base_price
-            existing.shopify_sku = sku.code
-            existing.shopify_data = result
-            existing.sync_status = 'synced'
-            existing.last_synced_at = timezone.now()
-            existing.save()
-            
-            return {
-                'action': 'updated',
-                'shopify_product_id': result.get('id'),
-                'message': f'Updated variant {sku.code} on Shopify product {result.get("id")}'
-            }
+            try:
+                # Update existing Shopify product/variant
+                variant_data = {
+                    'id': existing.shopify_variant_id,
+                    'sku': sku.code,
+                    'price': str(sku.base_price),
+                    'inventory_management': 'shopify',
+                }
+                if sku.size:
+                    variant_data['option1'] = sku.size
+    
+                # Update product with title, description, and variant
+                product_data = {
+                    'id': existing.shopify_product_id,
+                    'title': sku.product.name,
+                    'body_html': sku.product.description or '',
+                    'variants': [variant_data]
+                }
+    
+                # Update image if available
+                if sku.product.image:
+                    try:
+                        import base64
+                        with sku.product.image.open('rb') as image_file:
+                            encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
+                            product_data['images'] = [{
+                                'attachment': encoded_string,
+                                'filename': f"{sku.code}.jpg"
+                            }]
+                    except Exception as e:
+                        logger.warning(f"Failed to encode product image for Shopify update: {e}")
+                
+                result = client.update_product(existing.shopify_product_id, product_data)
+                
+                existing.shopify_title = result.get('title', sku.product.name)
+                existing.shopify_price = sku.base_price
+                existing.shopify_sku = sku.code
+                existing.shopify_data = result
+                existing.sync_status = 'synced'
+                existing.last_synced_at = timezone.now()
+                existing.save()
+                
+                return {
+                    'action': 'updated',
+                    'shopify_product_id': result.get('id'),
+                    'message': f'Updated variant {sku.code} on Shopify product {result.get("id")}'
+                }
+            except Exception as e:
+                if hasattr(e, 'response') and e.response.status_code == 404:
+                    import logging
+                    log = logging.getLogger(__name__)
+                    log.warning(f"Shopify product {existing.shopify_product_id} not found. Deleting stale mapping and recreating.")
+                    existing.delete()
+                    existing = None
+                else:
+                    raise
 
         # 2. Check if another SKU from the same ERP Product is already mapped
         # to a Shopify Product in this store.
@@ -769,10 +779,15 @@ class ShopifyService:
                     'message': f'Added SKU {sku.code} as variant to Shopify product {shopify_product_id}'
                 }
             except Exception as e:
-                # If it failed, maybe because SKU already exists on Shopify but not mapped?
-                # We could try to fetch and map, but for now simple error.
-                logger.error(f"Failed to add variant {sku.code} to Shopify product {shopify_product_id}: {e}")
-                raise
+                if hasattr(e, 'response') and e.response.status_code == 404:
+                    import logging
+                    log = logging.getLogger(__name__)
+                    log.warning(f"Shopify product {shopify_product_id} not found when adding variant. Deleting ALL stale mappings for this product.")
+                    ShopifyProduct.objects.filter(store=store, shopify_product_id=shopify_product_id).delete()
+                    # Fall through to step 3 to recreate the entire product
+                else:
+                    logger.error(f"Failed to add variant {sku.code} to Shopify product {shopify_product_id}: {e}")
+                    raise
 
         # 3. Create new product on Shopify
         product_data = {
@@ -902,8 +917,27 @@ class ShopifyService:
                 logger.error(f"Failed to resolve Shopify location for SKU {mapping.shopify_sku}: {e}")
                 raise
         
-        # Set inventory level
-        result = client.set_inventory_level(inventory_item_id, location_id, quantity)
+        try:
+            # Set inventory level
+            result = client.set_inventory_level(inventory_item_id, location_id, quantity)
+        except Exception as e:
+            if hasattr(e, 'response') and e.response.status_code == 404:
+                import logging
+                log = logging.getLogger(__name__)
+                log.warning(f"Inventory item {inventory_item_id} or location {location_id} not found on Shopify. Deleting stale mapping.")
+                mapping.delete()
+                log.info(f"Attempting to recreate SKU {sku_id} on Shopify...")
+                ShopifyService.push_sku_to_shopify(store, sku_id)
+                new_mapping = ShopifyProduct.objects.filter(store=store, erp_sku_id=sku_id, sync_status='synced').first()
+                if new_mapping and new_mapping.shopify_inventory_item_id:
+                    # Retry with the new mapping's inventory item ID
+                    result = client.set_inventory_level(new_mapping.shopify_inventory_item_id, location_id, quantity)
+                    mapping = new_mapping # Update mapping reference for subsequent updates
+                else:
+                    # If recreation failed or new mapping still doesn't have inventory_item_id, re-raise
+                    raise
+            else:
+                raise
         
         # Update cached quantity in mapping
         mapping.shopify_inventory_quantity = result.get('available', quantity)
