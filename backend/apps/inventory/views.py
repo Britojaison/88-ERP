@@ -707,7 +707,6 @@ class GoodsReceiptScanViewSet(viewsets.GenericViewSet):
                 sku=sku,
                 barcode=barcode,
                 location=location,
-                document=document,
                 quantity=quantity,
                 batch_number=batch_number,
                 serial_number=serial_number,

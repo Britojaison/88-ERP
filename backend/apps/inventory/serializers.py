@@ -141,7 +141,6 @@ class GoodsReceiptScanSerializer(serializers.ModelSerializer):
             "barcode",
             "location",
             "location_code",
-            "document",
             "quantity",
             "batch_number",
             "serial_number",
