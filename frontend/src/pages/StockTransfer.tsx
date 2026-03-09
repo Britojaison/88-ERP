@@ -182,7 +182,10 @@ export default function StockTransfer() {
                             </Typography>
                             <Autocomplete
                                 options={balances}
-                                getOptionLabel={(option) => `${option.sku_code} - Available: ${qty(option.quantity_available)}`}
+                                getOptionLabel={(option) => {
+                                    const name = option.product_name || option.sku_name;
+                                    return name ? `${name} | ${option.sku_code} - Available: ${qty(option.quantity_available)}` : `${option.sku_code} - Available: ${qty(option.quantity_available)}`;
+                                }}
                                 value={selectedBalance}
                                 onChange={(_, newValue) => setSelectedBalance(newValue)}
                                 disabled={!fromLocation || fetchingBalances}
@@ -192,7 +195,7 @@ export default function StockTransfer() {
                                         {...params}
                                         fullWidth
                                         variant="outlined"
-                                        placeholder={fromLocation ? "Search SKU to transfer..." : "First select a source location"}
+                                        placeholder={fromLocation ? "Search SKU or Product to transfer..." : "First select a source location"}
                                     />
                                 )}
                             />
