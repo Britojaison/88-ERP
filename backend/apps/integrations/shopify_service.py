@@ -13,6 +13,7 @@ from .shopify_models import (
     ShopifyOrder, ShopifyDraftOrder, ShopifyDiscount, ShopifyGiftCard
 )
 from apps.mdm.models import Product, SKU, Location, Customer
+from apps.inventory.models import InventoryBalance
 import logging
 
 logger = logging.getLogger(__name__)
@@ -56,22 +57,26 @@ class ShopifyAPIClient:
             logger.error(f"Shopify API error for {url}: {e}. Token used: {masked_token}")
             raise
     
-    def get_products(self, limit: int = 250, since_id: Optional[int] = None, page_info: Optional[str] = None) -> Dict:
+    def get_products(self, limit: int = 250, since_id: Optional[int] = None, page_info: Optional[str] = None, updated_at_min: Optional[str] = None) -> Dict:
         """Get products from Shopify with pagination support."""
         params = {'limit': limit}
         if since_id:
             params['since_id'] = since_id
+        if updated_at_min:
+            params['updated_at_min'] = updated_at_min
         if page_info:
             params = {'limit': limit, 'page_info': page_info}
         
         response = self._make_request('GET', 'products.json', params=params)
         return response
     
-    def get_all_products(self) -> List[Dict]:
+    def get_all_products(self, updated_at_min: Optional[str] = None) -> List[Dict]:
         """Get ALL products from Shopify using cursor-based pagination (Link header)."""
         import re
         all_products = []
         params = {'limit': 250, 'status': 'active,archived,draft'}
+        if updated_at_min:
+            params['updated_at_min'] = updated_at_min
         
         url = f"{self.base_url}/products.json"
         current_params = params
@@ -383,6 +388,18 @@ class ShopifyService:
         )
         ShopifyService._do_product_sync(store, job)
         return job
+
+    @staticmethod
+    def sync_products_delta(store: ShopifyStore) -> ShopifySyncJob:
+        """Sync recently changed products from Shopify to ERP (delta sync)."""
+        job = ShopifySyncJob.objects.create(
+            store=store,
+            job_type='products_delta',
+            job_status='running'
+        )
+        # Background processing should be handled by the caller/view
+        ShopifyService._do_product_sync_delta(store, job)
+        return job
     
     @staticmethod
     def _do_product_sync(store: ShopifyStore, job: ShopifySyncJob) -> None:
@@ -422,6 +439,51 @@ class ShopifyService:
             
         except Exception as e:
             logger.error(f"Product sync failed: {e}")
+            job.job_status = 'failed'
+            job.error_log = str(e)
+            job.completed_at = timezone.now()
+            job.save()
+
+    @staticmethod
+    def _do_product_sync_delta(store: ShopifyStore, job: ShopifySyncJob) -> None:
+        """Execute delta product sync. Processes only products changed since last sync."""
+        try:
+            client = ShopifyAPIClient(store)
+            updated_at_min = None
+            if store.last_product_sync:
+                updated_at_min = store.last_product_sync.isoformat()
+            
+            logger.info(f"Starting delta product sync for store {store.name} since {updated_at_min}")
+            products = client.get_all_products(updated_at_min=updated_at_min)
+            
+            total_variants = sum(len(p.get('variants', [])) for p in products)
+            job.total_items = total_variants
+            job.save(update_fields=['total_items'])
+            
+            for i, shopify_product in enumerate(products):
+                if job.is_cancelled():
+                    logger.info(f"Delta product sync job {job.id} was cancelled.")
+                    return
+
+                try:
+                    ShopifyService._process_product(store, shopify_product, job)
+                except Exception as e:
+                    logger.error(f"Error processing delta product {shopify_product.get('id')}: {e}")
+                    job.failed_items += 1
+                    job.error_log += f"\nProduct {shopify_product.get('id')}: {str(e)}"
+                
+                if (i + 1) % 10 == 0:
+                    job.save(update_fields=['processed_items', 'created_items', 'updated_items', 'failed_items', 'error_log'])
+            
+            store.last_product_sync = timezone.now()
+            store.save(update_fields=['last_product_sync', 'updated_at'])
+            
+            job.job_status = 'completed'
+            job.completed_at = timezone.now()
+            job.save()
+            
+        except Exception as e:
+            logger.error(f"Delta product sync failed: {e}")
             job.job_status = 'failed'
             job.error_log = str(e)
             job.completed_at = timezone.now()
@@ -585,15 +647,30 @@ class ShopifyService:
         )
         ShopifyService._do_inventory_sync(store, job)
         return job
+
+    @staticmethod
+    def sync_inventory_delta(store: ShopifyStore) -> ShopifySyncJob:
+        """Sync inventory levels ONLY for products that were recently modified."""
+        # Check for already running job to avoid duplicates
+        existing = ShopifySyncJob.objects.filter(store=store, job_type='inventory_delta', job_status='running').first()
+        if existing:
+            return existing
+
+        job = ShopifySyncJob.objects.create(
+            store=store,
+            job_type='inventory_delta',
+            job_status='running'
+        )
+        ShopifyService._do_inventory_sync_delta(store, job)
+        return job
     
     @staticmethod
     def _do_inventory_sync(store: ShopifyStore, job: ShopifySyncJob) -> None:
         """Execute the actual inventory sync. Can be called from a background thread."""
         try:
             client = ShopifyAPIClient(store)
-            logger.info(f"Starting inventory sync for store {store.name} at {client.base_url}")
+            logger.info(f"Starting inventory sync for store {store.name}")
             locations = client.get_locations()
-            logger.info(f"Found {len(locations)} Shopify locations")
             
             total_processed = 0
             for location in locations:
@@ -605,30 +682,32 @@ class ShopifyService:
                     location_ids=str(location_id)
                 )
                 
+                # Update total items as we discover them (unavoidable in full sync without pre-counting)
                 job.total_items += len(inventory_levels)
                 job.save(update_fields=['total_items'])
                 
                 for level in inventory_levels:
                     # Check for cancellation
                     if job.is_cancelled():
-                        logger.info(f"Inventory sync job {job.id} was cancelled.")
-                        # Stop processing and exit - DO NOT call job.save() because it might overwrite the 'cancelled' status
                         return
 
                     try:
                         ShopifyService._process_inventory_level(
-                            store, location_id, location_name, level, job
+                            store, location_id, location_name, level, job, 
+                            save_job=False # Don't save inside the loop
                         )
                         total_processed += 1
                         
-                        # Save progress every 10 items
-                        if total_processed % 10 == 0:
+                        # Save progress every 20 items to reduce DB load
+                        if total_processed % 20 == 0:
+                            job.processed_items = total_processed
                             job.save(update_fields=['processed_items', 'failed_items'])
                             
                     except Exception as e:
                         logger.error(f"Error processing inventory level: {e}")
                         job.failed_items += 1
             
+            job.processed_items = total_processed
             store.last_inventory_sync = timezone.now()
             store.save(update_fields=['last_inventory_sync', 'updated_at'])
             
@@ -642,6 +721,182 @@ class ShopifyService:
             job.error_log = f"Failed at {timezone.now()}: {str(e)}"
             job.completed_at = timezone.now()
             job.save()
+
+    @staticmethod
+    def _do_inventory_sync_delta(store: ShopifyStore, job: ShopifySyncJob) -> None:
+        """Delta inventory sync: optimized and fixed progress bar."""
+        try:
+            client = ShopifyAPIClient(store)
+            since = store.last_inventory_sync or (timezone.now() - timezone.timedelta(hours=24))
+            
+            # Get list of inventory_item_ids for products changed since 'since'
+            changed_products = ShopifyProduct.objects.filter(
+                store=store,
+                last_synced_at__gte=since,
+                status='active'
+            ).values_list('shopify_inventory_item_id', flat=True).distinct()
+            
+            item_id_list = [str(iid) for iid in changed_products if iid]
+            if not item_id_list:
+                job.job_status = 'completed'
+                job.completed_at = timezone.now()
+                job.save()
+                return
+
+            locations = client.get_locations()
+            location_map = {str(l['id']): l['name'] for l in locations}
+            location_ids_str = ",".join(location_map.keys())
+
+            # Set total items upfront to avoid the "jumping" behavior
+            # Total = Number of Products * Number of Locations
+            job.total_items = len(item_id_list) * len(locations)
+            job.save(update_fields=['total_items'])
+            
+            total_processed = 0
+            chunk_size = 50
+            for i in range(0, len(item_id_list), chunk_size):
+                chunk = item_id_list[i:i + chunk_size]
+                ids_param = ",".join(chunk)
+                
+                # Fetch inventory levels for this chunk across ALL locations
+                levels = client.get_inventory_levels(
+                    location_ids=location_ids_str,
+                    inventory_item_ids=ids_param
+                )
+                
+                # Map results by (item_id, location_id)
+                level_results = {}
+                for lv in levels:
+                    key = (str(lv['inventory_item_id']), str(lv['location_id']))
+                    level_results[key] = lv
+
+                # Now iterate through the theoretical items*locations
+                for item_id in chunk:
+                    for loc_id in location_map.keys():
+                        if job.is_cancelled():
+                            return
+                        
+                        level_data = level_results.get((item_id, loc_id))
+                        if level_data:
+                            try:
+                                ShopifyService._process_inventory_level(
+                                    store, int(loc_id), location_map[loc_id], level_data, job,
+                                    save_job=False
+                                )
+                            except Exception:
+                                job.failed_items += 1
+                        
+                        total_processed += 1
+                        # Save progress every 50 "attempts"
+                        if total_processed % 50 == 0:
+                            job.processed_items = total_processed
+                            job.save(update_fields=['processed_items', 'failed_items'])
+            
+            job.processed_items = total_processed
+            store.last_inventory_sync = timezone.now()
+            store.save(update_fields=['last_inventory_sync', 'updated_at'])
+            
+            job.job_status = 'completed'
+            job.completed_at = timezone.now()
+            job.save()
+            
+        except Exception as e:
+            logger.error(f"Delta inventory sync failed: {e}")
+            job.job_status = 'failed'
+            job.error_log = str(e)
+            job.completed_at = timezone.now()
+            job.save()
+
+    @staticmethod
+    def cleanup_deleted_products(store: ShopifyStore, job: Optional[ShopifySyncJob] = None) -> None:
+        """
+        Check all local ShopifyProduct mappings against Shopify and cleanup deleted ones.
+        FAST VERSION: Fetches all active IDs from Shopify first.
+        """
+        logger.info(f"Starting FAST cleanup for store {store.name}")
+        
+        # If no job provided, create a maintenance job
+        created_job = False
+        if not job:
+            job = ShopifySyncJob.objects.create(
+                store=store,
+                job_type='cleanup',
+                job_status='running'
+            )
+            created_job = True
+
+        try:
+            client = ShopifyAPIClient(store)
+            
+            # 1. Fetch all products (with variants) from Shopify
+            # This is much faster than one-by-one checks
+            logger.info("Fetching all active products from Shopify to detect deletions...")
+            shopify_products = client.get_all_products()
+            
+            # 2. Map existing (Product ID, Variant ID) into a set for fast lookup
+            active_ids = set()
+            for p in shopify_products:
+                p_id = p['id']
+                for v in p.get('variants', []):
+                    active_ids.add((p_id, v['id']))
+            
+            logger.info(f"Found {len(active_ids)} active product-variant combinations on Shopify.")
+
+            # 3. Find our local active mappings
+            local_mappings = ShopifyProduct.objects.filter(store=store, status='active')
+            job.total_items = local_mappings.count()
+            job.save(update_fields=['total_items'])
+
+            # 4. Resolve the correct location for this company
+            shopify_wh = Location.objects.filter(code='SHOPIFY-WH', company=store.company).first()
+            if not shopify_wh:
+                logger.warning(f"No Location with code 'SHOPIFY-WH' found for company {store.company.name}. Deletions will not zero out inventory.")
+
+            # 5. Compare and cleanup
+            deleted_count = 0
+            for sp in local_mappings:
+                if job.is_cancelled():
+                    return
+
+                # Check if this specific mapping (Product+Variant) still exists
+                if (sp.shopify_product_id, sp.shopify_variant_id) not in active_ids:
+                    logger.info(f"Detected deleted item: {sp.shopify_title} (ID: {sp.shopify_product_id}, Var: {sp.shopify_variant_id})")
+                    
+                    # Mark as deleted
+                    sp.status = 'deleted'
+                    sp.sync_status = 'error'
+                    sp.sync_error = 'Deleted on Shopify'
+                    sp.save(update_fields=['status', 'sync_status', 'sync_error', 'updated_at'])
+                    
+                    # Zero out inventory in ERP
+                    if sp.erp_sku and shopify_wh:
+                        from apps.inventory.models import InventoryBalance
+                        InventoryBalance.objects.filter(
+                            sku=sp.erp_sku,
+                            location=shopify_wh
+                        ).update(quantity_on_hand=0, quantity_available=0)
+                    
+                    deleted_count += 1
+                    job.updated_items += 1
+                
+                job.processed_items += 1
+                if job.processed_items % 50 == 0:
+                    job.save(update_fields=['processed_items', 'updated_items'])
+
+            job.job_status = 'completed'
+            job.completed_at = timezone.now()
+            job.error_log = f"Fast cleanup complete. Detected and removed {deleted_count} items."
+            job.save()
+            logger.info(f"Cleanup complete for {store.name}. Deleted {deleted_count} stale mappings.")
+
+        except Exception as e:
+            logger.error(f"Fast cleanup failed for {store.name}: {e}")
+            job.job_status = 'failed'
+            job.error_log = str(e)
+            job.completed_at = timezone.now()
+            job.save()
+            if created_job:
+                raise # Re-raise if it's our own internal job call
     
     @staticmethod
     def _process_inventory_level(
@@ -649,26 +904,25 @@ class ShopifyService:
         location_id: int,
         location_name: str,
         level_data: Dict,
-        job: ShopifySyncJob
+        job: ShopifySyncJob,
+        save_job: bool = True
     ) -> None:
         """Process a single inventory level."""
         inventory_item_id = level_data.get('inventory_item_id')
         available = level_data.get('available', 0) or 0
         
         # Find matching ShopifyProduct
-        # We now use the shopify_inventory_item_id field for direct matching
         shopify_products = ShopifyProduct.objects.filter(
             store=store,
             shopify_inventory_item_id=inventory_item_id
         )
         
-        # If no direct match by field (e.g. not populated yet), fallback to JSON search
         if not shopify_products.exists():
+            # Fallback to slower JSON search if needed
             all_products = ShopifyProduct.objects.filter(store=store)
             matched_pks = []
             for sp in all_products:
                 variant_data = sp.shopify_data.get('variants', [])
-                # Handle both list (Product JSON) and dict (Variant JSON)
                 if isinstance(sp.shopify_data, dict) and sp.shopify_data.get('inventory_item_id') == inventory_item_id:
                      matched_pks.append(sp.pk)
                 else:
@@ -679,12 +933,11 @@ class ShopifyService:
             shopify_products = ShopifyProduct.objects.filter(pk__in=matched_pks)
 
         for sp in shopify_products:
-            # Update the field if it was missing
             if not sp.shopify_inventory_item_id:
                 sp.shopify_inventory_item_id = inventory_item_id
                 sp.save(update_fields=['shopify_inventory_item_id'])
 
-            inv_level, created = ShopifyInventoryLevel.objects.update_or_create(
+            ShopifyInventoryLevel.objects.update_or_create(
                 shopify_product=sp,
                 shopify_location_id=location_id,
                 defaults={
@@ -696,14 +949,10 @@ class ShopifyService:
                 }
             )
             
-            # Update the cached quantity on the product mapping
             sp.shopify_inventory_quantity = available
             sp.save(update_fields=['shopify_inventory_quantity'])
 
-            # ── Bridge: Sync into ERP InventoryBalance ──
-            # Find or create the "Shopify Warehouse" location and write
-            # the real Shopify quantity into a proper InventoryBalance row
-            # so that it appears on the Warehouse page.
+            # Bridge: Sync into ERP InventoryBalance
             if sp.erp_sku_id:
                 try:
                     from apps.inventory.models import InventoryBalance
@@ -728,7 +977,7 @@ class ShopifyService:
                             },
                         )
 
-                        if not _:  # existing row — overwrite with Shopify truth
+                        if not _:  # existing row
                             balance.quantity_on_hand = Decimal(str(available))
                             balance.quantity_available = Decimal(str(available)) - balance.quantity_reserved
                             balance.save(update_fields=[
@@ -738,10 +987,11 @@ class ShopifyService:
                 except Exception as e:
                     logger.warning(f"Failed to bridge InventoryBalance for {sp.erp_sku_id}: {e}")
 
-            break
+            break # Only process one mapping per level
         
-        job.processed_items += 1
-        job.save(update_fields=['processed_items', 'failed_items'])
+        if save_job:
+            job.processed_items += 1
+            job.save(update_fields=['processed_items', 'failed_items'])
 
     @staticmethod
     def push_sku_to_shopify(store: ShopifyStore, sku_id: str) -> Dict:
@@ -1135,11 +1385,26 @@ class ShopifyService:
     def _handle_product_webhook(store: ShopifyStore, topic: str, payload: Dict) -> None:
         """Handle product webhooks."""
         if topic == 'products/delete':
-            # Mark as deleted
-            ShopifyProduct.objects.filter(
+            # Mark as deleted and zero out inventory in ERP
+            product_id = payload['id']
+            mappings = ShopifyProduct.objects.filter(
                 store=store,
-                shopify_product_id=payload['id']
-            ).update(status='deleted')
+                shopify_product_id=product_id,
+                status='active'
+            )
+            
+            shopify_wh = Location.objects.filter(code='SHOPIFY-WH').first()
+            
+            for sp in mappings:
+                if sp.erp_sku and shopify_wh:
+                    # Clean up ERP warehouse balance
+                    InventoryBalance.objects.filter(
+                        sku=sp.erp_sku,
+                        location=shopify_wh
+                    ).update(quantity_on_hand=0, quantity_available=0)
+                
+                sp.status = 'deleted'
+                sp.save(update_fields=['status', 'updated_at'])
         else:
             # Create or update
             job = ShopifySyncJob.objects.create(
@@ -1155,7 +1420,7 @@ class ShopifyService:
     
     @staticmethod
     def _handle_inventory_webhook(store: ShopifyStore, topic: str, payload: Dict) -> None:
-        """Handle inventory level update webhooks."""
+        """Handle inventory level update webhooks with efficient lookup and ERP bridge."""
         inventory_item_id = payload.get('inventory_item_id')
         location_id = payload.get('location_id')
         available = payload.get('available', 0)
@@ -1163,24 +1428,91 @@ class ShopifyService:
         if not inventory_item_id:
             return
         
-        # Find matching product
-        shopify_products = ShopifyProduct.objects.filter(store=store)
+        # Fast lookup using indexed field
+        shopify_products = ShopifyProduct.objects.filter(
+            store=store, 
+            shopify_inventory_item_id=inventory_item_id
+        )
+        
+        if not shopify_products.exists():
+            # Fallback for old records without the field populated
+            mappings = ShopifyProduct.objects.filter(store=store)
+            matched_pks = []
+            for sp in mappings:
+                variants = sp.shopify_data.get('variants', [])
+                for v in variants:
+                    if v.get('inventory_item_id') == inventory_item_id:
+                        matched_pks.append(sp.pk)
+                        break
+            shopify_products = ShopifyProduct.objects.filter(pk__in=matched_pks)
+
         for sp in shopify_products:
-            for v in sp.shopify_data.get('variants', []):
-                if v.get('inventory_item_id') == inventory_item_id:
-                    # Update inventory level
-                    ShopifyInventoryLevel.objects.update_or_create(
-                        shopify_product=sp,
-                        shopify_location_id=location_id,
-                        defaults={
-                            'store': store,
-                            'shopify_location_name': '',
-                            'available': available or 0,
-                        }
-                    )
-                    sp.shopify_inventory_quantity = available or 0
-                    sp.save(update_fields=['shopify_inventory_quantity'])
-                    return
+            # Sync to local ShopifyInventoryLevel
+            ShopifyInventoryLevel.objects.update_or_create(
+                shopify_product=sp,
+                shopify_location_id=location_id,
+                defaults={
+                    'store': store,
+                    'available': available or 0,
+                    'on_hand': payload.get('on_hand', available) or 0,
+                    'last_synced_at': timezone.now()
+                }
+            )
+            
+            sp.shopify_inventory_quantity = available or 0
+            # Ensure the ID is saved for next time's fast lookup
+            sp.shopify_inventory_item_id = inventory_item_id
+            sp.save(update_fields=['shopify_inventory_quantity', 'shopify_inventory_item_id', 'updated_at'])
+            
+            # ── BRIDGE TO ERP WAREHOUSE ──
+            if sp.erp_sku:
+                try:
+                    from apps.inventory.models import InventoryBalance
+                    from django.db.models import Sum
+                    from decimal import Decimal
+                    
+                    # Target the "Shopify Online" warehouse in ERP
+                    shopify_wh = Location.objects.filter(
+                        company_id=store.company_id,
+                        code='SHOPIFY-WH'
+                    ).first()
+                    
+                    if shopify_wh:
+                        # Find the sum of stock across ALL OTHER active ERP locations
+                        other_qty = InventoryBalance.objects.filter(
+                            company_id=store.company_id,
+                            sku=sp.erp_sku,
+                            status='active'
+                        ).exclude(location=shopify_wh).aggregate(total=Sum('quantity_available'))['total'] or 0
+                        
+                        # We want the TOTAL ERP stock to equal Shopify's new reported available quantity
+                        target_total = Decimal(str(available or 0))
+                        
+                        # Therefore, SHOPIFY-WH should just be the difference
+                        new_shopify_qty = target_total - Decimal(str(other_qty))
+                        
+                        balance, _ = InventoryBalance.objects.get_or_create(
+                            company_id=store.company_id,
+                            sku=sp.erp_sku,
+                            location=shopify_wh,
+                            condition=InventoryBalance.CONDITION_NEW,
+                            defaults={
+                                'quantity_on_hand': new_shopify_qty,
+                                'quantity_available': new_shopify_qty,
+                            }
+                        )
+                        
+                        # Only update and trigger signal if it ACTUALLY changed.
+                        # This breaks the infinite loop where pushing triggers a webhook, 
+                        # which triggers a push, which triggers a webhook.
+                        if not _ and balance.quantity_available != new_shopify_qty:
+                            balance.quantity_on_hand = new_shopify_qty
+                            balance.quantity_available = new_shopify_qty - balance.quantity_reserved
+                            balance.save(update_fields=['quantity_on_hand', 'quantity_available', 'updated_at'])
+                            
+                except Exception as e:
+                    logger.warning(f"Failed to bridge inventory webhook to ERP: {e}")
+            break # Usually one mapping per inventory item
     
     @staticmethod
     def sync_orders(store: ShopifyStore, start_date: Optional[str] = None, end_date: Optional[str] = None) -> ShopifySyncJob:

@@ -284,6 +284,9 @@ class ShopifySyncJob(BaseModel):
             ('discounts', 'Discounts'),
             ('gift_cards', 'Gift Cards'),
             ('full_sync', 'Full Sync'),
+            ('products_delta', 'Products Delta'),
+            ('inventory_delta', 'Inventory Delta'),
+            ('cleanup', 'Cleanup'),
             ('bulk_create_erp', 'Bulk Create ERP'),
         ]
     )

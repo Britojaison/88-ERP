@@ -295,6 +295,20 @@ export default function ShopifyIntegration() {
     }
   }
 
+  const handleQuickSync = async () => {
+    if (!selectedStore) return
+    setSyncingNow(true)
+    try {
+      const res = await shopifyService.quickSync(selectedStore.id)
+      setSnackbar({ open: true, message: res.message || 'Quick sync started!', severity: 'success' })
+      loadSyncJobPage(1)
+    } catch (e: any) {
+      setSnackbar({ open: true, message: e.response?.data?.error || 'Failed to start quick sync.', severity: 'error' })
+    } finally {
+      setSyncingNow(false)
+    }
+  }
+
   const loadProductPage = async (page: number) => {
     if (!selectedStore) return
     try {
@@ -827,6 +841,17 @@ export default function ShopifyIntegration() {
                         Bulk Create ERP Missing Items
                       </Button>
                     )}
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      size="large"
+                      startIcon={syncingNow ? <CircularProgress size={18} color="inherit" /> : <Sync />}
+                      onClick={handleQuickSync}
+                      disabled={syncingNow}
+                      sx={{ minWidth: 160, fontWeight: 700 }}
+                    >
+                      {syncingNow ? 'Syncing...' : 'Quick Sync'}
+                    </Button>
                     <Button
                       variant="contained"
                       color="secondary"

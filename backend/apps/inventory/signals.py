@@ -16,9 +16,9 @@ def sync_inventory_to_shopify_on_save(sender, instance, **kwargs):
         from apps.integrations.shopify_models import ShopifyStore
         
         # 1. Only respond if the change happened at SHOPIFY-WH
-        if instance.location.code != 'SHOPIFY-WH':
-            return
-
+        # 1. We now allow ANY location change to trigger a sync (so POS sales reflect in Shopify)
+        # But we only push if the store is connected.
+        
         # 2. Find connected Shopify stores for THIS company
         stores = ShopifyStore.objects.filter(company_id=instance.company_id, is_connected=True)
         if not stores.exists():
@@ -26,18 +26,18 @@ def sync_inventory_to_shopify_on_save(sender, instance, **kwargs):
 
         from django.db.models import Sum
         
-        # 3. Calculate total stock for SHOPIFY-WH location(s) for THIS company
-        warehouse_qty = InventoryBalance.objects.filter(
+        # 3. Calculate total stock across ALL active locations for THIS company
+        # (This ensures POS sales and Warehouse movements are both reflected)
+        total_balance = InventoryBalance.objects.filter(
             company_id=instance.company_id,
             sku=instance.sku,
-            location__code='SHOPIFY-WH',
             status='active'
         ).aggregate(total=Sum('quantity_available'))['total'] or 0
 
-        qty = int(warehouse_qty)
+        qty = int(total_balance)
         
         for store in stores:
-            logger.info(f"Syncing SHOPIFY-WH stock ({qty}) to Shopify for SKU: {instance.sku.code}")
+            logger.info(f"Syncing total ERP stock ({qty}) to Shopify for SKU: {instance.sku.code} (Triggered by {instance.location.code})")
             # Use on_commit to ensure the thread only starts after the DB transaction is successful.
             transaction.on_commit(
                 lambda s=store, i=instance.sku.id, q=qty: threading.Thread(

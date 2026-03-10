@@ -287,6 +287,18 @@ export const shopifyService = {
     return response.data
   },
 
+  /** Trigger a delta sync (changes only) in the background. */
+  quickSync: async (storeId: string): Promise<{ status: string; message: string }> => {
+    const response = await api.post(`/integrations/shopify/stores/${storeId}/quick-sync/`)
+    return response.data
+  },
+
+  /** Run a full cleanup check against Shopify for deleted products. */
+  cleanupDeleted: async (storeId: string): Promise<{ job_id: string; status: string; message: string }> => {
+    const response = await api.post(`/integrations/shopify/stores/${storeId}/cleanup_deleted/`)
+    return response.data
+  },
+
   /** Cancel a running sync job. */
   cancelSyncJob: async (jobId: string): Promise<{ success: boolean; message: string }> => {
     const response = await api.post(`/integrations/shopify/sync-jobs/${jobId}/cancel/`)

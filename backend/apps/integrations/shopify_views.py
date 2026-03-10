@@ -567,6 +567,89 @@ class ShopifyStoreViewSet(viewsets.ModelViewSet):
             'message': f'Sync started for {store.name}. Data will be updated in the background (usually 1–3 minutes).',
         })
 
+    @action(detail=True, methods=['post'], url_path='quick-sync')
+    def quick_sync(self, request, pk=None):
+        """
+        Trigger a delta sync (changes only) in the background.
+        """
+        store = self.get_object()
+
+        # SINGLETON check
+        existing_job = ShopifySyncJob.objects.filter(store=store, job_status='running').first()
+        if existing_job:
+            return Response({
+                'error': f'A sync job ({existing_job.job_type}) is already running for this store.',
+                'job_id': str(existing_job.id)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        def _run_quick_sync():
+            try:
+                import django
+                django.db.connections.close_all()
+                logger.info(f"[QuickSync] Starting streamlined delta sync for {store.name}")
+                
+                # 1. Faster Cleanup (Detect and remove deleted products)
+                ShopifyService.cleanup_deleted_products(store)
+                
+                # 2. Products Delta (Fetch only updated product details)
+                ShopifyService.sync_products_delta(store)
+                
+                # We skip full Inventory Delta here because it scans thousands of records.
+                # Real-time inventory is already handled by bridged webhooks.
+                
+                logger.info(f"[QuickSync] Streamlined delta sync complete for {store.name}")
+            except Exception as e:
+                logger.error(f"[QuickSync] Sync failed for {store.name}: {e}")
+
+        threading.Thread(target=_run_quick_sync, daemon=True).start()
+
+        return Response({
+            'status': 'running',
+            'message': f'Quick sync (deletions & updates) started for {store.name}.',
+        })
+
+    @action(detail=True, methods=['post'])
+    def cleanup_deleted(self, request, pk=None):
+        """Run a full cleanup check against Shopify for deleted products."""
+        store = self.get_object()
+        
+        # Singleton check
+        existing_job = ShopifySyncJob.objects.filter(store=store, job_status='running').first()
+        if existing_job:
+            return Response({
+                'error': f'A sync job ({existing_job.job_type}) is already running for this store.',
+                'job_id': str(existing_job.id)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        job = ShopifySyncJob.objects.create(
+            store=store,
+            job_type='cleanup',
+            job_status='running'
+        )
+        
+        def _run_cleanup():
+            try:
+                import django
+                django.db.connections.close_all()
+                ShopifyService.cleanup_deleted_products(store, job)
+                if job.job_status == 'running':
+                    job.job_status = 'completed'
+                    job.completed_at = timezone.now()
+                    job.save()
+            except Exception as e:
+                logger.error(f"Background cleanup failed: {e}")
+                job.job_status = 'failed'
+                job.error_log = str(e)
+                job.save()
+
+        threading.Thread(target=_run_cleanup, daemon=True).start()
+        
+        return Response({
+            'job_id': str(job.id),
+            'status': 'running',
+            'message': 'Cleanup job started in background'
+        })
+
     @action(detail=True, methods=['post'])
     def sync_orders(self, request, pk=None):
         """Trigger order sync in background."""
