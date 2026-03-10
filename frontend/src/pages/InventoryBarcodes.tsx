@@ -79,7 +79,7 @@ export default function InventoryBarcodes() {
   // ─── Single Barcode Form ───
   const [form, setForm] = useState({
     sku: '',
-    barcode_type: 'ean13',
+    barcode_type: 'code128',
     barcode_value: '',
     display_code: '',
     label_title: '',
@@ -91,7 +91,7 @@ export default function InventoryBarcodes() {
 
   // ─── Bulk Generation State ───
   const [bulkQueue, setBulkQueue] = useState<BulkQueueItem[]>([])
-  const [bulkLayout, setBulkLayout] = useState('50x25')
+  const [bulkLayout, setBulkLayout] = useState('51x26')
   const [bulkSearchInput, setBulkSearchInput] = useState('')
   const [bulkSkuResults, setBulkSkuResults] = useState<SKU[]>([])
   const [bulkGenerating, setBulkGenerating] = useState(false)
@@ -198,7 +198,7 @@ export default function InventoryBarcodes() {
       setSnackbar({ open: true, message: 'Barcode assigned successfully.', severity: 'success' })
       setForm({
         sku: '',
-        barcode_type: 'ean13',
+        barcode_type: 'code128',
         barcode_value: '',
         display_code: '',
         label_title: '',
@@ -266,14 +266,22 @@ export default function InventoryBarcodes() {
               background: #fff;
             }
             .label-container {
+              width: 51mm;
+              height: 26mm;
               text-align: center;
+              display: flex;
+              justify-content: center;
+              align-items: center;
             }
             .label-container svg {
-              max-width: 100%;
-              height: auto;
+              width: 51mm;
+              height: 26mm;
             }
             @media print {
-              @page { margin: 10mm; }
+              @page {
+                size: 51mm 26mm;
+                margin: 0;
+              }
               body {
                 display: flex;
                 justify-content: center;
@@ -919,6 +927,12 @@ export default function InventoryBarcodes() {
                       label="Label Size"
                       onChange={(e) => setBulkLayout(e.target.value)}
                     >
+                      <MenuItem value="51x26">
+                        <Box>
+                          <Typography variant="body2" fontWeight={500}>51 × 26 mm (2″ × 1″)</Typography>
+                          <Typography variant="caption" color="text.secondary">Code 128 • Scale 100% • Standard retail barcode</Typography>
+                        </Box>
+                      </MenuItem>
                       <MenuItem value="50x25">
                         <Box>
                           <Typography variant="body2" fontWeight={500}>50 × 25 mm</Typography>

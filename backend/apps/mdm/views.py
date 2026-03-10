@@ -549,13 +549,13 @@ class SKUBarcodeViewSet(TenantScopedViewSet):
         from django.http import HttpResponse as DjangoHttpResponse
 
         items_data = request.data.get('items', [])
-        layout = request.data.get('layout', 'a4_24')
+        layout = request.data.get('layout', '51x26')
 
         if not items_data:
             return Response({'detail': 'No items provided.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        if layout not in ('50x25', '50x30', '38x25'):
-            return Response({'detail': 'Invalid layout. Choose 50x25, 50x30, or 38x25.'}, status=status.HTTP_400_BAD_REQUEST)
+        if layout not in ('51x26', '50x25', '50x30', '38x25'):
+            return Response({'detail': 'Invalid layout. Choose 51x26, 50x25, 50x30, or 38x25.'}, status=status.HTTP_400_BAD_REQUEST)
 
         label_items = []
         for entry in items_data:

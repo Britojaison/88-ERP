@@ -21,7 +21,7 @@ import {
   AccountCircle,
   FactCheck as ReceivingIcon,
   Dashboard as DashboardIcon,
-  Inventory as InventoryIcon,
+
   Logout,
   Menu as MenuIcon,
   Settings as SettingsIcon,
@@ -52,7 +52,12 @@ const navSections = [
     items: [
       { text: 'Dashboard', icon: <DashboardIcon />, path: '/', permission: 'dashboard.view' },
       { text: 'Master Data', icon: <PeopleIcon />, path: '/master-data', permission: 'mdm.product.view' },
-      { text: 'Inventory', icon: <InventoryIcon />, path: '/inventory', permission: 'inv.view' },
+    ],
+  },
+  {
+    heading: 'Inventory',
+    visible: true,
+    items: [
       { text: 'Barcodes', icon: <BarcodeIcon />, path: '/inventory/barcodes', permission: 'inv.barcodes' },
       { text: 'Receiving', icon: <ReceivingIcon />, path: '/inventory/receiving', permission: 'inv.receiving' },
       { text: 'Warehouses', icon: <WarehouseIcon />, path: '/warehouses', permission: 'org.warehouses.view' },

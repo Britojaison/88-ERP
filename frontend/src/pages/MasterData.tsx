@@ -1316,16 +1316,39 @@ export default function MasterData() {
         <DialogTitle>{editWarehouseId ? 'Edit Warehouse' : 'Create New Warehouse'}</DialogTitle>
         <DialogContent>
           <TextField
+            fullWidth margin="normal" label="Warehouse Name" required
+            value={warehouseForm.name}
+            onChange={(e) => {
+              const name = e.target.value
+              setWarehouseForm(prev => {
+                // Determine next sequential number for WH-
+                let nextNum = 1
+                const whCodes = filteredWarehouses.map(w => w.code || '')
+                whCodes.forEach(code => {
+                  const match = code.match(/WH-(\d+)/)
+                  if (match) {
+                    const num = parseInt(match[1])
+                    if (num >= nextNum) nextNum = num + 1
+                  }
+                })
+                const suggestedCode = `WH-${nextNum.toString().padStart(3, '0')}`
+
+                // Only auto-update if code is empty or matches a previous numeric WH-NNN pattern
+                const shouldAutoUpdate = !prev.code || prev.code === '' || /^WH-\d{3}$/.test(prev.code)
+                return {
+                  ...prev,
+                  name,
+                  code: shouldAutoUpdate && !editWarehouseId ? suggestedCode : prev.code,
+                }
+              })
+            }}
+            placeholder="e.g. Main Warehouse"
+          />
+          <TextField
             fullWidth margin="normal" label="Warehouse Code" required
             value={warehouseForm.code}
             onChange={(e) => setWarehouseForm(prev => ({ ...prev, code: e.target.value }))}
-            placeholder="e.g. WH-01"
-          />
-          <TextField
-            fullWidth margin="normal" label="Warehouse Name" required
-            value={warehouseForm.name}
-            onChange={(e) => setWarehouseForm(prev => ({ ...prev, name: e.target.value }))}
-            placeholder="e.g. Main Warehouse"
+            helperText="Auto-generated (editable)"
           />
           <TextField
             fullWidth margin="normal" label="Warehouse Email"
@@ -1341,19 +1364,8 @@ export default function MasterData() {
             type="date"
             InputLabelProps={{ shrink: true }}
           />
-          <FormControl fullWidth margin="normal">
-            <InputLabel>Business Unit</InputLabel>
-            <Select
-              value={warehouseForm.business_unit}
-              label="Business Unit"
-              onChange={(e) => setWarehouseForm(prev => ({ ...prev, business_unit: e.target.value }))}
-            >
-              <MenuItem value="" disabled>Select Business Unit</MenuItem>
-              {businessUnits.map((bu) => (
-                <MenuItem key={bu.id} value={bu.id}>{bu.name}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+
+
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpenWarehouseDialog(false)}>Cancel</Button>
@@ -1366,22 +1378,45 @@ export default function MasterData() {
         <DialogTitle>{editStoreId ? 'Edit Store' : 'Create New Store'}</DialogTitle>
         <DialogContent>
           <TextField
+            fullWidth margin="normal" label="Store Name" required
+            value={storeForm.name}
+            onChange={(e) => {
+              const name = e.target.value
+              setStoreForm(prev => {
+                // Determine next sequential number
+                let nextNum = 1
+                const storeCodes = filteredStores.map(s => s.code || '')
+                storeCodes.forEach(code => {
+                  const match = code.match(/STORE-(\d+)/)
+                  if (match) {
+                    const num = parseInt(match[1])
+                    if (num >= nextNum) nextNum = num + 1
+                  }
+                })
+                const suggestedCode = `STORE-${nextNum.toString().padStart(3, '0')}`
+
+                // Only auto-update if code is empty or matches a previous numeric STORE-NNN pattern
+                const shouldAutoUpdate = !prev.code || prev.code === '' || /^STORE-\d{3}$/.test(prev.code)
+                return {
+                  ...prev,
+                  name,
+                  code: shouldAutoUpdate && !editStoreId ? suggestedCode : prev.code,
+                }
+              })
+            }}
+            placeholder="e.g. Main Store"
+          />
+          <TextField
             fullWidth margin="normal" label="Store Code" required
             value={storeForm.code}
             onChange={(e) => setStoreForm(prev => ({ ...prev, code: e.target.value }))}
-            placeholder="e.g. 124"
-          />
-          <TextField
-            fullWidth margin="normal" label="Store Name" required
-            value={storeForm.name}
-            onChange={(e) => setStoreForm(prev => ({ ...prev, name: e.target.value }))}
-            placeholder="e.g. Stores"
+            helperText="Auto-generated from name (editable)"
           />
           <TextField
             fullWidth margin="normal" label="Store Email"
             value={storeForm.email}
             onChange={(e) => setStoreForm(prev => ({ ...prev, email: e.target.value }))}
-            placeholder="e.g. jdkjksdkjkj@gmail.com"
+            placeholder="e.g. store@company.com"
             type="email"
           />
           <TextField
@@ -1391,19 +1426,6 @@ export default function MasterData() {
             type="date"
             InputLabelProps={{ shrink: true }}
           />
-          <FormControl fullWidth margin="normal">
-            <InputLabel>Business Unit</InputLabel>
-            <Select
-              value={storeForm.business_unit}
-              label="Business Unit"
-              onChange={(e) => setStoreForm(prev => ({ ...prev, business_unit: e.target.value }))}
-            >
-              <MenuItem value="" disabled>Select Business Unit</MenuItem>
-              {businessUnits.map((bu) => (
-                <MenuItem key={bu.id} value={bu.id}>{bu.name}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpenStoreDialog(false)}>Cancel</Button>
