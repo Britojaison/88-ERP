@@ -15,6 +15,7 @@ from .serializers import (
     InventoryBalanceSerializer,
     InventoryMovementSerializer,
     InventoryMovementCreateSerializer,
+    InventoryMovementBulkTransferSerializer,
     GoodsReceiptScanSerializer,
     GoodsReceiptScanRequestSerializer,
     DamagedItemSerializer,
@@ -235,7 +236,68 @@ class InventoryMovementViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         if self.action == "create":
             return InventoryMovementCreateSerializer
+        if self.action == "bulk_transfer":
+            return InventoryMovementBulkTransferSerializer
         return InventoryMovementSerializer
+
+    @action(detail=False, methods=["post"], url_path="bulk-transfer")
+    @transaction.atomic
+    def bulk_transfer(self, request):
+        """
+        Creates multiple stock transfers in a single atomic transaction.
+        Payload format:
+        {
+            "from_location": UUID,
+            "to_location": UUID,
+            "notes": "string",
+            "items": [
+                {"sku": UUID, "quantity": 10},
+                ...
+            ]
+        }
+        """
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        from_loc = Location.objects.get(id=data["from_location"], company_id=request.user.company_id)
+        to_loc = Location.objects.get(id=data["to_location"], company_id=request.user.company_id)
+        notes = data.get("notes", "")
+
+        movements_created = []
+
+        for item in data["items"]:
+            sku_id = item.get("sku")
+            quantity = Decimal(str(item.get("quantity", "0")))
+
+            try:
+                sku = SKU.objects.get(id=sku_id, company_id=request.user.company_id)
+            except SKU.DoesNotExist:
+                raise ValidationError(f"SKU {sku_id} not found.")
+
+            # Create the movement record
+            movement = InventoryMovement.objects.create(
+                movement_type=InventoryMovement.MOVEMENT_TYPE_TRANSFER,
+                movement_date=timezone.now(),
+                sku=sku,
+                from_location=from_loc,
+                to_location=to_loc,
+                quantity=quantity,
+                unit_cost=sku.cost_price or 0,
+                total_cost=(sku.cost_price or 0) * quantity,
+                notes=notes,
+                created_by=request.user,
+                updated_by=request.user,
+            )
+
+            # Apply the balance logic (updates status, handles Shopify sync)
+            self._apply_movement(movement, request.user.company_id)
+            movements_created.append(movement)
+
+        return Response({
+            "message": f"Successfully transferred {len(movements_created)} items.",
+            "movements": [m.id for m in movements_created]
+        }, status=status.HTTP_201_CREATED)
 
     def update(self, request, *args, **kwargs):
         return Response(
