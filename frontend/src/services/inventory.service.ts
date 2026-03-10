@@ -87,6 +87,16 @@ export const inventoryService = {
     return response.data
   },
 
+  bulkTransfer: async (data: {
+    from_location: string
+    to_location: string
+    notes?: string
+    items: { sku: string; quantity: string }[]
+  }) => {
+    const response = await api.post('/inventory/movements/bulk-transfer/', data)
+    return response.data
+  },
+
   getStockVelocity: async () => {
     const response = await api.get('/inventory/balances/velocity/')
     return response.data

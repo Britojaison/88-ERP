@@ -158,6 +158,23 @@ class GoodsReceiptScanRequestSerializer(serializers.Serializer):
     strict = serializers.BooleanField(default=True)
 
 
+class InventoryMovementBulkTransferSerializer(serializers.Serializer):
+    """Handles multiple SKU transfers from one location to another."""
+    from_location = serializers.UUIDField()
+    to_location = serializers.UUIDField()
+    notes = serializers.CharField(required=False, allow_blank=True)
+    items = serializers.ListField(
+        child=serializers.DictField() # List of {sku: UUID, quantity: Decimal}
+    )
+
+    def validate(self, attrs):
+        if attrs["from_location"] == attrs["to_location"]:
+            raise serializers.ValidationError("Source and destination must differ.")
+        if not attrs.get("items"):
+            raise serializers.ValidationError("At least one item is required.")
+        return attrs
+
+
 class DamagedItemSerializer(serializers.ModelSerializer):
     sku_code = serializers.CharField(source="sku.code", read_only=True, allow_null=True)
     location_code = serializers.CharField(source="location.code", read_only=True)
