@@ -11,7 +11,9 @@ import {
   FormControlLabel,
   FormControl,
   Grid,
+  IconButton,
   InputLabel,
+  LinearProgress,
   MenuItem,
   Paper,
   Select,
@@ -29,10 +31,34 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
-import { QrCodeScanner, Refresh, Warning, CloudUpload, CameraAlt, BrokenImage } from '@mui/icons-material'
+import {
+  QrCodeScanner,
+  Refresh,
+  Warning,
+  CloudUpload,
+  CameraAlt,
+  BrokenImage,
+  Delete,
+  CheckCircle,
+  ErrorOutline,
+  PlayArrow,
+  Stop,
+} from '@mui/icons-material'
 import PageHeader from '../components/ui/PageHeader'
 import { inventoryService, type GoodsReceiptScanLog } from '../services/inventory.service'
 import { mdmService, type Location } from '../services/mdm.service'
+
+interface ScanQueueItem {
+  id: string
+  barcode_value: string
+  sku_code: string
+  product_name: string
+  location_code: string
+  quantity: number
+  result: 'matched' | 'mismatch' | 'over_receipt' | 'unknown'
+  message: string
+  scanned_at: string
+}
 
 export default function InventoryReceiving() {
   const barcodeInputRef = useRef<HTMLInputElement | null>(null)
@@ -69,6 +95,11 @@ export default function InventoryReceiving() {
     quantity: '1',
     strict: true,
   })
+
+  // ─── Multi-scan mode state ───
+  const [scanQueue, setScanQueue] = useState<ScanQueueItem[]>([])
+  const [multiScanMode, setMultiScanMode] = useState(false)
+  const [scanCount, setScanCount] = useState(0)
 
   const loadData = async () => {
     const toArray = <T,>(data: unknown): T[] => {
@@ -119,9 +150,11 @@ export default function InventoryReceiving() {
     setTimeout(() => barcodeInputRef.current?.focus(), 50)
   }
 
+  // ─── Multi-scan: handle each scan ───
   const handleScan = async () => {
     if (!form.barcode_value || !form.location_id) {
       setSnackbar({ open: true, message: 'Barcode and location are required.', severity: 'error' })
+      focusBarcodeInput()
       return
     }
     setIsScanning(true)
@@ -132,13 +165,61 @@ export default function InventoryReceiving() {
         quantity: Number(form.quantity),
         strict: form.strict,
       })
+
+      // Add to logs
       setLogs((prev) => [result, ...prev])
 
-      // Show damage dialog after successful scan
-      setCurrentScanResult(result)
-      setOpenDamageDialog(true)
+      // Get location name
+      const loc = locations.find(l => l.id === form.location_id)
 
-      setForm((prev) => ({ ...prev, barcode_value: '' }))
+      if (multiScanMode) {
+        // In multi-scan: add to queue, auto-refocus, NO damage dialog
+        const queueItem: ScanQueueItem = {
+          id: result.id || crypto.randomUUID(),
+          barcode_value: result.barcode_value,
+          sku_code: result.sku_code || 'Unknown',
+          product_name: result.sku_code || result.barcode_value,
+          location_code: result.location_code || loc?.code || '',
+          quantity: Number(result.quantity),
+          result: result.result,
+          message: result.message,
+          scanned_at: new Date().toISOString(),
+        }
+
+        setScanQueue((prev) => {
+          // Check if same barcode was already scanned at same location
+          const existing = prev.find(
+            q => q.barcode_value === result.barcode_value && q.location_code === queueItem.location_code
+          )
+          if (existing) {
+            // Increment quantity on existing entry
+            return prev.map(q =>
+              q.id === existing.id
+                ? { ...q, quantity: q.quantity + Number(result.quantity) }
+                : q
+            )
+          }
+          return [queueItem, ...prev]
+        })
+
+        setScanCount(prev => prev + 1)
+
+        // Flash feedback
+        if (result.result === 'matched') {
+          setSnackbar({ open: true, message: `✓ ${result.sku_code || result.barcode_value} — ${result.quantity} received`, severity: 'success' })
+        } else {
+          setSnackbar({ open: true, message: `⚠ ${result.message}`, severity: 'error' })
+        }
+
+        // Clear barcode field, auto-refocus for next scan
+        setForm(prev => ({ ...prev, barcode_value: '' }))
+        focusBarcodeInput()
+      } else {
+        // Single scan mode: show damage dialog as before
+        setCurrentScanResult(result)
+        setOpenDamageDialog(true)
+        setForm(prev => ({ ...prev, barcode_value: '' }))
+      }
     } catch (error) {
       setSnackbar({ open: true, message: 'Scan failed.', severity: 'error' })
       focusBarcodeInput()
@@ -164,7 +245,6 @@ export default function InventoryReceiving() {
     }
 
     try {
-      // Create damage record
       const damageRecord = {
         id: Date.now().toString(),
         scan_log_id: currentScanResult?.id,
@@ -180,7 +260,6 @@ export default function InventoryReceiving() {
         location: currentScanResult?.location_code || 'N/A',
       }
 
-      // Add to damage records (in real app, this would be an API call)
       setDamageRecords((prev) => [damageRecord, ...prev])
       setUnviewedDamageCount((prev) => prev + 1)
 
@@ -214,7 +293,6 @@ export default function InventoryReceiving() {
       setCameraStream(stream)
       setOpenCameraDialog(true)
 
-      // Wait for video element to be ready
       setTimeout(() => {
         if (videoRef.current) {
           videoRef.current.srcObject = stream
@@ -239,7 +317,6 @@ export default function InventoryReceiving() {
 
   const handleTabChange = (newValue: number) => {
     setActiveTab(newValue)
-    // Clear notification badge when viewing damaged items tab
     if (newValue === 2) {
       setUnviewedDamageCount(0)
     }
@@ -268,6 +345,35 @@ export default function InventoryReceiving() {
       }
     }
   }
+
+  // ─── Multi-scan helpers ───
+  const startMultiScan = () => {
+    if (!form.location_id) {
+      setSnackbar({ open: true, message: 'Please select a location before starting multi-scan.', severity: 'error' })
+      return
+    }
+    setMultiScanMode(true)
+    setScanQueue([])
+    setScanCount(0)
+    setSnackbar({ open: true, message: 'Multi-scan mode started! Scan barcodes continuously.', severity: 'info' })
+    focusBarcodeInput()
+  }
+
+  const stopMultiScan = () => {
+    setMultiScanMode(false)
+    setSnackbar({
+      open: true,
+      message: `Multi-scan session complete. ${scanCount} scan(s) processed.`,
+      severity: 'success'
+    })
+  }
+
+  const removeFromQueue = (queueId: string) => {
+    setScanQueue(prev => prev.filter(q => q.id !== queueId))
+  }
+
+  const totalReceived = scanQueue.reduce((sum, q) => q.result === 'matched' ? sum + q.quantity : sum, 0)
+  const totalErrors = scanQueue.filter(q => q.result !== 'matched').length
 
   return (
     <Box>
@@ -303,80 +409,257 @@ export default function InventoryReceiving() {
 
         {/* Tab 0: Receive by Scan */}
         {activeTab === 0 && (
-          <Grid item xs={12}>
-            <Paper sx={{ p: 2.5 }}>
-              <Typography variant="h6" gutterBottom>
-                Receive by Scan
-              </Typography>
-              <Grid container spacing={2}>
-                <Grid item xs={12} md={4}>
-                  <TextField
-                    fullWidth
-                    label="Barcode Value"
-                    inputRef={barcodeInputRef}
-                    value={form.barcode_value}
-                    onChange={(e) => setForm((prev) => ({ ...prev, barcode_value: e.target.value }))}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault()
-                        void handleScan()
-                      }
-                    }}
-                    helperText="Scan and press Enter to submit quickly."
-                  />
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <FormControl fullWidth>
-                    <InputLabel>Location</InputLabel>
-                    <Select
-                      value={form.location_id}
-                      label="Location"
-                      onChange={(e) => setForm((prev) => ({ ...prev, location_id: e.target.value }))}
-                    >
-                      {locations.map((loc) => (
-                        <MenuItem key={loc.id} value={loc.id}>
-                          {loc.code} - {loc.name}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <TextField
-                    fullWidth
-                    label="Quantity"
-                    value={form.quantity}
-                    onChange={(e) => setForm((prev) => ({ ...prev, quantity: e.target.value }))}
-                  />
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <FormControl fullWidth>
-                    <InputLabel>Validation Mode</InputLabel>
-                    <Select
-                      value={form.strict ? 'strict' : 'relaxed'}
-                      label="Validation Mode"
-                      onChange={(e) => setForm((prev) => ({ ...prev, strict: e.target.value === 'strict' }))}
-                    >
-                      <MenuItem value="strict">Strict</MenuItem>
-                      <MenuItem value="relaxed">Relaxed</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <Stack direction="row" sx={{ height: '100%' }} alignItems="center">
+          <>
+            <Grid item xs={12}>
+              <Paper sx={{ p: 2.5 }}>
+                {/* Multi-scan mode banner */}
+                {multiScanMode && (
+                  <Box sx={{
+                    mb: 2, p: 1.5, borderRadius: 1,
+                    bgcolor: 'success.main', color: 'white',
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                  }}>
+                    <Stack direction="row" spacing={1.5} alignItems="center">
+                      <QrCodeScanner />
+                      <Box>
+                        <Typography variant="subtitle2" fontWeight={700}>
+                          Multi-Scan Mode Active
+                        </Typography>
+                        <Typography variant="caption">
+                          Keep scanning — each barcode is received instantly. {scanCount} scan(s) this session.
+                        </Typography>
+                      </Box>
+                    </Stack>
                     <Button
                       variant="contained"
-                      startIcon={<QrCodeScanner />}
-                      onClick={() => void handleScan()}
-                      disabled={isScanning}
+                      size="small"
+                      startIcon={<Stop />}
+                      onClick={stopMultiScan}
+                      sx={{ bgcolor: 'white', color: 'success.main', '&:hover': { bgcolor: 'grey.100' } }}
                     >
-                      {isScanning ? 'Scanning...' : 'Confirm Scan'}
+                      End Session
                     </Button>
-                  </Stack>
+                  </Box>
+                )}
+
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                  <Typography variant="h6">
+                    Receive by Scan
+                  </Typography>
+                  {!multiScanMode && (
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      color="success"
+                      startIcon={<PlayArrow />}
+                      onClick={startMultiScan}
+                    >
+                      Start Multi-Scan
+                    </Button>
+                  )}
+                </Stack>
+
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={multiScanMode ? 6 : 4}>
+                    <TextField
+                      fullWidth
+                      label="Barcode Value"
+                      inputRef={barcodeInputRef}
+                      value={form.barcode_value}
+                      onChange={(e) => setForm((prev) => ({ ...prev, barcode_value: e.target.value }))}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          void handleScan()
+                        }
+                      }}
+                      autoFocus={multiScanMode}
+                      helperText={multiScanMode ? 'Scan barcode — auto-submits on Enter' : 'Scan and press Enter to submit quickly.'}
+                      sx={multiScanMode ? {
+                        '& .MuiOutlinedInput-root': {
+                          borderColor: 'success.main',
+                          '& fieldset': { borderColor: 'success.main', borderWidth: 2 },
+                        }
+                      } : undefined}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={multiScanMode ? 4 : 4}>
+                    <FormControl fullWidth>
+                      <InputLabel>Location</InputLabel>
+                      <Select
+                        value={form.location_id}
+                        label="Location"
+                        onChange={(e) => setForm((prev) => ({ ...prev, location_id: e.target.value }))}
+                        disabled={multiScanMode}
+                      >
+                        {locations.map((loc) => (
+                          <MenuItem key={loc.id} value={loc.id}>
+                            {loc.code} - {loc.name}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12} md={multiScanMode ? 2 : 4}>
+                    <TextField
+                      fullWidth
+                      label="Quantity"
+                      value={form.quantity}
+                      onChange={(e) => setForm((prev) => ({ ...prev, quantity: e.target.value }))}
+                      type="number"
+                      inputProps={{ min: 1 }}
+                    />
+                  </Grid>
+                  {!multiScanMode && (
+                    <>
+                      <Grid item xs={12} md={4}>
+                        <FormControl fullWidth>
+                          <InputLabel>Validation Mode</InputLabel>
+                          <Select
+                            value={form.strict ? 'strict' : 'relaxed'}
+                            label="Validation Mode"
+                            onChange={(e) => setForm((prev) => ({ ...prev, strict: e.target.value === 'strict' }))}
+                          >
+                            <MenuItem value="strict">Strict</MenuItem>
+                            <MenuItem value="relaxed">Relaxed</MenuItem>
+                          </Select>
+                        </FormControl>
+                      </Grid>
+                      <Grid item xs={12} md={4}>
+                        <Stack direction="row" sx={{ height: '100%' }} alignItems="center">
+                          <Button
+                            variant="contained"
+                            startIcon={<QrCodeScanner />}
+                            onClick={() => void handleScan()}
+                            disabled={isScanning}
+                          >
+                            {isScanning ? 'Scanning...' : 'Confirm Scan'}
+                          </Button>
+                        </Stack>
+                      </Grid>
+                    </>
+                  )}
                 </Grid>
+
+                {isScanning && <LinearProgress sx={{ mt: 1 }} />}
+              </Paper>
+            </Grid>
+
+            {/* Scan Queue (visible in multi-scan or when queue has items) */}
+            {(multiScanMode || scanQueue.length > 0) && (
+              <Grid item xs={12}>
+                <Paper sx={{ p: 2.5 }}>
+                  <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                    <Box>
+                      <Typography variant="h6">Scan Queue</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {scanQueue.length} unique item{scanQueue.length !== 1 ? 's' : ''} • {totalReceived} unit{totalReceived !== 1 ? 's' : ''} received
+                        {totalErrors > 0 && (
+                          <Chip
+                            size="small"
+                            label={`${totalErrors} error${totalErrors !== 1 ? 's' : ''}`}
+                            color="error"
+                            sx={{ ml: 1, height: 20, fontSize: 11 }}
+                          />
+                        )}
+                      </Typography>
+                    </Box>
+                    {scanQueue.length > 0 && (
+                      <Button
+                        size="small"
+                        color="error"
+                        variant="text"
+                        onClick={() => setScanQueue([])}
+                      >
+                        Clear Queue
+                      </Button>
+                    )}
+                  </Stack>
+
+                  {scanQueue.length === 0 ? (
+                    <Alert severity="info">
+                      Start scanning barcodes. Each scanned item will appear here with its status.
+                    </Alert>
+                  ) : (
+                    <TableContainer sx={{ maxHeight: 400 }}>
+                      <Table stickyHeader size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell sx={{ width: 30 }}></TableCell>
+                            <TableCell>SKU Code</TableCell>
+                            <TableCell>Barcode</TableCell>
+                            <TableCell>Location</TableCell>
+                            <TableCell align="center">Qty</TableCell>
+                            <TableCell>Status</TableCell>
+                            <TableCell>Message</TableCell>
+                            <TableCell>Time</TableCell>
+                            <TableCell sx={{ width: 40 }}></TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {scanQueue.map((item) => (
+                            <TableRow
+                              key={item.id}
+                              hover
+                              sx={{
+                                bgcolor: item.result === 'matched'
+                                  ? 'rgba(46, 125, 50, 0.04)'
+                                  : 'rgba(211, 47, 47, 0.04)',
+                              }}
+                            >
+                              <TableCell>
+                                {item.result === 'matched' ? (
+                                  <CheckCircle sx={{ fontSize: 18, color: 'success.main' }} />
+                                ) : (
+                                  <ErrorOutline sx={{ fontSize: 18, color: 'error.main' }} />
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <Typography variant="body2" fontWeight={600}>{item.sku_code}</Typography>
+                              </TableCell>
+                              <TableCell>
+                                <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: 12 }}>
+                                  {item.barcode_value}
+                                </Typography>
+                              </TableCell>
+                              <TableCell>{item.location_code}</TableCell>
+                              <TableCell align="center">
+                                <Chip label={item.quantity} size="small" color="primary" sx={{ fontWeight: 700, minWidth: 36 }} />
+                              </TableCell>
+                              <TableCell>
+                                <Chip
+                                  size="small"
+                                  label={item.result}
+                                  color={
+                                    item.result === 'matched' ? 'success'
+                                      : item.result === 'over_receipt' ? 'warning'
+                                        : 'error'
+                                  }
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Typography variant="caption" color="text.secondary">{item.message}</Typography>
+                              </TableCell>
+                              <TableCell>
+                                <Typography variant="caption" color="text.secondary">
+                                  {new Date(item.scanned_at).toLocaleTimeString()}
+                                </Typography>
+                              </TableCell>
+                              <TableCell>
+                                <IconButton size="small" onClick={() => removeFromQueue(item.id)}>
+                                  <Delete fontSize="small" />
+                                </IconButton>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  )}
+                </Paper>
               </Grid>
-            </Paper>
-          </Grid>
+            )}
+          </>
         )}
 
         {/* Tab 1: Scan Audit Log */}
@@ -720,7 +1003,7 @@ export default function InventoryReceiving() {
 
       <Snackbar
         open={snackbar.open}
-        autoHideDuration={4000}
+        autoHideDuration={multiScanMode ? 2000 : 4000}
         onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
       >
