@@ -539,6 +539,90 @@ class SKUBarcodeViewSet(TenantScopedViewSet):
         response["Content-Disposition"] = f'attachment; filename="{filename}"'
         return response
 
+    @action(detail=False, methods=["post"], url_path="bulk-generate")
+    def bulk_generate(self, request):
+        """
+        Generate a multi-page PDF with multiple barcode labels.
+        POST body: { "items": [{"barcode_id":"uuid","quantity":10}, ...], "layout": "a4_24"|"a4_65"|"thermal_single" }
+        OR with sku_id: { "items": [{"sku_id":"uuid","quantity":5}, ...], "layout": "a4_24" }
+        """
+        from django.http import HttpResponse as DjangoHttpResponse
+
+        items_data = request.data.get('items', [])
+        layout = request.data.get('layout', 'a4_24')
+
+        if not items_data:
+            return Response({'detail': 'No items provided.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if layout not in ('50x25', '50x30', '38x25'):
+            return Response({'detail': 'Invalid layout. Choose 50x25, 50x30, or 38x25.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        label_items = []
+        for entry in items_data:
+            qty = max(1, int(entry.get('quantity', 1)))
+            barcode_id = entry.get('barcode_id')
+            sku_id = entry.get('sku_id')
+
+            if barcode_id:
+                try:
+                    bc = SKUBarcode.objects.select_related('sku', 'sku__product').get(
+                        id=barcode_id, company_id=request.user.company_id,
+                    )
+                    label_items.append({
+                        'display_code': bc.display_code or bc.sku.code,
+                        'title': bc.label_title or bc.sku.name,
+                        'size_label': bc.size_label or '',
+                        'barcode_value': bc.barcode_value,
+                        'barcode_type': bc.barcode_type,
+                        'selling_price': str(bc.selling_price or bc.sku.base_price or '0'),
+                        'mrp': str(bc.mrp or bc.sku.base_price or '0'),
+                        'quantity': qty,
+                    })
+                except SKUBarcode.DoesNotExist:
+                    pass
+            elif sku_id:
+                from .models import SKU as SKUModel
+                try:
+                    sku_obj = SKUModel.objects.select_related('product').get(
+                        id=sku_id, company_id=request.user.company_id,
+                    )
+                    existing_bc = SKUBarcode.objects.filter(
+                        sku=sku_obj, company_id=request.user.company_id, status='active'
+                    ).first()
+                    if existing_bc:
+                        label_items.append({
+                            'display_code': existing_bc.display_code or sku_obj.code,
+                            'title': existing_bc.label_title or sku_obj.name,
+                            'size_label': existing_bc.size_label or sku_obj.size or '',
+                            'barcode_value': existing_bc.barcode_value,
+                            'barcode_type': existing_bc.barcode_type,
+                            'selling_price': str(existing_bc.selling_price or sku_obj.base_price or '0'),
+                            'mrp': str(existing_bc.mrp or sku_obj.base_price or '0'),
+                            'quantity': qty,
+                        })
+                    else:
+                        barcode_value = BarcodeService.build_default_value(sku_obj.code)
+                        label_items.append({
+                            'display_code': sku_obj.code,
+                            'title': sku_obj.product.name if sku_obj.product else sku_obj.name,
+                            'size_label': sku_obj.size or '',
+                            'barcode_value': barcode_value,
+                            'barcode_type': 'code128',
+                            'selling_price': str(sku_obj.base_price or '0'),
+                            'mrp': str(sku_obj.cost_price or sku_obj.base_price or '0'),
+                            'quantity': qty,
+                        })
+                except Exception:
+                    pass
+
+        if not label_items:
+            return Response({'detail': 'No valid items to generate labels for.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        pdf_bytes = BarcodeService.build_bulk_pdf(label_items, layout)
+        response = DjangoHttpResponse(pdf_bytes, content_type="application/pdf")
+        response["Content-Disposition"] = f'attachment; filename="bulk_labels_{layout}.pdf"'
+        return response
+
 
 def _get_next_fabric_number(company_id):
     """Get the next sequential number for fabric codes within a company."""

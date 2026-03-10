@@ -228,6 +228,139 @@ class BarcodeService:
         return buf.getvalue()
 
     @staticmethod
+    def build_bulk_pdf(
+        items: list,
+        layout: str = "50x25",
+    ) -> bytes:
+        """
+        Build a multi-page PDF — ONE barcode label per page, sized for thermal printers.
+        Each page = one sticker, ready for direct thermal/barcode printing.
+
+        items: list of dicts with keys:
+            display_code, title, size_label, barcode_value,
+            barcode_type, selling_price, mrp, quantity
+        layout: label size
+            "50x25" — 50mm x 25mm (standard retail barcode sticker)
+            "50x30" — 50mm x 30mm (slightly taller)
+            "38x25" — 38mm x 25mm (compact)
+        """
+        from reportlab.pdfgen import canvas as pdf_canvas
+        from reportlab.lib.units import mm
+        from reportlab.graphics.barcode import code128
+
+        buf = io.BytesIO()
+
+        sizes = {
+            "50x25": (50, 25),
+            "50x30": (50, 30),
+            "38x25": (38, 25),
+        }
+        w_mm, h_mm = sizes.get(layout, (50, 25))
+        page_w = w_mm * mm
+        page_h = h_mm * mm
+
+        c = pdf_canvas.Canvas(buf, pagesize=(page_w, page_h))
+        cx = page_w / 2
+
+        # Expand items by quantity
+        all_labels = []
+        for item in items:
+            qty = max(1, int(item.get('quantity', 1)))
+            all_labels.extend([item] * qty)
+
+        for idx, item in enumerate(all_labels):
+            if idx > 0:
+                c.showPage()
+
+            display_code = item.get('display_code', '')
+            title = item.get('title', '')
+            size_label = item.get('size_label', '')
+            barcode_value = item.get('barcode_value', '')
+            selling_price = item.get('selling_price', '0')
+            mrp_val = item.get('mrp', '0')
+
+            title_line = title
+            if size_label:
+                title_line = title + ' - ' + size_label
+
+            if w_mm >= 50:
+                # ── 50mm wide labels ──
+                c.setFont("Helvetica-Bold", 7)
+                c.drawCentredString(cx, page_h - 4.5 * mm, display_code)
+
+                c.setFont("Helvetica", 5)
+                if len(title_line) > 35:
+                    title_line = title_line[:33] + ".."
+                c.drawCentredString(cx, page_h - 7.5 * mm, title_line)
+
+                # Barcode — fills the middle
+                try:
+                    bc = code128.Code128(
+                        barcode_value,
+                        barHeight=8 * mm,
+                        barWidth=0.18 * mm,
+                        quiet=False,
+                    )
+                    bc_width = bc.width
+                    bc_x = (page_w - bc_width) / 2
+                    bc.drawOn(c, bc_x, page_h - 17 * mm)
+                except Exception:
+                    pass
+
+                c.setFont("Helvetica", 4)
+                c.drawCentredString(cx, page_h - 18.5 * mm, barcode_value)
+
+                # Prices at bottom
+                c.setFont("Helvetica-Bold", 6.5)
+                price_text = "Rs." + selling_price
+                c.drawString(2 * mm, 1.5 * mm, price_text)
+
+                c.setFont("Helvetica", 6)
+                mrp_text = "MRP Rs." + mrp_val
+                mrp_x = page_w - 2 * mm - c.stringWidth(mrp_text, "Helvetica", 6)
+                c.drawString(mrp_x, 1.5 * mm, mrp_text)
+                tw = c.stringWidth(mrp_text, "Helvetica", 6)
+                c.line(mrp_x, 3.5 * mm, mrp_x + tw, 3.5 * mm)
+            else:
+                # ── 38mm wide (compact) ──
+                c.setFont("Helvetica-Bold", 6)
+                c.drawCentredString(cx, page_h - 4 * mm, display_code)
+
+                c.setFont("Helvetica", 4)
+                if len(title_line) > 28:
+                    title_line = title_line[:26] + ".."
+                c.drawCentredString(cx, page_h - 7 * mm, title_line)
+
+                try:
+                    bc = code128.Code128(
+                        barcode_value,
+                        barHeight=7 * mm,
+                        barWidth=0.13 * mm,
+                        quiet=False,
+                    )
+                    bc_width = bc.width
+                    bc_x = (page_w - bc_width) / 2
+                    bc.drawOn(c, bc_x, page_h - 15.5 * mm)
+                except Exception:
+                    pass
+
+                c.setFont("Helvetica", 3.5)
+                c.drawCentredString(cx, page_h - 17 * mm, barcode_value)
+
+                c.setFont("Helvetica-Bold", 5.5)
+                c.drawString(1.5 * mm, 1 * mm, "Rs." + selling_price)
+                c.setFont("Helvetica", 5)
+                mrp_text = "MRP " + mrp_val
+                mrp_x = page_w - 1.5 * mm - c.stringWidth(mrp_text, "Helvetica", 5)
+                c.drawString(mrp_x, 1 * mm, mrp_text)
+                tw = c.stringWidth(mrp_text, "Helvetica", 5)
+                c.line(mrp_x, 2.5 * mm, mrp_x + tw, 2.5 * mm)
+
+        c.showPage()
+        c.save()
+        return buf.getvalue()
+
+    @staticmethod
     def _fallback_svg(value: str) -> str:
         digest = hashlib.sha256(value.encode("utf-8")).digest()
         x, bars = 16, []
