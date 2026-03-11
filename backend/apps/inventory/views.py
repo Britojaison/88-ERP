@@ -165,7 +165,6 @@ class InventoryBalanceViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, 
                 "current_stock": float(qty),
                 "sold_period": sold
             }
-            
             classification = SKU.CLASSIFICATION_NONE
             if sold >= fast_threshold:
                 classification = SKU.CLASSIFICATION_FAST
@@ -173,10 +172,9 @@ class InventoryBalanceViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, 
             elif sold >= slow_threshold:
                 classification = SKU.CLASSIFICATION_SLOW
                 slow.append(item)
-            else:
+            elif qty > 0:
                 classification = SKU.CLASSIFICATION_DEAD
                 dead.append(item)
-            
             # Update SKU model if changed
             sku_obj = sku_map.get(sku_id)
             if sku_obj and sku_obj.movement_classification != classification:
@@ -1635,14 +1633,18 @@ class DailyStockReportViewSet(viewsets.ViewSet):
             total=Sum('total_amount'),
         ).order_by('-total'))
 
+        total_rev = float(overview.get('total_revenue') or 0)
+        total_txns = overview.get('total_transactions') or 0
+        avg_txn = total_rev / total_txns if total_txns > 0 else 0
+
         result = {
             'date': target_date,
             'overview': {
-                'total_revenue': float(overview['total_revenue'] or 0),
-                'total_transactions': overview['total_transactions'] or 0,
-                'total_items': overview['total_items'] or 0,
-                'total_discount': float(overview['total_discount'] or 0),
-                'avg_transaction': float(overview['avg_transaction'] or 0),
+                'total_revenue': total_rev,
+                'total_transactions': total_txns,
+                'total_items': overview.get('total_items') or 0,
+                'total_discount': float(overview.get('total_discount') or 0),
+                'avg_transaction': avg_txn,
             },
             'payment_breakdown': payment_breakdown,
             'channel_breakdown': channel_breakdown,
@@ -1713,8 +1715,13 @@ class DailyStockReportViewSet(viewsets.ViewSet):
         # If no location filtered, add Shopify online sales to give a complete picture
         if not location_id:
             from apps.integrations.shopify_models import ShopifyOrder
+            from decimal import Decimal
             shopify_orders = ShopifyOrder.objects.filter(
-                processed_at__gte=cutoff
+                store__company_id=request.user.company_id,
+                processed_at__gte=cutoff,
+                order_status__in=['open', 'closed']
+            ).exclude(
+                financial_status__in=['refunded', 'voided']
             ).values_list('shopify_data', flat=True)
             
             # Create a lookup map for SKU code -> SKU ID based on what we have in balances
@@ -1732,8 +1739,8 @@ class DailyStockReportViewSet(viewsets.ViewSet):
                     if sid not in sales_dict:
                         sales_dict[sid] = {'sku__id': sid, 'sold': 0, 'revenue': 0, 'cost': 0}
                     
-                    qty_sold = int(item.get('quantity', 0))
-                    price = float(item.get('price', 0))
+                    qty_sold = Decimal(str(item.get('quantity', 0) or 0))
+                    price = Decimal(str(item.get('price', 0) or 0))
                     sales_dict[sid]['sold'] += qty_sold
                     sales_dict[sid]['revenue'] += (qty_sold * price)
 
@@ -1772,7 +1779,7 @@ class DailyStockReportViewSet(viewsets.ViewSet):
                 fast.append(item)
             elif sold > slow_threshold:
                 slow.append(item)
-            else:
+            elif stock > 0:
                 dead.append(item)
 
         fast.sort(key=lambda x: x['sold_in_period'], reverse=True)
@@ -1837,7 +1844,7 @@ class DailyStockReportViewSet(viewsets.ViewSet):
     def _monthly_turnover_margin_inner(self, request):
         """Core logic for monthly turnover margin."""
         from apps.sales.models import SalesTransactionLine, SalesTransaction
-        from apps.documents.models import DocumentLine
+        from apps.integrations.shopify_models import ShopifyOrder
         from datetime import date
         import calendar
 
@@ -1875,28 +1882,30 @@ class DailyStockReportViewSet(viewsets.ViewSet):
             total_discount=Sum('discount_amount'),
         )
         
-        # 2. Document Lines (Shopify/Sales orders)
+        # 2. Shopify Orders (Online)
         doc_filter = {
-            'document__company_id': request.user.company_id,
-            'document__document_date__gte': start_date,
-            'document__document_date__lte': end_date,
-            'document__document_type__code': 'sales_order',
-            'status': 'active',
+            'store__company_id': request.user.company_id,
+            'processed_at__date__gte': start_date,
+            'processed_at__date__lte': end_date,
+            'order_status__in': ['open', 'closed']
         }
-        if location_id:
-            doc_filter['document__from_location_id'] = location_id
-            
-        doc_lines = DocumentLine.objects.filter(**doc_filter).values(
-            'sku__id', 'sku__code', 'sku__name', 'sku__product__name'
-        ).annotate(
-            qty_sold=Sum('quantity'),
-            revenue=Sum('line_amount'),
-            # COGS from average cost if unit_cost not in DocumentLine
-            cogs=Sum(models.F('quantity') * models.F('sku__cost_price'), output_field=models.DecimalField()),
-            total_discount=models.Value(0, output_field=models.DecimalField()),
-        )
         
-        # Merge lines (convert QuerySet to dict by SKU)
+        # Determine SKU cost list & ID translations
+        balances = InventoryBalance.objects.filter(
+            company_id=request.user.company_id,
+        ).values('sku__id', 'sku__code', 'sku__name', 'sku__product__name', 'average_cost', 'sku__cost_price')
+        
+        sku_lookup = {}
+        for b in balances:
+            if b.get('sku__code'):
+                cost = float(b.get('average_cost') or b.get('sku__cost_price') or 0)
+                sku_lookup[b['sku__code']] = {
+                    'id': b['sku__id'],
+                    'name': b['sku__name'],
+                    'product_name': b['sku__product__name'],
+                    'cost': cost
+                }
+
         merged_lines = {}
         for l in lines_qs:
             sku_id = l['sku__id']
@@ -1910,24 +1919,43 @@ class DailyStockReportViewSet(viewsets.ViewSet):
                 'cogs': float(l['cogs'] or 0),
                 'total_discount': float(l['total_discount'] or 0),
             }
+
+        if not location_id:
+            shopify_orders = ShopifyOrder.objects.filter(**doc_filter).exclude(
+                financial_status__in=['refunded', 'voided']
+            ).values_list('shopify_data', flat=True)
             
-        for l in doc_lines:
-            sku_id = l['sku__id']
-            if sku_id in merged_lines:
-                merged_lines[sku_id]['qty_sold'] += float(l['qty_sold'] or 0)
-                merged_lines[sku_id]['revenue'] += float(l['revenue'] or 0)
-                merged_lines[sku_id]['cogs'] += float(l['cogs'] or 0)
-            else:
-                merged_lines[sku_id] = {
-                    'sku__id': sku_id,
-                    'sku__code': l['sku__code'],
-                    'sku__name': l['sku__name'],
-                    'sku__product__name': l['sku__product__name'],
-                    'qty_sold': float(l['qty_sold'] or 0),
-                    'revenue': float(l['revenue'] or 0),
-                    'cogs': float(l['cogs'] or 0),
-                    'total_discount': 0,
-                }
+            for shopify_data in shopify_orders:
+                if not shopify_data or 'line_items' not in shopify_data:
+                    continue
+                for item in shopify_data['line_items']:
+                    code = item.get('sku')
+                    if not code or code not in sku_lookup:
+                        continue
+                        
+                    sku_info = sku_lookup[code]
+                    sid = sku_info['id']
+                    
+                    qty_sold = float(item.get('quantity', 0) or 0)
+                    price = float(item.get('price', 0) or 0)
+                    cogs = float(sku_info['cost']) * qty_sold
+                    revenue = qty_sold * price
+                    
+                    if sid in merged_lines:
+                        merged_lines[sid]['qty_sold'] += qty_sold
+                        merged_lines[sid]['revenue'] += revenue
+                        merged_lines[sid]['cogs'] += cogs
+                    else:
+                        merged_lines[sid] = {
+                            'sku__id': sid,
+                            'sku__code': code,
+                            'sku__name': sku_info['name'],
+                            'sku__product__name': sku_info['product_name'],
+                            'qty_sold': qty_sold,
+                            'revenue': revenue,
+                            'cogs': cogs,
+                            'total_discount': 0
+                        }
         
         lines = sorted(list(merged_lines.values()), key=lambda x: x['revenue'], reverse=True)
 
@@ -2086,7 +2114,10 @@ class DailyStockReportViewSet(viewsets.ViewSet):
         shopify_sales = ShopifyOrder.objects.filter(
             store__company_id=request.user.company_id,
             processed_at__date__gte=start_date,
-            processed_at__date__lte=end_date
+            processed_at__date__lte=end_date,
+            order_status__in=['open', 'closed']
+        ).exclude(
+            financial_status__in=['refunded', 'voided']
         ).annotate(
             date=TruncDate('processed_at')
         ).values('date').annotate(
