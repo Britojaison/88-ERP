@@ -9,6 +9,7 @@ export interface Product {
   image_url?: string | null
   company: string
   status: string
+  shopify_collection?: string | null
   created_at: string
   updated_at: string
 }
@@ -150,6 +151,7 @@ export const mdmService = {
     if (data.code) formData.append('code', data.code)
     if (data.name) formData.append('name', data.name)
     if (data.description) formData.append('description', data.description)
+    if (data.shopify_collection) formData.append('shopify_collection', data.shopify_collection)
     if (imageFile) formData.append('image', imageFile)
 
     const response = await api.post('/mdm/products/', formData, {
@@ -163,6 +165,7 @@ export const mdmService = {
     if (data.code) formData.append('code', data.code)
     if (data.name) formData.append('name', data.name)
     if (data.description) formData.append('description', data.description)
+    if (data.shopify_collection) formData.append('shopify_collection', data.shopify_collection)
     if (imageFile) formData.append('image', imageFile)
 
     const response = await api.patch(`/mdm/products/${id}/`, formData, {
@@ -236,7 +239,7 @@ export const mdmService = {
   },
 
   // SKU barcodes
-  getSKUBarcodes: async (params?: { sku?: string; page?: number }) => {
+  getSKUBarcodes: async (params?: { sku?: string; page?: number; shopify_collection?: string }) => {
     const response = await api.get('/mdm/sku-barcodes/', { params })
     return response.data as PaginatedResponse<SKUBarcode> | SKUBarcode[]
   },

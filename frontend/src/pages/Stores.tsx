@@ -42,6 +42,8 @@ import {
 import PageHeader from '../components/ui/PageHeader'
 import { mdmService, Location } from '../services/mdm.service'
 import { inventoryService, InventoryBalance, GoodsReceiptScanLog } from '../services/inventory.service'
+import { shopifyService, ShopifyCollection } from '../services/shopify.service'
+import { FilterList } from '@mui/icons-material'
 
 export default function Stores() {
     const [stores, setStores] = useState<Location[]>([])
@@ -55,6 +57,9 @@ export default function Stores() {
     const [productSearch, setProductSearch] = useState('')
     const [updatingOffer, setUpdatingOffer] = useState(false)
     const [showOnlyOffers, setShowOnlyOffers] = useState(false)
+    const [collections, setCollections] = useState<ShopifyCollection[]>([])
+    const [selectedCollection, setSelectedCollection] = useState<ShopifyCollection | null>(null)
+    const [ordering, setOrdering] = useState<string>('sku_code')
 
     // Pagination State
     const [page, setPage] = useState(0)
@@ -77,7 +82,16 @@ export default function Stores() {
                 setLoading(false)
             }
         }
+        const fetchCollections = async () => {
+            try {
+                const data = await shopifyService.listCollections()
+                setCollections(data || [])
+            } catch (error) {
+                console.error('Error fetching collections:', error)
+            }
+        }
         fetchStores()
+        fetchCollections()
     }, [])
 
     useEffect(() => {
@@ -93,7 +107,12 @@ export default function Stores() {
 
             try {
                 const [balanceData, logData] = await Promise.all([
-                    inventoryService.getBalances({ location_code: 'SHOPIFY-WH', page_size: 5000 }),
+                    inventoryService.getBalances({ 
+                        location_code: 'SHOPIFY-WH', 
+                        page_size: 5000,
+                        shopify_collection: selectedCollection?.id,
+                        ordering: ordering === 'collection' ? 'collection' : (ordering === '-collection' ? '-collection' : undefined)
+                    }),
                     inventoryService.getGoodsReceiptScans({ location: selectedStore.id })
                 ])
 
@@ -112,7 +131,7 @@ export default function Stores() {
             }
         }
         fetchData()
-    }, [selectedStore])
+    }, [selectedStore, selectedCollection, ordering])
 
     const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
         setTabValue(newValue)
@@ -155,26 +174,41 @@ export default function Stores() {
             setUpdatingOffer(false)
         }
     }
-
     const handleToggleEligibility = async (balanceId: string, current: boolean) => {
         try {
-            const updated = await inventoryService.updateBalance(balanceId, { is_offer_eligible: !current })
-            setBalances(prev => prev.map(b => b.id === balanceId ? { ...b, is_offer_eligible: updated.is_offer_eligible } : b))
+            await inventoryService.updateBalance(balanceId, { is_offer_eligible: !current })
+            setBalances(prev => prev.map(b => b.id === balanceId ? { ...b, is_offer_eligible: !current } : b))
         } catch (error) {
             console.error('Error toggling eligibility:', error)
         }
     }
 
+    const toggleOrdering = (field: string) => {
+        setOrdering(prev => prev === field ? `-${field}` : field)
+    }
+
     const filteredBalances = balances.filter(b => {
         const matchesSearch = (b.sku_code || '').toLowerCase().includes(productSearch.toLowerCase()) ||
-            (b.sku_name || '').toLowerCase().includes(productSearch.toLowerCase())
+            (b.sku_name || '').toLowerCase().includes(productSearch.toLowerCase()) ||
+            (b.product_name || '').toLowerCase().includes(productSearch.toLowerCase())
         if (showOnlyOffers) {
             return matchesSearch && b.is_offer_eligible
         }
         return matchesSearch
     })
 
-    const paginatedBalances = filteredBalances.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+    const sortedBalances = [...filteredBalances].sort((a, b) => {
+        if (ordering === 'collection') {
+            return (a.shopify_collection_name || '').localeCompare(b.shopify_collection_name || '')
+        }
+        if (ordering === '-collection') {
+            return (b.shopify_collection_name || '').localeCompare(a.shopify_collection_name || '')
+        }
+        // Add other sorting if needed, but the API already handles basic naming
+        return 0
+    })
+
+    const paginatedBalances = sortedBalances.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
 
     // Reset pagination to first page when search changes
     useEffect(() => {
@@ -400,6 +434,31 @@ export default function Stores() {
                                             label={<Typography variant="body2" fontWeight={600}>Offer Items Only</Typography>}
                                             sx={{ m: 0 }}
                                         />
+                                        <Autocomplete
+                                            size="small"
+                                            options={collections}
+                                            getOptionLabel={(option) => option.title}
+                                            value={selectedCollection}
+                                            onChange={(_, newValue) => setSelectedCollection(newValue)}
+                                            renderInput={(params) => (
+                                                <TextField
+                                                    {...params}
+                                                    placeholder="Collection filter..."
+                                                    variant="outlined"
+                                                    InputProps={{
+                                                        ...params.InputProps,
+                                                        startAdornment: (
+                                                            <InputAdornment position="start">
+                                                                <FilterList sx={{ fontSize: 18, color: 'text.disabled' }} />
+                                                            </InputAdornment>
+                                                        ),
+                                                        sx: { borderRadius: 2, bgcolor: 'white', fontSize: '0.875rem' }
+                                                    }}
+                                                />
+                                            )}
+                                            sx={{ width: 220 }}
+                                        />
+
                                         <TextField
                                             size="small"
                                             placeholder="Search products..."
@@ -439,6 +498,12 @@ export default function Stores() {
                                                         <TableRow>
                                                             <TableCell sx={{ fontWeight: 800 }}>SKU Code</TableCell>
                                                             <TableCell sx={{ fontWeight: 800 }}>Product Name</TableCell>
+                                                            <TableCell 
+                                                                sx={{ fontWeight: 800, cursor: 'pointer', '&:hover': { color: 'primary.main' } }}
+                                                                onClick={() => toggleOrdering('collection')}
+                                                            >
+                                                                Collection {ordering.includes('collection') && (ordering.startsWith('-') ? '↓' : '↑')}
+                                                            </TableCell>
                                                             <TableCell sx={{ fontWeight: 800 }}>Condition</TableCell>
                                                             <TableCell sx={{ fontWeight: 800 }} align="right">On Hand</TableCell>
                                                             <TableCell sx={{ fontWeight: 800 }} align="right">Available</TableCell>
@@ -457,6 +522,9 @@ export default function Stores() {
                                                                 </TableCell>
                                                                 <TableCell sx={{ fontWeight: 500 }}>
                                                                     {row.sku_name || 'Unknown Item'}
+                                                                </TableCell>
+                                                                <TableCell sx={{ color: 'text.secondary', fontSize: '0.85rem' }}>
+                                                                    {row.shopify_collection_name || '—'}
                                                                 </TableCell>
                                                                 <TableCell>
                                                                     <Chip

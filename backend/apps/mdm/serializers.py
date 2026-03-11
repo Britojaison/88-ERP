@@ -128,6 +128,8 @@ class SKUSerializer(TenantModelSerializer):
     product_code = serializers.ReadOnlyField(source='product.code')
     product_name = serializers.ReadOnlyField(source='product.name')
     style_code = serializers.ReadOnlyField(source='style.code')
+    shopify_collection = serializers.ReadOnlyField(source='product.shopify_collection_id')
+    shopify_collection_name = serializers.ReadOnlyField(source='product.shopify_collection.title')
     
     class Meta:
         model = SKU
@@ -136,6 +138,7 @@ class SKUSerializer(TenantModelSerializer):
             'code', 'name', 'base_price', 'cost_price', 'weight', 'size',
             'lifecycle_status', 'is_serialized', 'is_batch_tracked', 
             'min_stock_level', 'is_best_seller', 'movement_classification',
+            'shopify_collection', 'shopify_collection_name',
             'status', 'created_at', 'updated_at'
         ]
 
@@ -144,13 +147,14 @@ class SKUBarcodeSerializer(TenantModelSerializer):
     barcode_value = serializers.CharField(max_length=255, required=False, allow_blank=True)
     product_name = serializers.SerializerMethodField()
     sku_code = serializers.SerializerMethodField()
+    shopify_collection_name = serializers.ReadOnlyField(source='sku.product.shopify_collection.title')
     
     class Meta:
         model = SKUBarcode
         fields = [
             'id', 'company', 'sku', 'sku_code', 'product_name', 'barcode_type', 'barcode_value',
             'is_primary', 'display_code', 'label_title', 'size_label',
-            'selling_price', 'mrp', 'status', 'created_at', 'updated_at'
+            'selling_price', 'mrp', 'shopify_collection_name', 'status', 'created_at', 'updated_at'
         ]
         validators = []
     

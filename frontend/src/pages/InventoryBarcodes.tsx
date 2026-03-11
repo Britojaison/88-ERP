@@ -41,6 +41,8 @@ import {
 } from '@mui/icons-material'
 import PageHeader from '../components/ui/PageHeader'
 import { mdmService, type SKU, type SKUBarcode } from '../services/mdm.service'
+import { shopifyService, type ShopifyCollection } from '../services/shopify.service'
+import { FilterList } from '@mui/icons-material'
 import api from '../services/api'
 
 interface BulkQueueItem {
@@ -61,9 +63,11 @@ function TabPanel({ children, value, index }: { children: React.ReactNode; value
 }
 
 export default function InventoryBarcodes() {
-  // ─── Shared State ───
-  const [skuList, setSkuList] = useState<SKU[]>([])
-  const [barcodeList, setBarcodeList] = useState<SKUBarcode[]>([])
+    // ─── Shared State ───
+    const [skuList, setSkuList] = useState<SKU[]>([])
+    const [barcodeList, setBarcodeList] = useState<SKUBarcode[]>([])
+    const [collections, setCollections] = useState<ShopifyCollection[]>([])
+    const [selectedCollection, setSelectedCollection] = useState<ShopifyCollection | null>(null)
   const [selectedLabel, setSelectedLabel] = useState('')
   const [labelName, setLabelName] = useState('')
   const [activeBarcodeId, setActiveBarcodeId] = useState<string | null>(null)
@@ -100,8 +104,8 @@ export default function InventoryBarcodes() {
   const loadData = async (page = 1) => {
     try {
       const [skuRes, barcodeRes] = await Promise.all([
-        mdmService.getSKUs({ search: skuSearch }),
-        mdmService.getSKUBarcodes({ page })
+        mdmService.getSKUs({ search: skuSearch, shopify_collection: selectedCollection?.id }),
+        mdmService.getSKUBarcodes({ page, shopify_collection: selectedCollection?.id })
       ])
 
       const skus: any[] = Array.isArray(skuRes) ? skuRes : (skuRes as any).results
@@ -132,7 +136,7 @@ export default function InventoryBarcodes() {
     }
     const timer = setTimeout(async () => {
       try {
-        const res = await mdmService.getSKUs({ search: bulkSearchInput })
+        const res = await mdmService.getSKUs({ search: bulkSearchInput, shopify_collection: selectedCollection?.id })
         const results: SKU[] = Array.isArray(res) ? res : (res as any).results
         setBulkSkuResults(results)
       } catch {
@@ -140,7 +144,23 @@ export default function InventoryBarcodes() {
       }
     }, 300)
     return () => clearTimeout(timer)
-  }, [bulkSearchInput])
+  }, [bulkSearchInput, selectedCollection])
+
+  useEffect(() => {
+    const fetchCollections = async () => {
+      try {
+        const data = await shopifyService.listCollections()
+        setCollections(data || [])
+      } catch (error) {
+        console.error('Error fetching collections:', error)
+      }
+    }
+    fetchCollections()
+  }, [])
+
+  useEffect(() => {
+    loadData(1)
+  }, [selectedCollection])
 
   // ─── Single Barcode Handlers ───
   const handleAssign = async () => {
@@ -441,7 +461,31 @@ export default function InventoryBarcodes() {
         title="Barcode Workspace"
         subtitle="Assign SKU barcodes, produce labels, and generate bulk barcode sheets."
         actions={
-          <Stack direction="row" spacing={1.25}>
+          <Stack direction="row" spacing={1.25} alignItems="center">
+            <Autocomplete
+                size="small"
+                options={collections}
+                getOptionLabel={(option) => option.title}
+                value={selectedCollection}
+                onChange={(_, newValue) => setSelectedCollection(newValue)}
+                renderInput={(params) => (
+                    <TextField
+                        {...params}
+                        placeholder="Collection filter..."
+                        variant="outlined"
+                        InputProps={{
+                            ...params.InputProps,
+                            startAdornment: (
+                                <Box sx={{ display: 'flex', alignItems: 'center', ml: 1, mr: -0.5 }}>
+                                    <FilterList sx={{ fontSize: 18, color: 'text.disabled' }} />
+                                </Box>
+                            ),
+                            sx: { borderRadius: 2, bgcolor: 'white', fontSize: '0.875rem' }
+                        }}
+                    />
+                )}
+                sx={{ width: 220 }}
+            />
             <Button variant="outlined" startIcon={<Refresh />} onClick={() => void loadData()}>
               Refresh
             </Button>

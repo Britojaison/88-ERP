@@ -26,6 +26,8 @@ class InventoryBalanceSerializer(serializers.ModelSerializer):
             "quantity_on_hand",
             "quantity_reserved",
             "quantity_available",
+            "shopify_collection",
+            "shopify_collection_name",
             "condition",
             "is_offer_eligible",
             "average_cost",
@@ -49,6 +51,9 @@ class InventoryBalanceSerializer(serializers.ModelSerializer):
         if hasattr(obj.sku, 'product') and obj.sku.product:
             return obj.sku.product.name
         return obj.sku.name
+
+    shopify_collection = serializers.UUIDField(source="sku.product.shopify_collection_id", read_only=True)
+    shopify_collection_name = serializers.CharField(source="sku.product.shopify_collection.title", read_only=True)
 
 
 class InventoryMovementSerializer(serializers.ModelSerializer):

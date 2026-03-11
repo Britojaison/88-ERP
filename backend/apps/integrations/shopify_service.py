@@ -1,20 +1,19 @@
-"""
-Shopify Integration Service.
-Handles API calls, data sync, and webhook processing.
-"""
 import requests
 import time
+import logging
+import re
+from collections import defaultdict
 from typing import Dict, List, Optional, Any
 from django.db import transaction
 from django.utils import timezone
 from .shopify_models import (
     ShopifyStore, ShopifyProduct, ShopifyInventoryLevel,
     ShopifyWebhook, ShopifyWebhookLog, ShopifySyncJob,
-    ShopifyOrder, ShopifyDraftOrder, ShopifyDiscount, ShopifyGiftCard
+    ShopifyOrder, ShopifyDraftOrder, ShopifyDiscount, ShopifyGiftCard,
+    ShopifyCollection
 )
 from apps.mdm.models import Product, SKU, Location, Customer
 from apps.inventory.models import InventoryBalance
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -137,6 +136,120 @@ class ShopifyAPIClient:
     def delete_product(self, product_id: int) -> None:
         """Delete a product from Shopify."""
         self._make_request('DELETE', f'products/{product_id}.json')
+
+    def get_custom_collections(self) -> List[Dict]:
+        """Fetch all custom collections from Shopify (read-only)."""
+        import re
+        all_collections = []
+        url = f"{self.base_url}/custom_collections.json"
+        params = {'limit': 250}
+        while True:
+            response = requests.get(url, headers=self.headers, params=params, timeout=30)
+            if response.status_code == 429:
+                time.sleep(float(response.headers.get('Retry-After', '2.0')))
+                continue
+            response.raise_for_status()
+            data = response.json()
+            all_collections.extend(data.get('custom_collections', []))
+            link_header = response.headers.get('Link', '')
+            if not link_header or 'rel="next"' not in link_header:
+                break
+            next_match = re.search(r'<([^>]+)>;\s*rel="next"', link_header)
+            if not next_match:
+                break
+            # next page — use full URL
+            url = next_match.group(1)
+            params = {}
+        return all_collections
+
+    def get_smart_collections(self) -> List[Dict]:
+        """Fetch all smart collections from Shopify (read-only)."""
+        import re
+        all_collections = []
+        url = f"{self.base_url}/smart_collections.json"
+        params = {'limit': 250}
+        while True:
+            response = requests.get(url, headers=self.headers, params=params, timeout=30)
+            if response.status_code == 429:
+                time.sleep(float(response.headers.get('Retry-After', '2.0')))
+                continue
+            response.raise_for_status()
+            data = response.json()
+            all_collections.extend(data.get('smart_collections', []))
+            link_header = response.headers.get('Link', '')
+            if not link_header or 'rel="next"' not in link_header:
+                break
+            next_match = re.search(r'<([^>]+)>;\s*rel="next"', link_header)
+            if not next_match:
+                break
+            url = next_match.group(1)
+            params = {}
+        return all_collections
+
+    def add_product_to_collection(self, shopify_product_id: int, shopify_collection_id: int) -> Dict:
+        """
+        Add a product to a collection via the Collects API.
+        This is PURELY additive — it never modifies any product data.
+        """
+        response = self._make_request('POST', 'collects.json', json={
+            'collect': {
+                'product_id': shopify_product_id,
+                'collection_id': shopify_collection_id,
+            }
+        })
+        return response.get('collect', {})
+
+    def get_collects(self, limit: int = 250) -> List[Dict]:
+        """Fetch all collects (memberships in custom collections)."""
+        import re
+        all_collects = []
+        url = f"{self.base_url}/collects.json"
+        params = {'limit': limit}
+        while True:
+            response = requests.get(url, headers=self.headers, params=params, timeout=30)
+            if response.status_code == 429:
+                time.sleep(float(response.headers.get('Retry-After', '2.0')))
+                continue
+            response.raise_for_status()
+            data = response.json()
+            all_collects.extend(data.get('collects', []))
+            link_header = response.headers.get('Link', '')
+            if not link_header or 'rel="next"' not in link_header:
+                break
+            next_match = re.search(r'<([^>]+)>;\s*rel="next"', link_header)
+            if not next_match:
+                break
+            url = next_match.group(1)
+            params = {}
+        return all_collects
+
+    def get_products_by_collection(self, collection_id: int, limit: int = 250) -> List[Dict]:
+        """Fetch all products for a specific collection (useful for smart collections)."""
+        all_products = []
+        url = f"{self.base_url}/products.json"
+        params = {'collection_id': collection_id, 'limit': limit}
+        while True:
+            response = requests.get(url, headers=self.headers, params=params, timeout=30)
+            if response.status_code == 429:
+                time.sleep(float(response.headers.get('Retry-After', '2.0')))
+                continue
+            response.raise_for_status()
+            data = response.json()
+            all_products.extend(data.get('products', []))
+            link_header = response.headers.get('Link', '')
+            if not link_header or 'rel="next"' not in link_header:
+                break
+            next_match = re.search(r'<([^>]+)>;\s*rel="next"', link_header)
+            if not next_match:
+                break
+            url = next_match.group(1)
+            params = {}
+        return all_products
+
+    def get_metafields(self, resource_type: str, resource_id: int) -> List[Dict]:
+        """Fetch metafields for a specific resource (products, custom_collections, etc.)."""
+        response = self._make_request('GET', f"{resource_type}/{resource_id}/metafields.json")
+        return response.get('metafields', [])
 
     def create_variant(self, product_id: int, variant_data: Dict) -> Dict:
         """Create a new variant for an existing product."""
@@ -489,6 +602,35 @@ class ShopifyService:
             job.completed_at = timezone.now()
             job.save()
     
+    @staticmethod
+    def get_or_create_virtual_collection(store: ShopifyStore, title: str) -> ShopifyCollection:
+        """Create a virtual collection from a Taxonomy name or Metafield value."""
+        from hashlib import sha256
+        # Generate a stable ID from the title to avoid duplicates and fit in BigIntegerField
+        virtual_id = (int(sha256(title.encode()).hexdigest(), 16) % 10**14) + 900000000000000
+        obj, _ = ShopifyCollection.objects.get_or_create(
+            store=store,
+            shopify_collection_id=virtual_id,
+            defaults={
+                'title': title,
+                'collection_type': ShopifyCollection.COLLECTION_TYPE_VIRTUAL,
+                'is_active': True,
+            }
+        )
+        return obj
+
+    @staticmethod
+    def _fetch_metafields_cached(client: ShopifyAPIClient, product_id: int, cache: Dict) -> List[Dict]:
+        """Fetch metafields for a product and cache it within the sync loop."""
+        if product_id in cache:
+            return cache[product_id]
+        try:
+            metafields = client.get_metafields('products', product_id)
+            cache[product_id] = metafields
+            return metafields
+        except Exception:
+            return []
+
     @staticmethod
     def _process_product(store: ShopifyStore, shopify_data: Dict, job: ShopifySyncJob) -> None:
         """Process a single Shopify product."""
@@ -964,22 +1106,34 @@ class ShopifyService:
                     ).first()
 
                     if shopify_location:
+                        from django.db.models import Sum
+                        # Calculate buffer (Total on Shopify - sum of other warehouses)
+                        other_qty = InventoryBalance.objects.filter(
+                            company_id=store.company_id,
+                            sku_id=sp.erp_sku_id,
+                            status='active',
+                            location__location_type='warehouse'
+                        ).exclude(location=shopify_location).aggregate(total=Sum('quantity_available'))['total'] or 0
+                        
+                        target_total = Decimal(str(available or 0))
+                        new_shopify_qty = target_total - Decimal(str(other_qty))
+
                         balance, _ = InventoryBalance.objects.get_or_create(
                             company_id=store.company_id,
                             sku_id=sp.erp_sku_id,
                             location=shopify_location,
                             condition=InventoryBalance.CONDITION_NEW,
                             defaults={
-                                'quantity_on_hand': Decimal(str(available)),
+                                'quantity_on_hand': new_shopify_qty,
                                 'quantity_reserved': Decimal('0'),
-                                'quantity_available': Decimal(str(available)),
+                                'quantity_available': new_shopify_qty,
                                 'average_cost': Decimal('0'),
                             },
                         )
 
                         if not _:  # existing row
-                            balance.quantity_on_hand = Decimal(str(available))
-                            balance.quantity_available = Decimal(str(available)) - balance.quantity_reserved
+                            balance.quantity_on_hand = new_shopify_qty
+                            balance.quantity_available = new_shopify_qty - balance.quantity_reserved
                             balance.save(update_fields=[
                                 'quantity_on_hand', 'quantity_available',
                                 'updated_at', 'version',
@@ -1017,30 +1171,14 @@ class ShopifyService:
                 if sku.size:
                     variant_data['option1'] = sku.size
     
-                # Update product with title, description, and variant
+                # Update product with variant only
                 product_data = {
                     'id': existing.shopify_product_id,
-                    'title': sku.product.name,
-                    'body_html': sku.product.description or '',
                     'variants': [variant_data]
                 }
     
-                # Update image if available
-                if sku.product.image:
-                    try:
-                        import base64
-                        with sku.product.image.open('rb') as image_file:
-                            encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
-                            product_data['images'] = [{
-                                'attachment': encoded_string,
-                                'filename': f"{sku.code}.jpg"
-                            }]
-                    except Exception as e:
-                        logger.warning(f"Failed to encode product image for Shopify update: {e}")
-                
                 result = client.update_product(existing.shopify_product_id, product_data)
                 
-                existing.shopify_title = result.get('title', sku.product.name)
                 existing.shopify_price = sku.base_price
                 existing.shopify_sku = sku.code
                 existing.shopify_data = result
@@ -1191,12 +1329,340 @@ class ShopifyService:
             sync_status='synced',
             last_synced_at=timezone.now(),
         )
+
+        # ── Assign to Shopify Collection (purely additive via Collects API) ──
+        try:
+            collection = getattr(sku.product, 'shopify_collection', None)
+            if collection and collection.shopify_collection_id:
+                client.add_product_to_collection(
+                    shopify_product_id=result['id'],
+                    shopify_collection_id=collection.shopify_collection_id
+                )
+                logger.info(f"Assigned product {result['id']} to collection '{collection.title}'")
+        except Exception as e:
+            # Non-fatal: collection assignment failure should not break the product push
+            logger.warning(f"Could not assign product to collection: {e}")
         
         return {
             'action': 'created',
             'shopify_product_id': result.get('id'),
+            'collection_assigned': getattr(getattr(sku.product, 'shopify_collection', None), 'title', None),
             'message': f'Created product {sku.code} on Shopify'
         }
+
+    @staticmethod
+    def sync_collections(store: ShopifyStore, job: Optional[ShopifySyncJob] = None) -> Dict:
+        """
+        Fetch all Shopify collections (custom + smart) and store them in ERP.
+        READ-ONLY from Shopify — only writes to the local ShopifyCollection table.
+        """
+        from .shopify_models import ShopifyCollection
+        client = ShopifyAPIClient(store)
+        created = 0
+        updated = 0
+
+        try:
+            if job:
+                job.job_status = 'running'
+                job.save(update_fields=['job_status'])
+
+            # Fetch custom collections
+            custom = client.get_custom_collections()
+            if job:
+                job.total_items = len(custom)
+                job.save(update_fields=['total_items'])
+
+            for col in custom:
+                if job and job.is_cancelled():
+                    break
+                obj, is_new = ShopifyCollection.objects.update_or_create(
+                    store=store,
+                    shopify_collection_id=col['id'],
+                    defaults={
+                        'title': col.get('title', ''),
+                        'handle': col.get('handle', ''),
+                        'collection_type': ShopifyCollection.COLLECTION_TYPE_CUSTOM,
+                        'is_active': True,
+                    }
+                )
+                if is_new:
+                    created += 1
+                else:
+                    updated += 1
+                
+                if job:
+                    job.processed_items += 1
+                    if is_new:
+                        job.created_items += 1
+                    else:
+                        job.updated_items += 1
+                    if job.processed_items % 50 == 0:
+                        job.save(update_fields=['processed_items', 'created_items', 'updated_items'])
+
+            # Fetch smart collections
+            smart = client.get_smart_collections()
+            if job:
+                job.total_items += len(smart)
+                job.save(update_fields=['total_items'])
+
+            for col in smart:
+                if job and job.is_cancelled():
+                    break
+                obj, is_new = ShopifyCollection.objects.update_or_create(
+                    store=store,
+                    shopify_collection_id=col['id'],
+                    defaults={
+                        'title': col.get('title', ''),
+                        'handle': col.get('handle', ''),
+                        'collection_type': ShopifyCollection.COLLECTION_TYPE_SMART,
+                        'is_active': True,
+                    }
+                )
+                if is_new:
+                    created += 1
+                else:
+                    updated += 1
+
+                if job:
+                    job.processed_items += 1
+                    if is_new:
+                        job.created_items += 1
+                    else:
+                        job.updated_items += 1
+                    if job.processed_items % 50 == 0:
+                        job.save(update_fields=['processed_items', 'created_items', 'updated_items'])
+
+            if job:
+                job.job_status = 'completed' if not job.is_cancelled() else 'cancelled'
+                job.completed_at = timezone.now()
+                job.save()
+
+        except Exception as e:
+            logger.error(f"Sync collections failed for {store.name}: {e}")
+            if job:
+                job.job_status = 'failed'
+                job.error_log = str(e)
+                job.completed_at = timezone.now()
+                job.save()
+            raise e
+
+        logger.info(f"Synced collections for store {store.name}: {created} created, {updated} updated")
+        return {'created': created, 'updated': updated, 'total': created + updated}
+
+    @staticmethod
+    def backfill_collections(store: ShopifyStore, job: Optional[ShopifySyncJob] = None) -> Dict:
+        """
+        Scan all ERP Products with an assigned shopify_collection and ensure they 
+        are linked in Shopify via the Collects API.
+        Additive operation: if already in collection, Shopify might return error, which we handle.
+        """
+        from apps.mdm.models import Product
+        from .shopify_models import ShopifyProduct
+        
+        products = Product.objects.filter(shopify_collection__isnull=False)
+        client = ShopifyAPIClient(store)
+        processed = 0
+        total_eligible = products.count()
+
+        if job:
+            job.job_status = 'running'
+            job.total_items = total_eligible
+            job.save(update_fields=['job_status', 'total_items'])
+        
+        try:
+            for product in products:
+                if job and job.is_cancelled():
+                    break
+                    
+                # Find any shopify mapping for this product
+                mapping = ShopifyProduct.objects.filter(store=store, erp_product=product).first()
+                if mapping and mapping.shopify_product_id:
+                    try:
+                        client.add_product_to_collection(
+                            shopify_product_id=mapping.shopify_product_id,
+                            shopify_collection_id=product.shopify_collection.shopify_collection_id
+                        )
+                        processed += 1
+                        if job:
+                            job.processed_items += 1
+                            job.updated_items += 1
+                    except Exception as e:
+                        logger.warning(f"Backfill error for product {product.name}: {e}")
+                        if job:
+                            job.failed_items += 1
+                            job.error_log += f"\nError for {product.name}: {str(e)}"
+                
+                if job and job.processed_items % 10 == 0:
+                    job.save(update_fields=['processed_items', 'updated_items', 'failed_items', 'error_log'])
+
+            if job:
+                job.job_status = 'completed' if not job.is_cancelled() else 'cancelled'
+                job.completed_at = timezone.now()
+                job.save()
+
+        except Exception as e:
+            logger.error(f"Backfill collections failed for {store.name}: {e}")
+            if job:
+                job.job_status = 'failed'
+                job.error_log = str(e)
+                job.completed_at = timezone.now()
+                job.save()
+            raise e
+        
+        return {'processed': processed, 'total_eligible': total_eligible}
+
+    @staticmethod
+    def sync_collection_memberships(store: ShopifyStore, job: Optional[ShopifySyncJob] = None) -> Dict:
+        """
+        Pulls collection memberships from Shopify and updates ERP Products.
+        Includes support for:
+        1. Custom Collections (Collects API)
+        2. Smart Collections (Product Listing API)
+        3. Shopify Taxonomy Categories (from product.category)
+        4. Custom Metafields (e.g. custom.categories)
+        """
+        from .shopify_models import ShopifyCollection, ShopifyProduct
+        from apps.mdm.models import Product
+        import json
+        client = ShopifyAPIClient(store)
+        updated_count = 0
+        meta_cache = {} # product_id -> metafields list
+        
+        try:
+            if job:
+                job.job_status = 'running'
+                job.save(update_fields=['job_status'])
+
+            # 1. Fetch all custom collection memberships (collects)
+            logger.info(f"Fetching collects for {store.name}...")
+            collects = client.get_collects()
+            
+            # Map shopify_collection_id to our local ShopifyCollection obj
+            collections_map = {c.shopify_collection_id: c for c in ShopifyCollection.objects.filter(store=store)}
+            
+            # Group collects by product_id
+            product_to_collections = defaultdict(list)
+            for col in collects:
+                product_to_collections[col['product_id']].append(col['collection_id'])
+
+            # 2. Handle Smart Collections
+            smart_collections = ShopifyCollection.objects.filter(store=store, collection_type=ShopifyCollection.COLLECTION_TYPE_SMART)
+            for sc in smart_collections:
+                if job and job.is_cancelled():
+                    break
+                logger.info(f"Fetching products for smart collection: {sc.title}")
+                products_in_smart = client.get_products_by_collection(sc.shopify_collection_id)
+                for p in products_in_smart:
+                    product_to_collections[p['id']].append(sc.shopify_collection_id)
+
+            # 3. Fetch all mapped ShopifyProducts to process virtual collections and ERP links
+            # We iterate through all mapped products to ensure Taxonomy and Metafields are respected
+            mappings = ShopifyProduct.objects.filter(store=store).select_related('erp_product').exclude(erp_product=None)
+            
+            if job:
+                job.total_items = mappings.count()
+                job.save(update_fields=['total_items'])
+
+            for mapping in mappings:
+                if job and job.is_cancelled():
+                    break
+                
+                erp_product = mapping.erp_product
+                shopify_product_id = mapping.shopify_product_id
+                data = mapping.shopify_data
+                
+                # Collection candidates for this product
+                candidate_ids = product_to_collections.get(shopify_product_id, [])
+                candidate_objs = [collections_map[cid] for cid in candidate_ids if cid in collections_map]
+                
+                # Check for Shopify Taxonomy Category
+                category_data = data.get('category')
+                if category_data and isinstance(category_data, dict) and category_data.get('name'):
+                    cat_name = category_data['name']
+                    v_col = ShopifyService.get_or_create_virtual_collection(store, cat_name)
+                    candidate_objs.append(v_col)
+                
+                # Check for "maternity dresses" or similar in Product Type if no collection yet
+                if not candidate_objs and data.get('product_type'):
+                    pt = data.get('product_type')
+                    if pt:
+                        v_col = ShopifyService.get_or_create_virtual_collection(store, pt)
+                        candidate_objs.append(v_col)
+
+                # Optional: Fetch metafields for "categories"
+                # To speed up, we only fetch if the product has none or we specifically need them
+                # But for this task, the user emphasized category metafields.
+                if 'categories' not in json.dumps(data):
+                    # We fetch and update the shopify_data if needed
+                    try:
+                        metafields = ShopifyService._fetch_metafields_cached(client, shopify_product_id, meta_cache)
+                        if metafields:
+                            data['metafields'] = metafields
+                            mapping.shopify_data = data
+                            mapping.save(update_fields=['shopify_data'])
+                            # Look for 'categories' metafield
+                            for m in metafields:
+                                if m.get('key') == 'categories' and m.get('value'):
+                                    try:
+                                        # Value is often a JSON list like '["Feeding"]'
+                                        cats = json.loads(m['value'])
+                                        if isinstance(cats, list):
+                                            for c_name in cats:
+                                                v_col = ShopifyService.get_or_create_virtual_collection(store, str(c_name))
+                                                candidate_objs.append(v_col)
+                                    except:
+                                        # Fallback for plain string
+                                        v_col = ShopifyService.get_or_create_virtual_collection(store, str(m['value']))
+                                        candidate_objs.append(v_col)
+                    except Exception as e:
+                        logger.error(f"Failed to fetch metafields for {shopify_product_id}: {e}")
+
+                # Selection logic: pick the first one from candidates
+                # Usually we prefer Custom/Smart collections over virtual ones if they exist
+                target_collection = None
+                if candidate_objs:
+                    # Sort by type: custom first, then smart, then virtual
+                    candidate_objs.sort(key=lambda x: (0 if x.collection_type == 'custom' else (1 if x.collection_type == 'smart' else 2)))
+                    target_collection = candidate_objs[0]
+
+                if target_collection and erp_product.shopify_collection_id != target_collection.id:
+                    erp_product.shopify_collection = target_collection
+                    erp_product.save(update_fields=['shopify_collection', 'updated_at'])
+                    updated_count += 1
+                    if job:
+                        job.updated_items += 1
+
+                if job:
+                    job.processed_items += 1
+                    if job.processed_items % 50 == 0:
+                        job.save(update_fields=['processed_items', 'updated_items'])
+
+            if job:
+                job.job_status = 'completed' if not job.is_cancelled() else 'cancelled'
+                job.completed_at = timezone.now()
+                job.save()
+            
+            return {'updated': updated_count}
+
+        except Exception as e:
+            logger.error(f"Sync collection memberships failed: {e}")
+            if job:
+                job.job_status = 'failed'
+                job.error_log = str(e)
+                job.completed_at = timezone.now()
+                job.save()
+            raise e
+
+        except Exception as e:
+            logger.error(f"Sync collection memberships failed for {store.name}: {e}")
+            if job:
+                job.job_status = 'failed'
+                job.error_log = str(e)
+                job.completed_at = timezone.now()
+                job.save()
+            raise e
+
+        return {'updated': updated_count}
 
     @staticmethod
     def push_inventory_to_shopify(
@@ -1275,16 +1741,7 @@ class ShopifyService:
                 log = logging.getLogger(__name__)
                 log.warning(f"Inventory item {inventory_item_id} or location {location_id} not found on Shopify. Deleting stale mapping.")
                 mapping.delete()
-                log.info(f"Attempting to recreate SKU {sku_id} on Shopify...")
-                ShopifyService.push_sku_to_shopify(store, sku_id)
-                new_mapping = ShopifyProduct.objects.filter(store=store, erp_sku_id=sku_id, sync_status='synced').first()
-                if new_mapping and new_mapping.shopify_inventory_item_id:
-                    # Retry with the new mapping's inventory item ID
-                    result = client.set_inventory_level(new_mapping.shopify_inventory_item_id, location_id, quantity)
-                    mapping = new_mapping # Update mapping reference for subsequent updates
-                else:
-                    # If recreation failed or new mapping still doesn't have inventory_item_id, re-raise
-                    raise
+                raise ValueError("Mapping was pointing to a deleted or inaccessible Shopify ghost product. It has been removed.")
             else:
                 raise
         
@@ -1478,17 +1935,18 @@ class ShopifyService:
                     ).first()
                     
                     if shopify_wh:
-                        # Find the sum of stock across ALL OTHER active ERP locations
+                        # Calculate sum of other WAREHOUSES only (exclude stores/offices)
                         other_qty = InventoryBalance.objects.filter(
                             company_id=store.company_id,
                             sku=sp.erp_sku,
-                            status='active'
+                            status='active',
+                            location__location_type='warehouse'
                         ).exclude(location=shopify_wh).aggregate(total=Sum('quantity_available'))['total'] or 0
                         
-                        # We want the TOTAL ERP stock to equal Shopify's new reported available quantity
+                        # We want the Global Sum to match exactly what's on Shopify (available)
                         target_total = Decimal(str(available or 0))
                         
-                        # Therefore, SHOPIFY-WH should just be the difference
+                        # Therefore, SHOPIFY-WH acts as the balance buffer
                         new_shopify_qty = target_total - Decimal(str(other_qty))
                         
                         balance, _ = InventoryBalance.objects.get_or_create(
@@ -1503,8 +1961,7 @@ class ShopifyService:
                         )
                         
                         # Only update and trigger signal if it ACTUALLY changed.
-                        # This breaks the infinite loop where pushing triggers a webhook, 
-                        # which triggers a push, which triggers a webhook.
+                        # The signal will now skip the push-back thanks to 'is_syncing()' context.
                         if not _ and balance.quantity_available != new_shopify_qty:
                             balance.quantity_on_hand = new_shopify_qty
                             balance.quantity_available = new_shopify_qty - balance.quantity_reserved

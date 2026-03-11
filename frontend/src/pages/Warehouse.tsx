@@ -41,6 +41,8 @@ import {
 import PageHeader from '../components/ui/PageHeader'
 import { mdmService, Location } from '../services/mdm.service'
 import { inventoryService, InventoryBalance, GoodsReceiptScanLog } from '../services/inventory.service'
+import { shopifyService, ShopifyCollection } from '../services/shopify.service'
+import { FilterList } from '@mui/icons-material'
 
 export default function Warehouse() {
     const [warehouses, setWarehouses] = useState<Location[]>([])
@@ -58,6 +60,10 @@ export default function Warehouse() {
     const [hasNextPage, setHasNextPage] = useState(false)
     const [hasPrevPage, setHasPrevPage] = useState(false)
     const [summary, setSummary] = useState<{ total_skus: number; total_units: number; zero_stock: number }>({ total_skus: 0, total_units: 0, zero_stock: 0 })
+
+    const [collections, setCollections] = useState<ShopifyCollection[]>([])
+    const [selectedCollection, setSelectedCollection] = useState<ShopifyCollection | null>(null)
+    const [ordering, setOrdering] = useState<string>('-updated_at')
 
     const [stockFilter, setStockFilter] = useState<'all' | 'in_stock' | 'out_of_stock'>('all')
 
@@ -78,10 +84,19 @@ export default function Warehouse() {
                 setLoading(false)
             }
         }
+        const fetchCollections = async () => {
+            try {
+                const data = await shopifyService.listCollections()
+                setCollections(data || [])
+            } catch (error) {
+                console.error('Error fetching collections:', error)
+            }
+        }
         fetchWarehouses()
+        fetchCollections()
     }, [])
 
-    const fetchBalances = useCallback(async (locationId: string, search?: string, filter?: string, page?: number) => {
+    const fetchBalances = useCallback(async (locationId: string, search?: string, filter?: string, page?: number, collectionId?: string, order?: string) => {
         setFetchingBalances(true)
         try {
             const params: any = { location: locationId }
@@ -93,6 +108,12 @@ export default function Warehouse() {
             }
             if (page && page > 1) {
                 params.page = page
+            }
+            if (collectionId) {
+                params.shopify_collection = collectionId
+            }
+            if (order) {
+                params.ordering = order
             }
             const data = await inventoryService.getBalances(params) as any
             if (data && data.results) {
@@ -136,7 +157,7 @@ export default function Warehouse() {
 
             try {
                 const [, logData] = await Promise.all([
-                    fetchBalances(selectedWarehouse.id, '', stockFilter, 1),
+                    fetchBalances(selectedWarehouse.id, '', stockFilter, 1, selectedCollection?.id, ordering),
                     inventoryService.getGoodsReceiptScans({ location: selectedWarehouse.id })
                 ])
 
@@ -166,7 +187,7 @@ export default function Warehouse() {
         if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
         if (!selectedWarehouse) return
         searchTimerRef.current = setTimeout(() => {
-            fetchBalances(selectedWarehouse.id, value, stockFilter, 1)
+            fetchBalances(selectedWarehouse.id, value, stockFilter, 1, selectedCollection?.id, ordering)
         }, 400)
     }
 
@@ -175,13 +196,28 @@ export default function Warehouse() {
         setStockFilter(newFilter as any)
         setCurrentPage(1)
         if (!selectedWarehouse) return
-        fetchBalances(selectedWarehouse.id, searchQuery, newFilter, 1)
+        fetchBalances(selectedWarehouse.id, searchQuery, newFilter, 1, selectedCollection?.id, ordering)
+    }
+
+    const handleCollectionChange = (_: any, newValue: ShopifyCollection | null) => {
+        setSelectedCollection(newValue)
+        setCurrentPage(1)
+        if (!selectedWarehouse) return
+        fetchBalances(selectedWarehouse.id, searchQuery, stockFilter, 1, newValue?.id, ordering)
+    }
+
+    const toggleOrdering = (field: string) => {
+        const newOrder = ordering === field ? `-${field}` : field
+        setOrdering(newOrder)
+        setCurrentPage(1)
+        if (!selectedWarehouse) return
+        fetchBalances(selectedWarehouse.id, searchQuery, stockFilter, 1, selectedCollection?.id, newOrder)
     }
 
     const handlePageChange = (newPage: number) => {
         if (!selectedWarehouse) return
         setCurrentPage(newPage)
-        fetchBalances(selectedWarehouse.id, searchQuery, stockFilter, newPage)
+        fetchBalances(selectedWarehouse.id, searchQuery, stockFilter, newPage, selectedCollection?.id, ordering)
     }
 
     const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
@@ -372,9 +408,34 @@ export default function Warehouse() {
                                         <ToggleButton value="out_of_stock" color="error">Out of Stock</ToggleButton>
                                     </ToggleButtonGroup>
 
+                                    <Autocomplete
+                                        size="small"
+                                        options={collections}
+                                        getOptionLabel={(option) => option.title}
+                                        value={selectedCollection}
+                                        onChange={handleCollectionChange}
+                                        renderInput={(params) => (
+                                            <TextField
+                                                {...params}
+                                                placeholder="Collection filter..."
+                                                variant="outlined"
+                                                InputProps={{
+                                                    ...params.InputProps,
+                                                    startAdornment: (
+                                                        <InputAdornment position="start">
+                                                            <FilterList sx={{ fontSize: 18, color: 'text.disabled' }} />
+                                                        </InputAdornment>
+                                                    ),
+                                                    sx: { borderRadius: 2, bgcolor: 'white', fontSize: '0.875rem' }
+                                                }}
+                                            />
+                                        )}
+                                        sx={{ width: 220 }}
+                                    />
+
                                     <TextField
                                         size="small"
-                                        placeholder="Search by SKU or product name..."
+                                        placeholder="Search SKU..."
                                         value={searchQuery}
                                         onChange={(e) => handleSearch(e.target.value)}
                                         InputProps={{
@@ -422,6 +483,12 @@ export default function Warehouse() {
                                                         <TableRow>
                                                             <TableCell sx={{ fontWeight: 800 }}>SKU Code</TableCell>
                                                             <TableCell sx={{ fontWeight: 800 }}>Product Name</TableCell>
+                                                            <TableCell 
+                                                                sx={{ fontWeight: 800, cursor: 'pointer', '&:hover': { color: 'primary.main' } }}
+                                                                onClick={() => toggleOrdering('collection')}
+                                                            >
+                                                                Collection {ordering.includes('collection') && (ordering.startsWith('-') ? '↓' : '↑')}
+                                                            </TableCell>
                                                             <TableCell sx={{ fontWeight: 800 }}>Variant</TableCell>
                                                             <TableCell sx={{ fontWeight: 800 }}>Condition</TableCell>
                                                             <TableCell sx={{ fontWeight: 800 }} align="right">On Hand</TableCell>
@@ -440,6 +507,9 @@ export default function Warehouse() {
                                                                 </TableCell>
                                                                 <TableCell sx={{ fontWeight: 600 }}>
                                                                     {(row as any).product_name || row.sku_name || '—'}
+                                                                </TableCell>
+                                                                <TableCell sx={{ color: 'text.secondary', fontSize: '0.85rem' }}>
+                                                                    {row.shopify_collection_name || '—'}
                                                                 </TableCell>
                                                                 <TableCell sx={{ color: '#475569', fontSize: '0.85rem' }}>
                                                                     {row.sku_name || '—'}

@@ -8,7 +8,8 @@ from .shopify_views import (
     ShopifyOrderViewSet,
     ShopifyDraftOrderViewSet,
     ShopifyDiscountViewSet,
-    ShopifyGiftCardViewSet
+    ShopifyGiftCardViewSet,
+    ShopifyCollectionViewSet,
 )
 from .shopify_analytics_views import (
     product_performance,
@@ -26,6 +27,7 @@ router.register(r'orders', ShopifyOrderViewSet, basename='shopify-order')
 router.register(r'draft-orders', ShopifyDraftOrderViewSet, basename='shopify-draft-order')
 router.register(r'discounts', ShopifyDiscountViewSet, basename='shopify-discount')
 router.register(r'gift-cards', ShopifyGiftCardViewSet, basename='shopify-gift-card')
+router.register(r'collections', ShopifyCollectionViewSet, basename='shopify-collection')
 
 urlpatterns = [
     path('', include(router.urls)),

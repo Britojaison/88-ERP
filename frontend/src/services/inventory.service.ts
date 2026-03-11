@@ -16,6 +16,8 @@ export interface InventoryBalance {
   condition: 'new' | 'used' | 'damaged'
   is_offer_eligible: boolean
   average_cost: string
+  shopify_collection?: string
+  shopify_collection_name?: string
   status: string
   updated_at: string
 }

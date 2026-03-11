@@ -298,6 +298,16 @@ class Product(TenantAwareModel):
         blank=True,
         related_name='variants'
     )
+
+    # Shopify category / collection assignment
+    shopify_collection = models.ForeignKey(
+        'integrations.ShopifyCollection',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='products',
+        help_text='Shopify collection this product belongs to (used when pushing to Shopify)'
+    )
     
     objects = models.Manager()
     active = ActiveManager()

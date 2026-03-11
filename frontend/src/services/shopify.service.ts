@@ -60,6 +60,15 @@ export interface ShopifySyncJob {
   error_log: string
 }
 
+export interface ShopifyCollection {
+  id: string
+  shopify_collection_id: string
+  title: string
+  collection_type: 'custom' | 'smart'
+  handle: string
+  is_active: boolean
+}
+
 
 export interface ProductDemandResponse {
   total_products: number
@@ -274,5 +283,25 @@ export const shopifyService = {
   bulkCreateERPItems: async (storeId: string): Promise<{ job_id: string; message: string; status: string }> => {
     const response = await api.post(`/integrations/shopify/stores/${storeId}/bulk_create_missing_erp_skus/`)
     return response.data
+  },
+
+  listCollections: async (params?: { store?: string }) => {
+    const response = await api.get('/integrations/shopify/collections/', { params })
+    return response.data as ShopifyCollection[]
+  },
+
+  syncCollections: async (storeId?: string) => {
+    const response = await api.post('/integrations/shopify/collections/sync/', { store_id: storeId })
+    return response.data as { job_id: string; status: string; message: string }
+  },
+
+  backfillCollections: async (storeId?: string) => {
+    const response = await api.post('/integrations/shopify/collections/backfill/', { store_id: storeId })
+    return response.data as { job_id: string; status: string; message: string }
+  },
+
+  syncMemberships: async (storeId?: string) => {
+    const response = await api.post('/integrations/shopify/collections/sync-memberships/', { store_id: storeId })
+    return response.data as { job_id: string; status: string; message: string }
   },
 }

@@ -12,12 +12,27 @@ from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.utils import timezone
+from django.utils.decorators import method_decorator
 from django.conf import settings
+from django.db.models import Sum
+from decimal import Decimal
+import threading
+
+_thread_locals = threading.local()
+
+def is_syncing():
+    return getattr(_thread_locals, 'shopify_sync_in_progress', False)
+
+class ShopifySyncContext:
+    def __enter__(self):
+        _thread_locals.shopify_sync_in_progress = True
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        _thread_locals.shopify_sync_in_progress = False
 from .shopify_models import (
     ShopifyStore, ShopifyProduct, ShopifyInventoryLevel,
     ShopifyWebhook, ShopifyWebhookLog, ShopifySyncJob,
     ShopifyOrder, ShopifyDraftOrder, ShopifyDiscount, ShopifyGiftCard,
-    ShopifyFulfillment
+    ShopifyFulfillment, ShopifyCollection
 )
 from .shopify_service import ShopifyService, ShopifyAPIClient
 from rest_framework import serializers
@@ -1120,12 +1135,13 @@ class ShopifyWebhookView(APIView):
         
         # Process webhook
         try:
-            ShopifyService.process_webhook(
-                store,
-                topic,
-                payload,
-                dict(request.headers)
-            )
+            with ShopifySyncContext():
+                ShopifyService.process_webhook(
+                    store,
+                    topic,
+                    payload,
+                    dict(request.headers)
+                )
         except Exception as e:
             logger.error(f"Webhook processing error: {e}")
             return HttpResponse(status=500)
@@ -1367,3 +1383,180 @@ class ShopifyGiftCardViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.filter(store_id=store_id)
         return queryset
 
+
+# ── Shopify Collections ──────────────────────────────────────────────────────
+
+class ShopifyCollectionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ShopifyCollection
+        fields = ['id', 'shopify_collection_id', 'title', 'collection_type', 'handle', 'is_active']
+
+
+class ShopifyCollectionViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Lists cached Shopify collections and provides a sync action
+    to refresh them from the live Shopify Admin API.
+    """
+    permission_classes = [IsAuthenticated]
+    serializer_class = ShopifyCollectionSerializer
+    pagination_class = None  # Return all collections (small list)
+
+    def get_queryset(self):
+        qs = ShopifyCollection.objects.select_related('store').filter(is_active=True)
+        store_id = self.request.query_params.get('store')
+        if store_id:
+            qs = qs.filter(store_id=store_id)
+        else:
+            # Default to the first connected store for this company
+            store = ShopifyStore.objects.filter(
+                company_id=self.request.user.company_id,
+                is_connected=True
+            ).first()
+            if store:
+                qs = qs.filter(store=store)
+        return qs.order_by('title')
+
+    @action(detail=False, methods=['post'], url_path='sync')
+    def sync(self, request):
+        """
+        Fetch all collections from Shopify Admin and cache them locally.
+        READ-ONLY fetch from Shopify — only writes to local ShopifyCollection table.
+        """
+        store_id = request.data.get('store_id')
+        if store_id:
+            try:
+                store = ShopifyStore.objects.get(id=store_id, company_id=request.user.company_id)
+            except ShopifyStore.DoesNotExist:
+                return Response({'error': 'Store not found.'}, status=status.HTTP_404_NOT_FOUND)
+        else:
+            store = ShopifyStore.objects.filter(
+                company_id=request.user.company_id,
+                is_connected=True
+            ).first()
+            if not store:
+                return Response({'error': 'No connected Shopify store found.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Create job record
+        job = ShopifySyncJob.objects.create(
+            store=store,
+            job_type='collections',
+            job_status='running'
+        )
+
+        def _run_sync():
+            try:
+                import django
+                django.db.connections.close_all()
+                # First fetch the folder/titles (Collections themselves)
+                ShopifyService.sync_collections(store, job=job)
+                
+                # Immediately follow with Membership sync (Product <-> Collection association)
+                # We reuse the same job ID or create a sub-step?
+                # For simplicity, we just call the second method which also updates the job.
+                ShopifyService.sync_collection_memberships(store, job=job)
+            except Exception as e:
+                logger.error(f"Background collection sync failed: {e}")
+                if job:
+                    job.job_status = 'failed'
+                    job.error_log = str(e)
+                    job.save()
+
+        threading.Thread(target=_run_sync, daemon=True).start()
+
+        return Response({
+            'job_id': str(job.id),
+            'status': 'running',
+            'message': 'Collection sync started in background'
+        }, status=status.HTTP_202_ACCEPTED)
+
+    @action(detail=False, methods=['post'], url_path='backfill')
+    def backfill(self, request):
+        """
+        Scan all products and assign them to Shopify collections if set.
+        """
+        store_id = request.data.get('store_id')
+        if store_id:
+            try:
+                store = ShopifyStore.objects.get(id=store_id, company_id=request.user.company_id)
+            except ShopifyStore.DoesNotExist:
+                return Response({'error': 'Store not found.'}, status=status.HTTP_404_NOT_FOUND)
+        else:
+            store = ShopifyStore.objects.filter(
+                company_id=request.user.company_id,
+                is_connected=True
+            ).first()
+            if not store:
+                return Response({'error': 'No connected Shopify store found.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Create job record
+        job = ShopifySyncJob.objects.create(
+            store=store,
+            job_type='collections',  # Could use a new type but 'collections' covers both sync and backfill
+            job_status='running'
+        )
+
+        def _run_backfill():
+            try:
+                import django
+                django.db.connections.close_all()
+                ShopifyService.backfill_collections(store, job=job)
+            except Exception as e:
+                logger.error(f"Background collection backfill failed: {e}")
+                if job:
+                    job.job_status = 'failed'
+                    job.error_log = str(e)
+                    job.save()
+
+        threading.Thread(target=_run_backfill, daemon=True).start()
+
+        return Response({
+            'job_id': str(job.id),
+            'status': 'running',
+            'message': 'Collection backfill started in background'
+        }, status=status.HTTP_202_ACCEPTED)
+
+    @action(detail=False, methods=['post'], url_path='sync-memberships')
+    def sync_memberships(self, request):
+        """
+        Pulls collection memberships from Shopify and updates local ERP products.
+        Fixes the issue where filters show '—' instead of the collection name.
+        """
+        store_id = request.data.get('store_id')
+        if store_id:
+            try:
+                store = ShopifyStore.objects.get(id=store_id, company_id=request.user.company_id)
+            except ShopifyStore.DoesNotExist:
+                return Response({'error': 'Store not found.'}, status=status.HTTP_404_NOT_FOUND)
+        else:
+            store = ShopifyStore.objects.filter(
+                company_id=request.user.company_id,
+                is_connected=True
+            ).first()
+            if not store:
+                return Response({'error': 'No connected Shopify store found.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        job = ShopifySyncJob.objects.create(
+            store=store,
+            job_type='collections',
+            job_status='running'
+        )
+
+        def _run_memberships():
+            try:
+                import django
+                django.db.connections.close_all()
+                ShopifyService.sync_collection_memberships(store, job=job)
+            except Exception as e:
+                logger.error(f"Background membership sync failed: {e}")
+                if job:
+                    job.job_status = 'failed'
+                    job.error_log = str(e)
+                    job.save()
+
+        threading.Thread(target=_run_memberships, daemon=True).start()
+
+        return Response({
+            'job_id': str(job.id),
+            'status': 'running',
+            'message': 'Collection membership sync started'
+        }, status=status.HTTP_202_ACCEPTED)

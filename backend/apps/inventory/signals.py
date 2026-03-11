@@ -12,6 +12,15 @@ def sync_inventory_to_shopify_on_save(sender, instance, **kwargs):
     """
     When InventoryBalance changes, push the new quantity_available from SHOPIFY-WH to Shopify.
     """
+    # SKIP if this signal was triggered by a Shopify pull/webhook
+    try:
+        from apps.integrations.shopify_views import is_syncing
+        if is_syncing():
+            logger.info(f"Skipping Shopify sync push for SKU {instance.sku.code} - update originated from Shopify.")
+            return
+    except ImportError:
+        pass
+
     try:
         from apps.integrations.shopify_models import ShopifyStore
         
@@ -26,12 +35,13 @@ def sync_inventory_to_shopify_on_save(sender, instance, **kwargs):
 
         from django.db.models import Sum
         
-        # 3. Calculate total stock across ALL active locations for THIS company
-        # (This ensures POS sales and Warehouse movements are both reflected)
+        # 3. Calculate total stock across active WAREHOUSE locations ONLY for THIS company
+        # (This avoids including physical Store stock in Shopify Online totals)
         total_balance = InventoryBalance.objects.filter(
             company_id=instance.company_id,
             sku=instance.sku,
-            status='active'
+            status='active',
+            location__location_type='warehouse'
         ).aggregate(total=Sum('quantity_available'))['total'] or 0
 
         qty = int(total_balance)

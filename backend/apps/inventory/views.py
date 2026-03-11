@@ -70,7 +70,19 @@ class InventoryBalanceViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, 
         elif stock_filter == "out_of_stock":
             queryset = queryset.filter(quantity_available__lte=0)
 
-        return queryset.order_by("-updated_at")
+        collection_id = self.request.query_params.get("shopify_collection")
+        if collection_id:
+            queryset = queryset.filter(sku__product__shopify_collection_id=collection_id)
+
+        ordering = self.request.query_params.get("ordering")
+        if ordering == "collection":
+            queryset = queryset.order_by("sku__product__shopify_collection__title", "sku__product__name", "sku__code")
+        elif ordering == "-collection":
+            queryset = queryset.order_by("-sku__product__shopify_collection__title", "sku__product__name", "sku__code")
+        else:
+            queryset = queryset.order_by("-updated_at")
+
+        return queryset
 
     @action(detail=False, methods=['get'], url_path='summary')
     def summary(self, request):

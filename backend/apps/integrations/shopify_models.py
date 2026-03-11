@@ -288,6 +288,9 @@ class ShopifySyncJob(BaseModel):
             ('inventory_delta', 'Inventory Delta'),
             ('cleanup', 'Cleanup'),
             ('bulk_create_erp', 'Bulk Create ERP'),
+            ('collections', 'Collections Sync'),
+            ('virtual_sync', 'Virtual/Metafield Categorization'),
+            ('sync_assignments', 'Collection Assignments Sync'),
         ]
     )
     
@@ -452,3 +455,45 @@ class ShopifyGiftCard(BaseModel):
     
     class Meta:
         db_table = 'shopify_gift_card'
+
+
+class ShopifyCollection(BaseModel):
+    """
+    Cache of Shopify Collections (custom + smart).
+    Used to populate the category dropdown in ERP product creation.
+    Read-only mirror — never writes back to Shopify collections themselves.
+    """
+    COLLECTION_TYPE_CUSTOM = 'custom'
+    COLLECTION_TYPE_SMART = 'smart'
+    COLLECTION_TYPE_VIRTUAL = 'virtual'
+    COLLECTION_TYPE_CHOICES = [
+        (COLLECTION_TYPE_CUSTOM, 'Custom Collection'),
+        (COLLECTION_TYPE_SMART, 'Smart Collection'),
+        (COLLECTION_TYPE_VIRTUAL, 'Virtual (Taxonomy/Metafield)'),
+    ]
+
+    store = models.ForeignKey(
+        ShopifyStore,
+        on_delete=models.CASCADE,
+        related_name='collections'
+    )
+
+    shopify_collection_id = models.BigIntegerField(db_index=True)
+    title = models.CharField(max_length=500)
+    collection_type = models.CharField(
+        max_length=10,
+        choices=COLLECTION_TYPE_CHOICES,
+        default=COLLECTION_TYPE_CUSTOM
+    )
+    handle = models.CharField(max_length=500, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    objects = models.Manager()
+
+    class Meta:
+        db_table = 'shopify_collection'
+        unique_together = [['store', 'shopify_collection_id']]
+        ordering = ['title']
+
+    def __str__(self):
+        return f"{self.title} ({self.collection_type})"

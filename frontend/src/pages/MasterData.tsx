@@ -31,6 +31,7 @@ import {
 import { Add, CheckCircle, Cancel, Delete as DeleteIcon, PhotoCamera as PhotoCameraIcon, Collections as CollectionsIcon, Edit as EditIcon } from '@mui/icons-material'
 import PageHeader from '../components/ui/PageHeader'
 import { mdmService, type BusinessUnit, type Company, type Location, type Product, type SKU, type Fabric } from '../services/mdm.service'
+import { shopifyService, type ShopifyCollection } from '../services/shopify.service'
 
 interface TabPanelProps {
   children?: React.ReactNode
@@ -55,6 +56,7 @@ export default function MasterData() {
   const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>([])
   const [locations, setLocations] = useState<Location[]>([])
   const [fabrics, setFabrics] = useState<Fabric[]>([])
+  const [shopifyCollections, setShopifyCollections] = useState<ShopifyCollection[]>([])
   const [fabricFilter, setFabricFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all')
   const [openProductDialog, setOpenProductDialog] = useState(false)
   const [openSkuDialog, setOpenSkuDialog] = useState(false)
@@ -64,6 +66,7 @@ export default function MasterData() {
   const [openStoreDialog, setOpenStoreDialog] = useState(false)
   const [openWarehouseDialog, setOpenWarehouseDialog] = useState(false)
   const [editWarehouseId, setEditWarehouseId] = useState<string | null>(null)
+  const [editProductId, setEditProductId] = useState<string | null>(null)
   const [editStoreId, setEditStoreId] = useState<string | null>(null)
   const [rejectFabricId, setRejectFabricId] = useState('')
   const [rejectReason, setRejectReason] = useState('')
@@ -78,6 +81,7 @@ export default function MasterData() {
     code: '',
     name: '',
     description: '',
+    shopify_collection: '',
   })
   const [fabricForm, setFabricForm] = useState({
     name: '',
@@ -123,13 +127,14 @@ export default function MasterData() {
 
   const loadData = async () => {
     try {
-      const [productData, skuData, companyData, businessUnitData, locationData, fabricData] = await Promise.all([
+      const [productData, skuData, companyData, businessUnitData, locationData, fabricData, shopifyCollectionsData] = await Promise.all([
         mdmService.getProducts({ hide_shopify: true }),
         mdmService.getSKUs({ hide_shopify: true }),
         mdmService.getCompanies(),
         mdmService.getBusinessUnits(),
         mdmService.getLocations(),
         mdmService.getFabrics(),
+        shopifyService.listCollections().catch(() => []),
       ])
       setProducts(productData)
       setSkus(skuData)
@@ -137,6 +142,7 @@ export default function MasterData() {
       setBusinessUnits(businessUnitData)
       setLocations(locationData)
       setFabrics(fabricData)
+      setShopifyCollections(shopifyCollectionsData)
     } catch (error) {
       setSnackbar({ open: true, message: 'Failed to load master data.', severity: 'error' })
     }
@@ -148,7 +154,8 @@ export default function MasterData() {
 
   const handleAddNew = () => {
     if (tabValue === 0) {
-      setProductForm({ code: '', name: '', description: '' })
+      setEditProductId(null)
+      setProductForm({ code: '', name: '', description: '', shopify_collection: '' })
       setVariantForm({ sizes: [], selling_price: '', mrp: '' })
       setSkuForm({
         code: '',
@@ -225,9 +232,14 @@ export default function MasterData() {
     }
 
     try {
-      const product = await mdmService.createProduct(productForm, productImageFile || undefined)
+      let product: Product;
+      if (editProductId) {
+        product = await mdmService.updateProduct(editProductId, productForm, productImageFile || undefined)
+      } else {
+        product = await mdmService.createProduct(productForm, productImageFile || undefined)
+      }
 
-      if (variantForm.sizes.length === 0 && variantForm.selling_price && variantForm.mrp) {
+      if (!editProductId && variantForm.sizes.length === 0 && variantForm.selling_price && variantForm.mrp) {
         let finalSkuCode = skuForm.code;
         if (!finalSkuCode) {
           const result = await mdmService.getNextSkuCode(product.name);
@@ -249,11 +261,12 @@ export default function MasterData() {
       }
 
       setOpenProductDialog(false)
-      setSnackbar({ open: true, message: 'Product created successfully.', severity: 'success' })
+      setSnackbar({ open: true, message: editProductId ? 'Product updated successfully.' : 'Product created successfully.', severity: 'success' })
 
       // Small delay to let transition finish before heavy re-renders/resets
       setTimeout(() => {
-        setProductForm({ code: '', name: '', description: '' })
+        setEditProductId(null)
+        setProductForm({ code: '', name: '', description: '', shopify_collection: '' })
         setProductImageFile(null)
         setProductImagePreview('')
         setVariantForm({ sizes: [], selling_price: '', mrp: '' })
@@ -536,6 +549,26 @@ export default function MasterData() {
                           <Tooltip title="Delete product">
                             <IconButton size="small" color="error" onClick={() => setDeleteConfirm({ open: true, type: 'product', id: product.id, name: product.name })}>
                               <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Edit product">
+                            <IconButton
+                              size="small"
+                              color="info"
+                              onClick={() => {
+                                setEditProductId(product.id)
+                                setProductForm({
+                                  code: product.code,
+                                  name: product.name,
+                                  description: product.description || '',
+                                  shopify_collection: product.shopify_collection || '',
+                                })
+                                setProductImagePreview(product.image_url || '')
+                                setProductImageFile(null)
+                                setOpenProductDialog(true)
+                              }}
+                            >
+                              <EditIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>
                         </Box>
@@ -846,7 +879,7 @@ export default function MasterData() {
 
       {/* Product Dialog */}
       <Dialog open={openProductDialog} onClose={() => setOpenProductDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Create Product</DialogTitle>
+        <DialogTitle>{editProductId ? 'Edit Product' : 'Create Product'}</DialogTitle>
         <DialogContent>
           <TextField
             fullWidth
@@ -907,6 +940,86 @@ export default function MasterData() {
             multiline
             rows={2}
           />
+
+          <FormControl fullWidth margin="normal">
+            <InputLabel>Shopify Collection (Optional)</InputLabel>
+            <Select
+              value={productForm.shopify_collection}
+              label="Shopify Collection (Optional)"
+              onChange={(e) => setProductForm((prev) => ({ ...prev, shopify_collection: e.target.value }))}
+            >
+              <MenuItem value="">
+                <em>None</em>
+              </MenuItem>
+              {shopifyCollections.map((col) => (
+                <MenuItem key={col.id} value={col.id}>
+                  {col.title} ({col.collection_type})
+                </MenuItem>
+              ))}
+            </Select>
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 0.5, gap: 1 }}>
+              <Button 
+                size="small" 
+                onClick={async () => {
+                  try {
+                    setSnackbar({ open: true, message: 'Syncing collections in background...', severity: 'info' });
+                    const result = await shopifyService.syncCollections();
+                    setSnackbar({ 
+                      open: true, 
+                      message: `Sync job started (ID: ${result.job_id.substring(0, 8)}). This will sync collections and their products.`, 
+                      severity: 'success' 
+                    });
+                    // Refresh the dropdown list after a delay
+                    setTimeout(() => {
+                      void shopifyService.listCollections().then(setShopifyCollections);
+                    }, 5000);
+                  } catch (error) {
+                    setSnackbar({ open: true, message: 'Failed to start collection sync.', severity: 'error' });
+                  }
+                }}
+              >
+                Sync from Shopify
+              </Button>
+              <Button 
+                size="small" 
+                color="info"
+                onClick={async () => {
+                  try {
+                    setSnackbar({ open: true, message: 'Syncing collection assignments...', severity: 'info' });
+                    const result = await shopifyService.syncMemberships();
+                    setSnackbar({ 
+                      open: true, 
+                      message: `Assignment sync started (ID: ${result.job_id.substring(0, 8)}). Fixes '—' issues in filters.`, 
+                      severity: 'success' 
+                    });
+                  } catch (error) {
+                    setSnackbar({ open: true, message: 'Failed to start membership sync.', severity: 'error' });
+                  }
+                }}
+              >
+                Sync Assignments
+              </Button>
+              <Button 
+                size="small" 
+                color="secondary"
+                onClick={async () => {
+                  try {
+                    setSnackbar({ open: true, message: 'Starting collection backfill in background...', severity: 'info' });
+                    const result = await shopifyService.backfillCollections();
+                    setSnackbar({ 
+                      open: true, 
+                      message: `Backfill job started (ID: ${result.job_id.substring(0, 8)}). Pushes local assignments to Shopify.`, 
+                      severity: 'success' 
+                    });
+                  } catch (error) {
+                    setSnackbar({ open: true, message: 'Failed to start collection backfill.', severity: 'error' });
+                  }
+                }}
+              >
+                Backfill Collections
+              </Button>
+            </Box>
+          </FormControl>
 
           <Box sx={{ mt: 3, pt: 2, borderTop: 1, borderColor: 'divider' }}>
             <Typography variant="subtitle1" sx={{ mb: 2 }}>
@@ -1039,7 +1152,7 @@ export default function MasterData() {
         <DialogActions>
           <Button onClick={() => setOpenProductDialog(false)}>Cancel</Button>
           <Button variant="contained" onClick={() => void handleCreateProduct()}>
-            Create
+            {editProductId ? 'Save' : 'Create'}
           </Button>
         </DialogActions>
       </Dialog>

@@ -376,6 +376,10 @@ class SKUViewSet(TenantScopedViewSet):
             shopify_sku_ids = ShopifyProduct.objects.filter(erp_sku__isnull=False).values_list('erp_sku_id', flat=True)
             queryset = queryset.exclude(id__in=shopify_sku_ids).exclude(code__startswith='SHOP-').exclude(code__startswith='SP-')
 
+        collection_id = self.request.query_params.get("shopify_collection")
+        if collection_id:
+            queryset = queryset.filter(product__shopify_collection_id=collection_id)
+
         # Search by SKU code, SKU name, or product name
         search = self.request.query_params.get("search")
         if search:
@@ -472,6 +476,11 @@ class SKUBarcodeViewSet(TenantScopedViewSet):
         sku_id = self.request.query_params.get("sku")
         if sku_id:
             queryset = queryset.filter(sku_id=sku_id)
+
+        collection_id = self.request.query_params.get("shopify_collection")
+        if collection_id:
+            queryset = queryset.filter(sku__product__shopify_collection_id=collection_id)
+
         return queryset.order_by("-created_at")
 
     def perform_create(self, serializer):
