@@ -416,19 +416,27 @@ class SKUViewSet(TenantScopedViewSet):
         skus_page = queryset.order_by('product__name', 'name')[(page - 1) * page_size:page * page_size]
         sku_ids = [s.id for s in skus_page]
 
-        # Bulk fetch inventory for these SKUs at SHOPIFY-WH
+        location_id = request.query_params.get('location')
+        
+        # Bulk fetch inventory for these SKUs
         from apps.mdm.models import Location
         try:
-            wh = Location.objects.get(code='SHOPIFY-WH', company_id=request.user.company_id)
+            if location_id:
+                loc = Location.objects.get(id=location_id, company_id=request.user.company_id)
+            else:
+                loc = Location.objects.filter(code='SHOPIFY-WH', company_id=request.user.company_id).first()
+                if not loc:
+                    raise Location.DoesNotExist
+                    
             stock_qs = InventoryBalance.objects.filter(
                 sku_id__in=sku_ids,
-                location=wh,
+                location=loc,
                 company_id=request.user.company_id,
                 status='active',
             )
             stock_map = {str(s.sku_id): float(s.quantity_available or 0) for s in stock_qs}
             offer_map = {str(s.sku_id): s.is_offer_eligible for s in stock_qs}
-        except Location.DoesNotExist:
+        except (Location.DoesNotExist, Location.MultipleObjectsReturned):
             stock_map = {}
             offer_map = {}
 

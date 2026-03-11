@@ -35,7 +35,7 @@ import {
 import { Storefront, DeleteOutline, PointOfSale, Search, LocalOffer, Refresh, Close, Receipt } from '@mui/icons-material'
 import PageHeader from '../components/ui/PageHeader'
 import { mdmService, Location, SKU } from '../services/mdm.service'
-import { inventoryService, InventoryBalance } from '../services/inventory.service'
+
 import { salesService, SalesTransaction } from '../services/sales.service'
 import { StoreInvoice } from '../components/pos/StoreInvoice'
 
@@ -54,8 +54,6 @@ export default function POSCheckout() {
     const [billDiscount, setBillDiscount] = useState('')
 
     const [skus, setSkus] = useState<SKU[]>([])
-    const [storeBalances, setStoreBalances] = useState<InventoryBalance[]>([])
-    const [warehouseLocationId, setWarehouseLocationId] = useState<string>('')
     const [searchQuery, setSearchQuery] = useState('')
     const [loading, setLoading] = useState(false)
     const [stockFilter, setStockFilter] = useState<'all' | 'in_stock' | 'out_of_stock'>('all')
@@ -111,38 +109,9 @@ export default function POSCheckout() {
 
     useEffect(() => {
         fetchStores()
-        fetchSKUs()
-        fetchWarehouseLocation()
+        fetchSearchSKUs('')
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
-
-    // Fetch warehouse (SHOPIFY-WH) inventory — the source of truth for POS
-    const fetchBalances = async () => {
-        if (!warehouseLocationId) return
-        try {
-            const data = await inventoryService.getBalances({ location: warehouseLocationId, page_size: 1000 })
-            const list = Array.isArray(data) ? data : (data as any).results || []
-            setStoreBalances(list)
-        } catch (err) {
-            console.error('Failed to load warehouse balances', err)
-        }
-    }
-
-    // Find the SHOPIFY-WH warehouse location on mount
-    const fetchWarehouseLocation = async () => {
-        try {
-            const data = await mdmService.getLocations()
-            const wh = data.find(loc => (loc.code === 'SHOPIFY-WH' || loc.name.includes('Shopify Warehouse')))
-            if (wh) setWarehouseLocationId(wh.id)
-            else {
-                // Try to find any warehouse if SHOPIFY-WH is missing
-                const anyWh = data.find(loc => loc.location_type === 'warehouse')
-                if (anyWh) setWarehouseLocationId(anyWh.id)
-            }
-        } catch (err) {
-            console.error('Failed to find warehouse location', err)
-        }
-    }
 
     useEffect(() => {
         if (selectedStore) {
@@ -152,16 +121,6 @@ export default function POSCheckout() {
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedStore])
-
-    // Refetch warehouse balances when warehouse location is resolved
-    useEffect(() => {
-        if (warehouseLocationId) {
-            fetchBalances()
-        } else {
-            setStoreBalances([])
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [warehouseLocationId])
 
     const fetchSearchSKUs = async (query: string) => {
         setLoading(true)
@@ -181,22 +140,6 @@ export default function POSCheckout() {
                 is_offer_eligible: r.is_offer_eligible
             } as any))
             setSkus(mappedSKUs)
-
-            // Sync storeBalances for these results so addToCart works
-            const newBalances: InventoryBalance[] = results.map(r => ({
-                id: `tmp-${r.id}`,
-                sku: r.id,
-                sku_code: r.code,
-                quantity_available: r.warehouse_stock.toString(),
-                quantity_on_hand: r.warehouse_stock.toString(),
-                is_offer_eligible: r.is_offer_eligible,
-                condition: 'new'
-            } as any))
-
-            setStoreBalances(prev => {
-                const filtered = prev.filter(p => !results.find(r => r.id === p.sku))
-                return [...filtered, ...newBalances]
-            })
         } catch (err) {
             console.error('Failed to search SKUs', err)
         } finally {
@@ -209,7 +152,7 @@ export default function POSCheckout() {
             if (searchQuery.trim().length >= 2) {
                 fetchSearchSKUs(searchQuery)
             } else if (searchQuery.trim().length === 0) {
-                fetchSKUs()
+                fetchSearchSKUs('')
             }
         }, 500)
         return () => clearTimeout(timer)
@@ -219,33 +162,19 @@ export default function POSCheckout() {
     const fetchStores = async () => {
         try {
             const data = await mdmService.getLocations()
-            // Fallback: If your backend has type filters, use them. Otherwise filter here.
+            // Only show physical stores in the dropdown
             const storeLocations = data.filter(loc => loc.location_type === 'store')
             setStores(storeLocations)
+
             if (storeLocations.length > 0) setSelectedStore(storeLocations[0].id)
         } catch (err) {
             console.error('Failed to load stores', err)
         }
     }
 
-    const fetchSKUs = async () => {
-        setLoading(true)
-        try {
-            const data = await mdmService.getSKUs({ exclude_fabrics: true, page_size: 50 })
-            // Unwrap pagination if applicable
-            const skuList = Array.isArray(data) ? data : (data as any).results || []
-            setSkus(skuList)
-        } catch (err) {
-            console.error('Failed to load SKUs', err)
-        } finally {
-            setLoading(false)
-        }
-    }
-
     const filteredSKUs = skus.filter(s => {
         if (stockFilter !== 'all') {
-            const balance = storeBalances.find(b => b.sku === s.id)
-            const available = balance ? parseFloat(balance.quantity_available.toString()) : 0
+            const available = parseFloat((s as any).warehouse_stock?.toString() || '0')
             const inCart = cart.find(c => c.sku.id === s.id)?.quantity || 0
             const netAvailable = available - inCart
             if (stockFilter === 'in_stock' && netAvailable <= 0) return false
@@ -255,8 +184,7 @@ export default function POSCheckout() {
     }).slice(0, 50)
 
     const addToCart = (sku: SKU) => {
-        const balance = storeBalances.find(b => b.sku === sku.id)
-        const available = balance ? parseFloat(balance.quantity_available.toString()) : 0
+        const available = parseFloat((sku as any).warehouse_stock?.toString() || '0')
         const existing = cart.find(item => item.sku.id === sku.id)
         const currentCartQty = existing ? existing.quantity : 0
 
@@ -299,8 +227,7 @@ export default function POSCheckout() {
                 // Check eligibility if mode is 'selected'
                 let isEligible = true
                 if (activeStoreOfferMode === 'selected') {
-                    const balance = storeBalances.find(b => b.sku === item.sku.id)
-                    isEligible = balance?.is_offer_eligible || false
+                    isEligible = (item.sku as any).is_offer_eligible || false
                 }
 
                 if (isEligible) {
@@ -334,8 +261,7 @@ export default function POSCheckout() {
         if (offerDiscountTotal > 0 && activeStoreOffer !== 'none') {
             let isEligible = true
             if (activeStoreOfferMode === 'selected') {
-                const balance = storeBalances.find(b => b.sku === item.sku.id)
-                isEligible = balance?.is_offer_eligible || false
+                isEligible = (item.sku as any).is_offer_eligible || false
             }
 
             if (isEligible) {
@@ -343,8 +269,7 @@ export default function POSCheckout() {
                 const eligibleGross = cart.reduce((tempAcc, tempItem) => {
                     let tempEligible = true
                     if (activeStoreOfferMode === 'selected') {
-                        const b = storeBalances.find(bal => bal.sku === tempItem.sku.id)
-                        tempEligible = b?.is_offer_eligible || false
+                        tempEligible = (tempItem.sku as any).is_offer_eligible || false
                     }
                     return tempAcc + (tempEligible ? parseFloat(tempItem.sku.base_price || '0') * tempItem.quantity : 0)
                 }, 0)
@@ -404,7 +329,7 @@ export default function POSCheckout() {
                 setBillDiscount('')
                 setPaymentMethod('cash')
                 // Refresh store inventory and transactions to reflect deductions
-                fetchBalances()
+                fetchSearchSKUs(searchQuery)
                 fetchTransactions()
             }, 100)
 
@@ -479,7 +404,7 @@ export default function POSCheckout() {
                                 </TextField>
                                 <Button
                                     variant="outlined"
-                                    onClick={fetchBalances}
+                                    onClick={() => fetchSearchSKUs(searchQuery)}
                                     disabled={!selectedStore}
                                     sx={{ minWidth: 56, p: 0 }}
                                     title="Refresh Inventory"
@@ -569,8 +494,7 @@ export default function POSCheckout() {
                                                         {(() => {
                                                             let isEligible = true
                                                             if (activeStoreOfferMode === 'selected') {
-                                                                const balance = storeBalances.find(b => b.sku === item.sku.id)
-                                                                isEligible = balance?.is_offer_eligible || false
+                                                                isEligible = (item.sku as any).is_offer_eligible || false
                                                             }
                                                             return activeStoreOffer !== 'none' && isEligible && (
                                                                 <Chip
@@ -589,8 +513,7 @@ export default function POSCheckout() {
                                                         {(() => {
                                                             let isEligible = true
                                                             if (activeStoreOfferMode === 'selected') {
-                                                                const balance = storeBalances.find(b => b.sku === item.sku.id)
-                                                                isEligible = balance?.is_offer_eligible || false
+                                                                isEligible = (item.sku as any).is_offer_eligible || false
                                                             }
                                                             return activeStoreOffer !== 'none' && isEligible && (
                                                                 <Typography component="span" variant="caption" color="error.main" sx={{ ml: 1, fontWeight: 'bold' }}>
@@ -621,16 +544,14 @@ export default function POSCheckout() {
                                                         if (offerDiscountTotal > 0 && activeStoreOffer !== 'none') {
                                                             let isEligible = true
                                                             if (activeStoreOfferMode === 'selected') {
-                                                                const balance = storeBalances.find(b => b.sku === item.sku.id)
-                                                                isEligible = balance?.is_offer_eligible || false
+                                                                isEligible = (item.sku as any).is_offer_eligible || false
                                                             }
 
                                                             if (isEligible) {
                                                                 const eligibleGross = cart.reduce((acc, tempItem) => {
                                                                     let tempEligible = true
                                                                     if (activeStoreOfferMode === 'selected') {
-                                                                        const b = storeBalances.find(bal => bal.sku === tempItem.sku.id)
-                                                                        tempEligible = b?.is_offer_eligible || false
+                                                                        tempEligible = (tempItem.sku as any).is_offer_eligible || false
                                                                     }
                                                                     return acc + (tempEligible ? parseFloat(tempItem.sku.base_price || '0') * tempItem.quantity : 0)
                                                                 }, 0)
@@ -765,8 +686,7 @@ export default function POSCheckout() {
                                                 if (activeStoreOffer === 'none') return null
                                                 let isEligible = true
                                                 if (activeStoreOfferMode === 'selected') {
-                                                    const balance = storeBalances.find(b => b.sku === sku.id)
-                                                    isEligible = balance?.is_offer_eligible || false
+                                                    isEligible = (sku as any).is_offer_eligible || false
                                                 }
                                                 return isEligible && (
                                                     <Box
@@ -800,8 +720,7 @@ export default function POSCheckout() {
                                                     </Typography>
 
                                                     {(() => {
-                                                        const bal = storeBalances.find(b => b.sku === sku.id)
-                                                        const baseAvailable = bal ? parseFloat(bal.quantity_available.toString()) : 0
+                                                        const baseAvailable = parseFloat((sku as any).warehouse_stock?.toString() || '0')
                                                         const inCart = cart.find(c => c.sku.id === sku.id)?.quantity || 0
                                                         const available = baseAvailable - inCart
 

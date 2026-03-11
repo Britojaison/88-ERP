@@ -25,7 +25,8 @@ import {
     Switch,
     FormControlLabel,
     Checkbox,
-    Tooltip
+    Tooltip,
+    TablePagination
 } from '@mui/material'
 import {
     Storefront,
@@ -54,6 +55,10 @@ export default function Stores() {
     const [productSearch, setProductSearch] = useState('')
     const [updatingOffer, setUpdatingOffer] = useState(false)
     const [showOnlyOffers, setShowOnlyOffers] = useState(false)
+
+    // Pagination State
+    const [page, setPage] = useState(0)
+    const [rowsPerPage, setRowsPerPage] = useState(50)
 
     useEffect(() => {
         const fetchStores = async () => {
@@ -88,7 +93,7 @@ export default function Stores() {
 
             try {
                 const [balanceData, logData] = await Promise.all([
-                    inventoryService.getBalances({ location: selectedStore.id }),
+                    inventoryService.getBalances({ location_code: 'SHOPIFY-WH', page_size: 5000 }),
                     inventoryService.getGoodsReceiptScans({ location: selectedStore.id })
                 ])
 
@@ -111,6 +116,16 @@ export default function Stores() {
 
     const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
         setTabValue(newValue)
+        setPage(0)
+    }
+
+    const handleChangePage = (_: unknown, newPage: number) => {
+        setPage(newPage)
+    }
+
+    const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
+        setRowsPerPage(parseInt(event.target.value, 10))
+        setPage(0)
     }
 
     const handleUpdateOffer = async (newOffer: string) => {
@@ -158,6 +173,13 @@ export default function Stores() {
         }
         return matchesSearch
     })
+
+    const paginatedBalances = filteredBalances.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+
+    // Reset pagination to first page when search changes
+    useEffect(() => {
+        setPage(0)
+    }, [productSearch, showOnlyOffers])
 
     if (loading) {
         return (
@@ -410,76 +432,87 @@ export default function Stores() {
                                             </Typography>
                                         </Box>
                                     ) : (
-                                        <TableContainer>
-                                            <Table>
-                                                <TableHead sx={{ bgcolor: 'rgba(248, 250, 252, 0.8)' }}>
-                                                    <TableRow>
-                                                        <TableCell sx={{ fontWeight: 800 }}>SKU Code</TableCell>
-                                                        <TableCell sx={{ fontWeight: 800 }}>Product Name</TableCell>
-                                                        <TableCell sx={{ fontWeight: 800 }}>Condition</TableCell>
-                                                        <TableCell sx={{ fontWeight: 800 }} align="right">On Hand</TableCell>
-                                                        <TableCell sx={{ fontWeight: 800 }} align="right">Available</TableCell>
-                                                        <TableCell sx={{ fontWeight: 800 }} align="center">Status</TableCell>
-                                                        <TableCell sx={{ fontWeight: 800 }} align="center">Offer</TableCell>
-                                                    </TableRow>
-                                                </TableHead>
-                                                <TableBody>
-                                                    {filteredBalances.map((row) => (
-                                                        <TableRow
-                                                            key={row.id}
-                                                            sx={{ '&:hover': { bgcolor: 'rgba(15, 109, 106, 0.02)' } }}
-                                                        >
-                                                            <TableCell sx={{ fontWeight: 600, color: 'primary.main' }}>
-                                                                {row.sku_code || 'N/A'}
-                                                            </TableCell>
-                                                            <TableCell sx={{ fontWeight: 500 }}>
-                                                                {row.sku_name || 'Unknown Item'}
-                                                            </TableCell>
-                                                            <TableCell>
-                                                                <Chip
-                                                                    label={row.condition}
-                                                                    size="small"
-                                                                    sx={{
-                                                                        textTransform: 'capitalize',
-                                                                        fontWeight: 600,
-                                                                        borderRadius: 1,
-                                                                        bgcolor: 'action.hover'
-                                                                    }}
-                                                                />
-                                                            </TableCell>
-                                                            <TableCell align="right" sx={{ fontWeight: 700 }}>
-                                                                {qty(row.quantity_on_hand)}
-                                                            </TableCell>
-                                                            <TableCell align="right" sx={{ fontWeight: 800, color: parseInt(row.quantity_available) > 0 ? 'inherit' : 'error.main' }}>
-                                                                {qty(row.quantity_available)}
-                                                            </TableCell>
-                                                            <TableCell align="center">
-                                                                <Chip
-                                                                    label={parseInt(row.quantity_available) > 0 ? 'Active' : 'Stockout'}
-                                                                    color={parseInt(row.quantity_available) > 0 ? 'success' : 'error'}
-                                                                    size="small"
-                                                                    sx={{ borderRadius: 1.5, fontWeight: 700 }}
-                                                                />
-                                                            </TableCell>
-                                                            <TableCell align="center">
-                                                                <Tooltip title={selectedStore?.offer_mode === 'all' ? "Offer is currently applied to ALL products" : (row.is_offer_eligible ? "Eligible for Offer" : "Excluded from Offer")}>
-                                                                    <span>
-                                                                        <Checkbox
-                                                                            size="small"
-                                                                            checked={selectedStore?.offer_mode === 'all' || row.is_offer_eligible}
-                                                                            onChange={() => handleToggleEligibility(row.id, row.is_offer_eligible)}
-                                                                            disabled={selectedStore?.offer_mode === 'all' || selectedStore?.offer_tag === 'none'}
-                                                                            icon={<GppMaybe sx={{ color: 'text.disabled', fontSize: 32 }} />}
-                                                                            checkedIcon={<GppGood color="success" sx={{ fontSize: 32 }} />}
-                                                                        />
-                                                                    </span>
-                                                                </Tooltip>
-                                                            </TableCell>
+                                        <>
+                                            <TableContainer>
+                                                <Table>
+                                                    <TableHead sx={{ bgcolor: 'rgba(248, 250, 252, 0.8)' }}>
+                                                        <TableRow>
+                                                            <TableCell sx={{ fontWeight: 800 }}>SKU Code</TableCell>
+                                                            <TableCell sx={{ fontWeight: 800 }}>Product Name</TableCell>
+                                                            <TableCell sx={{ fontWeight: 800 }}>Condition</TableCell>
+                                                            <TableCell sx={{ fontWeight: 800 }} align="right">On Hand</TableCell>
+                                                            <TableCell sx={{ fontWeight: 800 }} align="right">Available</TableCell>
+                                                            <TableCell sx={{ fontWeight: 800 }} align="center">Status</TableCell>
+                                                            <TableCell sx={{ fontWeight: 800 }} align="center">Offer</TableCell>
                                                         </TableRow>
-                                                    ))}
-                                                </TableBody>
-                                            </Table>
-                                        </TableContainer>
+                                                    </TableHead>
+                                                    <TableBody>
+                                                        {paginatedBalances.map((row) => (
+                                                            <TableRow
+                                                                key={row.id}
+                                                                sx={{ '&:hover': { bgcolor: 'rgba(15, 109, 106, 0.02)' } }}
+                                                            >
+                                                                <TableCell sx={{ fontWeight: 600, color: 'primary.main' }}>
+                                                                    {row.sku_code || 'N/A'}
+                                                                </TableCell>
+                                                                <TableCell sx={{ fontWeight: 500 }}>
+                                                                    {row.sku_name || 'Unknown Item'}
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                    <Chip
+                                                                        label={row.condition}
+                                                                        size="small"
+                                                                        sx={{
+                                                                            textTransform: 'capitalize',
+                                                                            fontWeight: 600,
+                                                                            borderRadius: 1,
+                                                                            bgcolor: 'action.hover'
+                                                                        }}
+                                                                    />
+                                                                </TableCell>
+                                                                <TableCell align="right" sx={{ fontWeight: 700 }}>
+                                                                    {qty(row.quantity_on_hand)}
+                                                                </TableCell>
+                                                                <TableCell align="right" sx={{ fontWeight: 800, color: parseInt(row.quantity_available) > 0 ? 'inherit' : 'error.main' }}>
+                                                                    {qty(row.quantity_available)}
+                                                                </TableCell>
+                                                                <TableCell align="center">
+                                                                    <Chip
+                                                                        label={parseInt(row.quantity_available) > 0 ? 'Active' : 'Stockout'}
+                                                                        color={parseInt(row.quantity_available) > 0 ? 'success' : 'error'}
+                                                                        size="small"
+                                                                        sx={{ borderRadius: 1.5, fontWeight: 700 }}
+                                                                    />
+                                                                </TableCell>
+                                                                <TableCell align="center">
+                                                                    <Tooltip title={selectedStore?.offer_mode === 'all' ? "Offer is currently applied to ALL products" : (row.is_offer_eligible ? "Eligible for Offer" : "Excluded from Offer")}>
+                                                                        <span>
+                                                                            <Checkbox
+                                                                                size="small"
+                                                                                checked={selectedStore?.offer_mode === 'all' || row.is_offer_eligible}
+                                                                                onChange={() => handleToggleEligibility(row.id, row.is_offer_eligible)}
+                                                                                disabled={selectedStore?.offer_mode === 'all' || selectedStore?.offer_tag === 'none'}
+                                                                                icon={<GppMaybe sx={{ color: 'text.disabled', fontSize: 32 }} />}
+                                                                                checkedIcon={<GppGood color="success" sx={{ fontSize: 32 }} />}
+                                                                            />
+                                                                        </span>
+                                                                    </Tooltip>
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        ))}
+                                                    </TableBody>
+                                                </Table>
+                                            </TableContainer>
+                                            <TablePagination
+                                                rowsPerPageOptions={[25, 50, 100, 250]}
+                                                component="div"
+                                                count={filteredBalances.length}
+                                                rowsPerPage={rowsPerPage}
+                                                page={page}
+                                                onPageChange={handleChangePage}
+                                                onRowsPerPageChange={handleChangeRowsPerPage}
+                                            />
+                                        </>
                                     )}
                                 </Box>
                             )}

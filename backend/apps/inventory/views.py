@@ -27,7 +27,7 @@ from apps.mdm.models import SKU, Location, SKUBarcode
 class InventoryPagination(PageNumberPagination):
     page_size = 50
     page_size_query_param = "page_size"
-    max_page_size = 1000
+    max_page_size = 10000
 
 
 from rest_framework import mixins
@@ -50,6 +50,10 @@ class InventoryBalanceViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, 
         location_id = self.request.query_params.get("location")
         if location_id:
             queryset = queryset.filter(location_id=location_id)
+
+        location_code = self.request.query_params.get("location_code")
+        if location_code:
+            queryset = queryset.filter(location__code=location_code)
 
         search = self.request.query_params.get("search")
         if search:

@@ -206,7 +206,7 @@ export const mdmService = {
     return extractListData<SKU>(response.data)
   },
 
-  searchSKUsWithStock: async (params?: { search?: string; page?: number; page_size?: number }) => {
+  searchSKUsWithStock: async (params?: { search?: string; page?: number; page_size?: number; location?: string }) => {
     const response = await api.get('/mdm/skus/search-with-stock/', { params })
     return response.data as {
       count: number
