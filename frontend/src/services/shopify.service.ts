@@ -67,6 +67,8 @@ export interface ProductDemandResponse {
   total_revenue: number
   total_orders: number
   period: string
+  last_order_sync: string | null
+  latest_order_date: string | null
   items: Array<{
     title: string
     variant_title: string

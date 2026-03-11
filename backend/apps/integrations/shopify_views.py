@@ -16,7 +16,7 @@ from django.conf import settings
 from .shopify_models import (
     ShopifyStore, ShopifyProduct, ShopifyInventoryLevel,
     ShopifyWebhook, ShopifyWebhookLog, ShopifySyncJob,
-    ShopifyOrder, ShopifyDraftOrder, ShopifyDiscount, ShopifyGiftCard,
+    ShopifyOrder, ShopifyDraftOrder, ShopifyGiftCard,
     ShopifyFulfillment
 )
 from .shopify_service import ShopifyService, ShopifyAPIClient
@@ -217,13 +217,6 @@ class ShopifyDraftOrderSerializer(serializers.ModelSerializer):
         return ''
 
 
-class ShopifyDiscountSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ShopifyDiscount
-        fields = [
-            'id', 'store', 'shopify_id', 'code', 'type',
-            'value', 'value_type', 'starts_at', 'ends_at', 'is_active',
-        ]
 
 
 class ShopifyGiftCardSerializer(serializers.ModelSerializer):
@@ -684,22 +677,6 @@ class ShopifyStoreViewSet(viewsets.ModelViewSet):
         threading.Thread(target=lambda: ShopifyService.sync_draft_orders(store), daemon=True).start()
         return Response({'job_id': str(job.id), 'status': 'running'})
 
-    @action(detail=True, methods=['post'])
-    def sync_discounts(self, request, pk=None):
-        """Sync price rules and discounts."""
-        store = self.get_object()
-
-        # SINGLETON check
-        existing_job = ShopifySyncJob.objects.filter(store=store, job_status='running').first()
-        if existing_job:
-            return Response({
-                'error': f'A sync job ({existing_job.job_type}) is already running for this store.',
-                'job_id': str(existing_job.id)
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-        job = ShopifySyncJob.objects.create(store=store, job_type='discounts', job_status='running')
-        threading.Thread(target=lambda: ShopifyService.sync_discounts(store), daemon=True).start()
-        return Response({'job_id': str(job.id), 'status': 'running'})
     
     @action(detail=True, methods=['post'])
     def setup_webhooks(self, request, pk=None):
@@ -883,11 +860,13 @@ class ShopifyStoreViewSet(viewsets.ModelViewSet):
             'period': period_label,
             'order_date_from': earliest_date.isoformat() if earliest_date else None,
             'order_date_to': latest_date.isoformat() if latest_date else None,
+            'last_order_sync': store.last_order_sync.isoformat() if store.last_order_sync else None,
+            'latest_order_date': latest_date.isoformat() if latest_date else None,
             'items': result,
         }
 
-        # Cache for 15 minutes (900 seconds)
-        cache.set(cache_key, response_data, 900)
+        # Cache for 5 minutes (300 seconds) — shorter to reflect syncs faster
+        cache.set(cache_key, response_data, 300)
         return Response(response_data)
 
     @action(detail=True, methods=['get'])
@@ -1342,17 +1321,7 @@ class ShopifyDraftOrderViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.filter(store_id=store_id)
         return queryset
 
-class ShopifyDiscountViewSet(viewsets.ReadOnlyModelViewSet):
-    permission_classes = [AllowAny]  # Temporarily disabled for testing
-    serializer_class = ShopifyDiscountSerializer
-    pagination_class = ShopifyProductPagination
 
-    def get_queryset(self):
-        queryset = ShopifyDiscount.objects.select_related('store')
-        store_id = self.request.query_params.get('store')
-        if store_id:
-            queryset = queryset.filter(store_id=store_id)
-        return queryset
 
 
 class ShopifyGiftCardViewSet(viewsets.ReadOnlyModelViewSet):

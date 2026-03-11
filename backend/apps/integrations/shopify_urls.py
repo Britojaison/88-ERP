@@ -7,7 +7,6 @@ from .shopify_views import (
     ShopifyWebhookView,
     ShopifyOrderViewSet,
     ShopifyDraftOrderViewSet,
-    ShopifyDiscountViewSet,
     ShopifyGiftCardViewSet
 )
 from .shopify_analytics_views import (
@@ -24,7 +23,6 @@ router.register(r'products', ShopifyProductViewSet, basename='shopify-product')
 router.register(r'sync-jobs', ShopifySyncJobViewSet, basename='shopify-sync-job')
 router.register(r'orders', ShopifyOrderViewSet, basename='shopify-order')
 router.register(r'draft-orders', ShopifyDraftOrderViewSet, basename='shopify-draft-order')
-router.register(r'discounts', ShopifyDiscountViewSet, basename='shopify-discount')
 router.register(r'gift-cards', ShopifyGiftCardViewSet, basename='shopify-gift-card')
 
 urlpatterns = [
