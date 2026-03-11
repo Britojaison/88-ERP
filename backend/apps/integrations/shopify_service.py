@@ -386,23 +386,6 @@ class ShopifyAPIClient:
             time.sleep(0.5)
         return all_drafts
 
-    def get_price_rules(self) -> List[Dict]:
-        """Get all price rules."""
-        all_rules = []
-        params = {'limit': 250}
-        while True:
-            response = self._make_request('GET', 'price_rules.json', params=params)
-            rules = response.get('price_rules', [])
-            all_rules.extend(rules)
-            if len(rules) < 250: break
-            params['since_id'] = rules[-1]['id']
-            time.sleep(0.5)
-        return all_rules
-
-    def get_discount_codes(self, price_rule_id: int) -> List[Dict]:
-        """Get individual discount codes for a price rule."""
-        response = self._make_request('GET', f'price_rules/{price_rule_id}/discount_codes.json')
-        return response.get('discount_codes', [])
 
     def get_gift_cards(self) -> List[Dict]:
         """Get all gift cards."""
@@ -1976,12 +1959,20 @@ class ShopifyService:
         """
         Sync orders from Shopify to ERP.
         Optionally filter by date range (ISO strings).
+        If no start_date is provided, defaults to the last order sync date minus 1 day, or 30 days ago.
         """
+        from datetime import timedelta
+        if not start_date:
+            if store.last_order_sync:
+                start_date = (store.last_order_sync - timedelta(days=1)).strftime('%Y-%m-%d')
+            else:
+                start_date = (timezone.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+
         job = ShopifySyncJob.objects.create(
             store=store,
             job_type='orders',
             job_status='running',
-            error_log=f"Range: {start_date or 'All'} to {end_date or 'Now'}"
+            error_log=f"Range: {start_date} to {end_date or 'Now'}"
         )
         try:
             client = ShopifyAPIClient(store)
@@ -2043,37 +2034,6 @@ class ShopifyService:
         job.save()
         return job
 
-    @staticmethod
-    def sync_discounts(store: ShopifyStore) -> ShopifySyncJob:
-        """Sync price rules and discount codes."""
-        job = ShopifySyncJob.objects.create(store=store, job_type='discounts', job_status='running')
-        try:
-            client = ShopifyAPIClient(store)
-            rules = client.get_price_rules()
-            job.total_items = len(rules)
-            job.save()
-            for rule in rules:
-                ShopifyDiscount.objects.update_or_create(
-                    store=store,
-                    shopify_id=rule['id'],
-                    defaults={
-                        'code': rule.get('title', ''),
-                        'type': 'price_rule',
-                        'value': abs(float(rule.get('value', 0))),
-                        'value_type': rule.get('value_type', 'fixed_amount'),
-                        'starts_at': rule.get('starts_at'),
-                        'ends_at': rule.get('ends_at'),
-                        'shopify_data': rule
-                    }
-                )
-                job.processed_items += 1
-                job.save()
-            job.job_status = 'completed'
-        except Exception as e:
-            job.job_status = 'failed'
-            job.error_log = str(e)
-        job.save()
-        return job
 
     @staticmethod
     @transaction.atomic
@@ -2081,19 +2041,18 @@ class ShopifyService:
         """Process a Shopify order and link it to an ERP Document."""
         order_id = order_data['id']
         
-        # Get or create ShopifyOrder
         s_order, created = ShopifyOrder.objects.update_or_create(
             shopify_order_id=order_id,
             defaults={
                 'store': store,
-                'order_number': order_data.get('order_number', ''),
-                'order_status': order_data.get('status', 'open'),
-                'financial_status': order_data.get('financial_status', ''),
-                'fulfillment_status': order_data.get('fulfillment_status', ''),
-                'total_price': order_data.get('total_price', 0),
-                'currency': order_data.get('currency', 'INR'),
-                'customer_name': f"{order_data.get('customer', {}).get('first_name', '')} {order_data.get('customer', {}).get('last_name', '')}".strip(),
-                'customer_email': order_data.get('customer', {}).get('email', ''),
+                'order_number': order_data.get('order_number') or '',
+                'order_status': order_data.get('status') or 'open',
+                'financial_status': order_data.get('financial_status') or '',
+                'fulfillment_status': order_data.get('fulfillment_status'),
+                'total_price': order_data.get('total_price') or 0,
+                'currency': order_data.get('currency') or 'INR',
+                'customer_name': f"{order_data.get('customer', {}).get('first_name') or ''} {order_data.get('customer', {}).get('last_name') or ''}".strip(),
+                'customer_email': order_data.get('customer', {}).get('email') or '',
                 'shopify_data': order_data,
                 'processed_at': order_data.get('created_at')
             }

@@ -94,7 +94,7 @@ export default function ShopifyIntegration() {
 
   const [tabValue, setTabValue] = useState(0)
   const [demandSearch, setDemandSearch] = useState('')
-  const [demandPeriod, setDemandPeriod] = useState<string>('7')  // '7', '14', '30'
+  const [demandPeriod, setDemandPeriod] = useState<string>('7')  // '3', '7', '14', '30'
   const demandPeriodRef = React.useRef(demandPeriod)
   const [searchQuery, setSearchQuery] = useState('')
   const [filterType, setFilterType] = useState('All')
@@ -1021,9 +1021,21 @@ export default function ShopifyIntegration() {
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
                       {productDemand?.period || 'Loading...'}
+                      {productDemand?.last_order_sync && (
+                        <> &nbsp;·&nbsp; Last synced: {new Date(productDemand.last_order_sync).toLocaleString()}</>
+                      )}
                     </Typography>
                   </Box>
                   <Stack direction="row" spacing={2} alignItems="center">
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={syncingNow ? <CircularProgress size={16} color="inherit" /> : <Sync />}
+                      onClick={handleSyncNow}
+                      disabled={syncingNow}
+                    >
+                      {syncingNow ? 'Syncing...' : 'Sync Now'}
+                    </Button>
                     <FormControl size="small" sx={{ minWidth: 160 }}>
                       <InputLabel>Time Period</InputLabel>
                       <Select
@@ -1038,6 +1050,7 @@ export default function ShopifyIntegration() {
                           }
                         }}
                       >
+                        <MenuItem value="3">Last 3 Days</MenuItem>
                         <MenuItem value="7">Last 7 Days</MenuItem>
                         <MenuItem value="14">Last 14 Days</MenuItem>
                         <MenuItem value="30">Last 30 Days</MenuItem>
@@ -1045,6 +1058,22 @@ export default function ShopifyIntegration() {
                     </FormControl>
                   </Stack>
                 </Box>
+
+                {/* Stale data warning */}
+                {productDemand && productDemand.total_orders === 0 && productDemand.last_order_sync && (() => {
+                  const lastSync = new Date(productDemand.last_order_sync)
+                  const daysSinceSync = Math.floor((Date.now() - lastSync.getTime()) / (1000 * 60 * 60 * 24))
+                  const selectedDays = parseInt(demandPeriod)
+                  if (daysSinceSync >= selectedDays) {
+                    return (
+                      <Alert severity="warning" sx={{ mb: 2 }}>
+                        No orders found in the last {selectedDays} days. Orders were last synced <strong>{daysSinceSync} days ago</strong> ({lastSync.toLocaleDateString()}).
+                        Click <strong>"Sync Now"</strong> to pull the latest orders from Shopify, then refresh this page.
+                      </Alert>
+                    )
+                  }
+                  return null
+                })()}
 
                 <Box sx={{ position: 'relative' }}>
                   {loadingDemand && (
@@ -1138,8 +1167,13 @@ export default function ShopifyIntegration() {
                       {!productDemand || productDemand.items.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={9} align="center" sx={{ py: 8 }}>
-                            <Typography color="text.secondary">
-                              No order data yet. Use "Sync Now" below to pull data from Shopify.
+                            <Typography color="text.secondary" gutterBottom>
+                              No order data found for this period.
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              {productDemand?.last_order_sync
+                                ? `Orders were last synced on ${new Date(productDemand.last_order_sync).toLocaleString()}. Try selecting a wider time period or click "Sync Now" to pull the latest data.`
+                                : 'Use "Sync Now" above to pull order data from Shopify.'}
                             </Typography>
                           </TableCell>
                         </TableRow>

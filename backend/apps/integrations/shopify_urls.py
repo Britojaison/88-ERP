@@ -25,7 +25,6 @@ router.register(r'products', ShopifyProductViewSet, basename='shopify-product')
 router.register(r'sync-jobs', ShopifySyncJobViewSet, basename='shopify-sync-job')
 router.register(r'orders', ShopifyOrderViewSet, basename='shopify-order')
 router.register(r'draft-orders', ShopifyDraftOrderViewSet, basename='shopify-draft-order')
-router.register(r'discounts', ShopifyDiscountViewSet, basename='shopify-discount')
 router.register(r'gift-cards', ShopifyGiftCardViewSet, basename='shopify-gift-card')
 router.register(r'collections', ShopifyCollectionViewSet, basename='shopify-collection')
 

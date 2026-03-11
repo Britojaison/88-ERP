@@ -1,0 +1,672 @@
+{
+  "id": 7288446976164,
+  "admin_graphql_api_id": "gid://shopify/Order/7288446976164",
+  "app_id": 580111,
+  "browser_ip": "2600:4040:b5f7:3400:9553:c3d4:3ad:8681",
+  "buyer_accepts_marketing": false,
+  "cancel_reason": null,
+  "cancelled_at": null,
+  "cart_token": "hWN9gqGWH1AvtsAzIe6HKauo",
+  "checkout_id": 42609380786340,
+  "checkout_token": "b2e51d0f72f5e8d0bb2d554439f792c5",
+  "client_details": {
+    "accept_language": "en-IN",
+    "browser_height": null,
+    "browser_ip": "2600:4040:b5f7:3400:9553:c3d4:3ad:8681",
+    "browser_width": null,
+    "session_hash": null,
+    "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"
+  },
+  "closed_at": null,
+  "confirmation_number": "ZDGZGU9RN",
+  "confirmed": true,
+  "contact_email": "jyothi.desu95@gmail.com",
+  "created_at": "2026-03-10T21:20:49+05:30",
+  "currency": "INR",
+  "current_subtotal_price": "4936.20",
+  "current_subtotal_price_set": {
+    "shop_money": {
+      "amount": "4936.20",
+      "currency_code": "INR"
+    },
+    "presentment_money": {
+      "amount": "4936.20",
+      "currency_code": "INR"
+    }
+  },
+  "current_total_additional_fees_set": null,
+  "current_total_discounts": "259.80",
+  "current_total_discounts_set": {
+    "shop_money": {
+      "amount": "259.80",
+      "currency_code": "INR"
+    },
+    "presentment_money": {
+      "amount": "259.80",
+      "currency_code": "INR"
+    }
+  },
+  "current_total_duties_set": null,
+  "current_total_price": "5036.20",
+  "current_total_price_set": {
+    "shop_money": {
+      "amount": "5036.20",
+      "currency_code": "INR"
+    },
+    "presentment_money": {
+      "amount": "5036.20",
+      "currency_code": "INR"
+    }
+  },
+  "current_total_tax": "235.06",
+  "current_total_tax_set": {
+    "shop_money": {
+      "amount": "235.06",
+      "currency_code": "INR"
+    },
+    "presentment_money": {
+      "amount": "235.06",
+      "currency_code": "INR"
+    }
+  },
+  "customer_locale": "en-IN",
+  "device_id": null,
+  "discount_codes": [],
+  "duties_included": false,
+  "email": "jyothi.desu95@gmail.com",
+  "estimated_taxes": false,
+  "financial_status": "paid",
+  "fulfillment_status": null,
+  "landing_site": "/checkouts/sessions/clone?_r=AQAByEctXw-aMk4Ys7bfat7DBzvi5lVZVW6tUkRKtnwfD9c&utm_source=ig&utm_medium=social&utm_content=link_in_bio&locale=en-IN",
+  "landing_site_ref": null,
+  "location_id": null,
+  "merchant_business_entity_id": "MTY3ODUxMTU3NjY4",
+  "merchant_of_record_app_id": null,
+  "name": "#61447",
+  "note": null,
+  "note_attributes": [],
+  "number": 60447,
+  "order_number": 61447,
+  "order_status_url": "https://www.mmwear.in/67851157668/orders/825478e4ea7b5763632c917c2e967db9/authenticate?key=0bf0ed88c11581dd60234d08b8ea9ab5",
+  "original_total_additional_fees_set": null,
+  "original_total_duties_set": null,
+  "payment_gateway_names": [
+    "PhonePe PG"
+  ],
+  "phone": "+919849192102",
+  "po_number": null,
+  "presentment_currency": "INR",
+  "processed_at": "2026-03-10T21:20:48+05:30",
+  "reference": null,
+  "referring_site": null,
+  "source_identifier": null,
+  "source_name": "web",
+  "source_url": null,
+  "subtotal_price": "4936.20",
+  "subtotal_price_set": {
+    "shop_money": {
+      "amount": "4936.20",
+      "currency_code": "INR"
+    },
+    "presentment_money": {
+      "amount": "4936.20",
+      "currency_code": "INR"
+    }
+  },
+  "tags": "",
+  "tax_exempt": false,
+  "tax_lines": [
+    {
+      "price": "235.06",
+      "rate": 0.05,
+      "title": "IGST",
+      "price_set": {
+        "shop_money": {
+          "amount": "235.06",
+          "currency_code": "INR"
+        },
+        "presentment_money": {
+          "amount": "235.06",
+          "currency_code": "INR"
+        }
+      },
+      "channel_liable": false
+    }
+  ],
+  "taxes_included": true,
+  "test": false,
+  "token": "825478e4ea7b5763632c917c2e967db9",
+  "total_cash_rounding_payment_adjustment_set": {
+    "shop_money": {
+      "amount": "0.00",
+      "currency_code": "INR"
+    },
+    "presentment_money": {
+      "amount": "0.00",
+      "currency_code": "INR"
+    }
+  },
+  "total_cash_rounding_refund_adjustment_set": {
+    "shop_money": {
+      "amount": "0.00",
+      "currency_code": "INR"
+    },
+    "presentment_money": {
+      "amount": "0.00",
+      "currency_code": "INR"
+    }
+  },
+  "total_discounts": "259.80",
+  "total_discounts_set": {
+    "shop_money": {
+      "amount": "259.80",
+      "currency_code": "INR"
+    },
+    "presentment_money": {
+      "amount": "259.80",
+      "currency_code": "INR"
+    }
+  },
+  "total_line_items_price": "5196.00",
+  "total_line_items_price_set": {
+    "shop_money": {
+      "amount": "5196.00",
+      "currency_code": "INR"
+    },
+    "presentment_money": {
+      "amount": "5196.00",
+      "currency_code": "INR"
+    }
+  },
+  "total_outstanding": "0.00",
+  "total_price": "5036.20",
+  "total_price_set": {
+    "shop_money": {
+      "amount": "5036.20",
+      "currency_code": "INR"
+    },
+    "presentment_money": {
+      "amount": "5036.20",
+      "currency_code": "INR"
+    }
+  },
+  "total_shipping_price_set": {
+    "shop_money": {
+      "amount": "100.00",
+      "currency_code": "INR"
+    },
+    "presentment_money": {
+      "amount": "100.00",
+      "currency_code": "INR"
+    }
+  },
+  "total_tax": "235.06",
+  "total_tax_set": {
+    "shop_money": {
+      "amount": "235.06",
+      "currency_code": "INR"
+    },
+    "presentment_money": {
+      "amount": "235.06",
+      "currency_code": "INR"
+    }
+  },
+  "total_tip_received": "0.00",
+  "total_weight": 1000,
+  "updated_at": "2026-03-10T21:22:12+05:30",
+  "user_id": null,
+  "billing_address": {
+    "first_name": "Satyanarayana",
+    "address1": "Sri Sai Datta Residency Road no 11 Bachupally",
+    "phone": "9849192102",
+    "city": "Hyderabad",
+    "zip": "500090",
+    "province": "Telangana",
+    "country": "India",
+    "last_name": "Desu",
+    "address2": "Apt# G1, beside road of vijetha super market , kranthi nagar.",
+    "company": null,
+    "latitude": 17.5464626,
+    "longitude": 78.36573,
+    "name": "Satyanarayana Desu",
+    "country_code": "IN",
+    "province_code": "TS"
+  },
+  "customer": {
+    "id": 9424572547236,
+    "created_at": "2026-03-10T20:57:33+05:30",
+    "updated_at": "2026-03-10T21:20:50+05:30",
+    "first_name": "Satyanaraya",
+    "last_name": "Desu",
+    "state": "disabled",
+    "note": null,
+    "verified_email": true,
+    "multipass_identifier": null,
+    "tax_exempt": false,
+    "email_marketing_consent": null,
+    "sms_marketing_consent": {
+      "state": "not_subscribed",
+      "opt_in_level": "single_opt_in",
+      "consent_updated_at": null,
+      "consent_collected_from": null
+    },
+    "tags": "",
+    "email": null,
+    "phone": "+919849192102",
+    "currency": "INR",
+    "tax_exemptions": [],
+    "admin_graphql_api_id": "gid://shopify/Customer/9424572547236",
+    "default_address": {
+      "id": 11543802740900,
+      "customer_id": 9424572547236,
+      "first_name": "Satyanarayana",
+      "last_name": "Desu",
+      "company": null,
+      "address1": "Sri Sai Datta Residency Road no 11 Bachupally",
+      "address2": "Apt# G1, beside road of vijetha super market , kranthi nagar.",
+      "city": "Hyderabad",
+      "province": "Telangana",
+      "country": "India",
+      "zip": "500090",
+      "phone": "9849192102",
+      "name": "Satyanarayana Desu",
+      "province_code": "TS",
+      "country_code": "IN",
+      "country_name": "India",
+      "default": true
+    }
+  },
+  "discount_applications": [
+    {
+      "target_type": "line_item",
+      "type": "automatic",
+      "value": "5.0",
+      "value_type": "percentage",
+      "allocation_method": "each",
+      "target_selection": "entitled",
+      "title": "WoWmen\ud83d\udc51\u2728"
+    }
+  ],
+  "fulfillments": [],
+  "line_items": [
+    {
+      "id": 18583169695908,
+      "admin_graphql_api_id": "gid://shopify/LineItem/18583169695908",
+      "attributed_staffs": [],
+      "current_quantity": 1,
+      "fulfillable_quantity": 1,
+      "fulfillment_service": "manual",
+      "fulfillment_status": null,
+      "gift_card": false,
+      "grams": 250,
+      "name": "Sage Maternity Maxi - 3XL",
+      "price": "1299.00",
+      "price_set": {
+        "shop_money": {
+          "amount": "1299.00",
+          "currency_code": "INR"
+        },
+        "presentment_money": {
+          "amount": "1299.00",
+          "currency_code": "INR"
+        }
+      },
+      "product_exists": true,
+      "product_id": 10328666767524,
+      "properties": [],
+      "quantity": 1,
+      "requires_shipping": true,
+      "sku": "MMW-4515-3XL-CLEAR",
+      "taxable": true,
+      "title": "Sage Maternity Maxi",
+      "total_discount": "64.95",
+      "total_discount_set": {
+        "shop_money": {
+          "amount": "64.95",
+          "currency_code": "INR"
+        },
+        "presentment_money": {
+          "amount": "64.95",
+          "currency_code": "INR"
+        }
+      },
+      "variant_id": 51251321569444,
+      "variant_inventory_management": "shopify",
+      "variant_title": "3XL",
+      "vendor": "mmwearment",
+      "tax_lines": [
+        {
+          "channel_liable": false,
+          "price": "58.77",
+          "price_set": {
+            "shop_money": {
+              "amount": "58.77",
+              "currency_code": "INR"
+            },
+            "presentment_money": {
+              "amount": "58.77",
+              "currency_code": "INR"
+            }
+          },
+          "rate": 0.05,
+          "title": "IGST"
+        }
+      ],
+      "duties": [],
+      "discount_allocations": [
+        {
+          "amount": "64.95",
+          "amount_set": {
+            "shop_money": {
+              "amount": "64.95",
+              "currency_code": "INR"
+            },
+            "presentment_money": {
+              "amount": "64.95",
+              "currency_code": "INR"
+            }
+          },
+          "discount_application_index": 0
+        }
+      ]
+    },
+    {
+      "id": 18583169728676,
+      "admin_graphql_api_id": "gid://shopify/LineItem/18583169728676",
+      "attributed_staffs": [],
+      "current_quantity": 1,
+      "fulfillable_quantity": 1,
+      "fulfillment_service": "manual",
+      "fulfillment_status": null,
+      "gift_card": false,
+      "grams": 250,
+      "name": "Aaradhana  Maternity Maxi - 3XL",
+      "price": "1299.00",
+      "price_set": {
+        "shop_money": {
+          "amount": "1299.00",
+          "currency_code": "INR"
+        },
+        "presentment_money": {
+          "amount": "1299.00",
+          "currency_code": "INR"
+        }
+      },
+      "product_exists": true,
+      "product_id": 10282632216740,
+      "properties": [],
+      "quantity": 1,
+      "requires_shipping": true,
+      "sku": "MMW-1076-3XL-MAXI",
+      "taxable": true,
+      "title": "Aaradhana  Maternity Maxi",
+      "total_discount": "64.95",
+      "total_discount_set": {
+        "shop_money": {
+          "amount": "64.95",
+          "currency_code": "INR"
+        },
+        "presentment_money": {
+          "amount": "64.95",
+          "currency_code": "INR"
+        }
+      },
+      "variant_id": 51114509664420,
+      "variant_inventory_management": "shopify",
+      "variant_title": "3XL",
+      "vendor": "mmwearment",
+      "tax_lines": [
+        {
+          "channel_liable": false,
+          "price": "58.77",
+          "price_set": {
+            "shop_money": {
+              "amount": "58.77",
+              "currency_code": "INR"
+            },
+            "presentment_money": {
+              "amount": "58.77",
+              "currency_code": "INR"
+            }
+          },
+          "rate": 0.05,
+          "title": "IGST"
+        }
+      ],
+      "duties": [],
+      "discount_allocations": [
+        {
+          "amount": "64.95",
+          "amount_set": {
+            "shop_money": {
+              "amount": "64.95",
+              "currency_code": "INR"
+            },
+            "presentment_money": {
+              "amount": "64.95",
+              "currency_code": "INR"
+            }
+          },
+          "discount_application_index": 0
+        }
+      ]
+    },
+    {
+      "id": 18583169761444,
+      "admin_graphql_api_id": "gid://shopify/LineItem/18583169761444",
+      "attributed_staffs": [],
+      "current_quantity": 1,
+      "fulfillable_quantity": 1,
+      "fulfillment_service": "manual",
+      "fulfillment_status": null,
+      "gift_card": false,
+      "grams": 250,
+      "name": "Agal_V3  Maternity Maxi - 3XL",
+      "price": "1299.00",
+      "price_set": {
+        "shop_money": {
+          "amount": "1299.00",
+          "currency_code": "INR"
+        },
+        "presentment_money": {
+          "amount": "1299.00",
+          "currency_code": "INR"
+        }
+      },
+      "product_exists": true,
+      "product_id": 10314043130020,
+      "properties": [],
+      "quantity": 1,
+      "requires_shipping": true,
+      "sku": "MMW-818-3XL-MAXI",
+      "taxable": true,
+      "title": "Agal_V3  Maternity Maxi",
+      "total_discount": "64.95",
+      "total_discount_set": {
+        "shop_money": {
+          "amount": "64.95",
+          "currency_code": "INR"
+        },
+        "presentment_money": {
+          "amount": "64.95",
+          "currency_code": "INR"
+        }
+      },
+      "variant_id": 51209144991908,
+      "variant_inventory_management": "shopify",
+      "variant_title": "3XL",
+      "vendor": "mmwearment",
+      "tax_lines": [
+        {
+          "channel_liable": false,
+          "price": "58.76",
+          "price_set": {
+            "shop_money": {
+              "amount": "58.76",
+              "currency_code": "INR"
+            },
+            "presentment_money": {
+              "amount": "58.76",
+              "currency_code": "INR"
+            }
+          },
+          "rate": 0.05,
+          "title": "IGST"
+        }
+      ],
+      "duties": [],
+      "discount_allocations": [
+        {
+          "amount": "64.95",
+          "amount_set": {
+            "shop_money": {
+              "amount": "64.95",
+              "currency_code": "INR"
+            },
+            "presentment_money": {
+              "amount": "64.95",
+              "currency_code": "INR"
+            }
+          },
+          "discount_application_index": 0
+        }
+      ]
+    },
+    {
+      "id": 18583169794212,
+      "admin_graphql_api_id": "gid://shopify/LineItem/18583169794212",
+      "attributed_staffs": [],
+      "current_quantity": 1,
+      "fulfillable_quantity": 1,
+      "fulfillment_service": "manual",
+      "fulfillment_status": null,
+      "gift_card": false,
+      "grams": 250,
+      "name": "Rivika Maternity Maxi - 3XL",
+      "price": "1299.00",
+      "price_set": {
+        "shop_money": {
+          "amount": "1299.00",
+          "currency_code": "INR"
+        },
+        "presentment_money": {
+          "amount": "1299.00",
+          "currency_code": "INR"
+        }
+      },
+      "product_exists": true,
+      "product_id": 10311010910372,
+      "properties": [],
+      "quantity": 1,
+      "requires_shipping": true,
+      "sku": "MMW-1346-3XL-MAXI",
+      "taxable": true,
+      "title": "Rivika Maternity Maxi",
+      "total_discount": "64.95",
+      "total_discount_set": {
+        "shop_money": {
+          "amount": "64.95",
+          "currency_code": "INR"
+        },
+        "presentment_money": {
+          "amount": "64.95",
+          "currency_code": "INR"
+        }
+      },
+      "variant_id": 51199796871332,
+      "variant_inventory_management": "shopify",
+      "variant_title": "3XL",
+      "vendor": "mmwearment",
+      "tax_lines": [
+        {
+          "channel_liable": false,
+          "price": "58.76",
+          "price_set": {
+            "shop_money": {
+              "amount": "58.76",
+              "currency_code": "INR"
+            },
+            "presentment_money": {
+              "amount": "58.76",
+              "currency_code": "INR"
+            }
+          },
+          "rate": 0.05,
+          "title": "IGST"
+        }
+      ],
+      "duties": [],
+      "discount_allocations": [
+        {
+          "amount": "64.95",
+          "amount_set": {
+            "shop_money": {
+              "amount": "64.95",
+              "currency_code": "INR"
+            },
+            "presentment_money": {
+              "amount": "64.95",
+              "currency_code": "INR"
+            }
+          },
+          "discount_application_index": 0
+        }
+      ]
+    }
+  ],
+  "payment_terms": null,
+  "refunds": [],
+  "shipping_address": {
+    "first_name": "Satyanarayana",
+    "address1": "Sri Sai Datta Residency Road no 11 Bachupally",
+    "phone": "9849192102",
+    "city": "Hyderabad",
+    "zip": "500090",
+    "province": "Telangana",
+    "country": "India",
+    "last_name": "Desu",
+    "address2": "Apt# G1, beside road of vijetha super market , kranthi nagar.",
+    "company": null,
+    "latitude": 17.5464626,
+    "longitude": 78.36573,
+    "name": "Satyanarayana Desu",
+    "country_code": "IN",
+    "province_code": "TS"
+  },
+  "shipping_lines": [
+    {
+      "id": 6118055510180,
+      "carrier_identifier": null,
+      "code": "Standard Shipping Rate",
+      "discounted_price": "100.00",
+      "discounted_price_set": {
+        "shop_money": {
+          "amount": "100.00",
+          "currency_code": "INR"
+        },
+        "presentment_money": {
+          "amount": "100.00",
+          "currency_code": "INR"
+        }
+      },
+      "is_removed": false,
+      "phone": null,
+      "price": "100.00",
+      "price_set": {
+        "shop_money": {
+          "amount": "100.00",
+          "currency_code": "INR"
+        },
+        "presentment_money": {
+          "amount": "100.00",
+          "currency_code": "INR"
+        }
+      },
+      "requested_fulfillment_service_id": null,
+      "source": "shopify",
+      "title": "Standard Shipping Rate",
+      "tax_lines": [],
+      "discount_allocations": []
+    }
+  ]
+}
