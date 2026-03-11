@@ -9,7 +9,7 @@ from django.utils import timezone
 from .shopify_models import (
     ShopifyStore, ShopifyProduct, ShopifyInventoryLevel,
     ShopifyWebhook, ShopifyWebhookLog, ShopifySyncJob,
-    ShopifyOrder, ShopifyDraftOrder, ShopifyDiscount, ShopifyGiftCard,
+    ShopifyOrder, ShopifyDraftOrder, ShopifyGiftCard,
     ShopifyCollection
 )
 from apps.mdm.models import Product, SKU, Location, Customer

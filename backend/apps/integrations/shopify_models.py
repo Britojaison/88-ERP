@@ -281,7 +281,6 @@ class ShopifySyncJob(BaseModel):
             ('inventory', 'Inventory'),
             ('orders', 'Orders'),
             ('draft_orders', 'Draft Orders'),
-            ('discounts', 'Discounts'),
             ('gift_cards', 'Gift Cards'),
             ('full_sync', 'Full Sync'),
             ('products_delta', 'Products Delta'),
@@ -410,28 +409,6 @@ class ShopifyDraftOrder(BaseModel):
         db_table = 'shopify_draft_order'
 
 
-class ShopifyDiscount(BaseModel):
-    """
-    Discounts and Price Rules from Shopify.
-    """
-    store = models.ForeignKey(ShopifyStore, on_delete=models.CASCADE, related_name='discounts')
-    shopify_id = models.BigIntegerField(unique=True)
-    code = models.CharField(max_length=100)
-    type = models.CharField(max_length=50) # price_rule or discount_code
-    
-    value = models.DecimalField(max_digits=10, decimal_places=2)
-    value_type = models.CharField(max_length=20) # percentage or fixed_amount
-    
-    starts_at = models.DateTimeField(null=True)
-    ends_at = models.DateTimeField(null=True, blank=True)
-    
-    is_active = models.BooleanField(default=True)
-    shopify_data = models.JSONField(default=dict)
-    
-    objects = models.Manager()
-    
-    class Meta:
-        db_table = 'shopify_discount'
 
 
 class ShopifyGiftCard(BaseModel):

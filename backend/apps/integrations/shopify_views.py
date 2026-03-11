@@ -31,7 +31,7 @@ class ShopifySyncContext:
 from .shopify_models import (
     ShopifyStore, ShopifyProduct, ShopifyInventoryLevel,
     ShopifyWebhook, ShopifyWebhookLog, ShopifySyncJob,
-    ShopifyOrder, ShopifyDraftOrder, ShopifyDiscount, ShopifyGiftCard,
+    ShopifyOrder, ShopifyDraftOrder, ShopifyGiftCard,
     ShopifyFulfillment, ShopifyCollection
 )
 from .shopify_service import ShopifyService, ShopifyAPIClient

@@ -7,7 +7,6 @@ from .shopify_views import (
     ShopifyWebhookView,
     ShopifyOrderViewSet,
     ShopifyDraftOrderViewSet,
-    ShopifyDiscountViewSet,
     ShopifyGiftCardViewSet,
     ShopifyCollectionViewSet,
 )
