@@ -60,29 +60,6 @@ export interface ShopifySyncJob {
   error_log: string
 }
 
-export interface ShopifyDraftOrder {
-  id: string
-  shopify_draft_order_id: string
-  store: string
-  erp_document_number: string | null
-  status: string
-  total_price: string
-  line_items: any[]
-  customer_name: string
-}
-
-export interface ShopifyDiscount {
-  id: string
-  store: string
-  shopify_id: string
-  code: string
-  type: string
-  value: string
-  value_type: string
-  starts_at: string | null
-  ends_at: string | null
-  is_active: boolean
-}
 
 export interface ProductDemandResponse {
   total_products: number
@@ -191,15 +168,6 @@ export const shopifyService = {
     return response.data
   },
 
-  syncDraftOrders: async (storeId: string) => {
-    const response = await api.post(`/integrations/shopify/stores/${storeId}/sync_draft_orders/`)
-    return response.data
-  },
-
-  syncDiscounts: async (storeId: string) => {
-    const response = await api.post(`/integrations/shopify/stores/${storeId}/sync_discounts/`)
-    return response.data
-  },
 
   getProducts: async (params?: any) => {
     const response = await api.get('/integrations/shopify/products/', { params })
@@ -216,15 +184,6 @@ export const shopifyService = {
     return response.data
   },
 
-  listDraftOrders: async (params?: any) => {
-    const response = await api.get('/integrations/shopify/draft-orders/', { params })
-    return response.data
-  },
-
-  listDiscounts: async (params?: any) => {
-    const response = await api.get('/integrations/shopify/discounts/', { params })
-    return response.data
-  },
 
   getSyncStatus: async (storeId: string) => {
     const response = await api.get(`/integrations/shopify/stores/${storeId}/sync_status/`)

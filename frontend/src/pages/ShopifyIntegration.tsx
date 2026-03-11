@@ -32,7 +32,6 @@ import {
   Select,
   MenuItem,
   InputAdornment,
-  Tooltip,
   Stack,
 } from '@mui/material'
 import {
@@ -48,12 +47,11 @@ import {
   FilterList,
   Info,
   ShoppingCart,
-  LocalOffer,
   MonetizationOn,
   Assessment,
   AddCircleOutline
 } from '@mui/icons-material'
-import { shopifyService, ShopifyStore, ShopifyProduct, ShopifySyncJob, ShopifyDraftOrder, ShopifyDiscount, ProductDemandResponse } from '../services/shopify.service'
+import { shopifyService, ShopifyStore, ShopifyProduct, ShopifySyncJob, ProductDemandResponse } from '../services/shopify.service'
 import PageHeader from '../components/ui/PageHeader'
 
 interface TabPanelProps {
@@ -94,13 +92,6 @@ export default function ShopifyIntegration() {
   const [productDemand, setProductDemand] = useState<ProductDemandResponse | null>(null)
   const [productDemandPage, setProductDemandPage] = useState(1)
 
-  const [draftOrders, setDraftOrders] = useState<ShopifyDraftOrder[]>([])
-  const [draftOrderCount, setDraftOrderCount] = useState(0)
-  const [draftOrderPage, setDraftOrderPage] = useState(1)
-
-  const [discounts, setDiscounts] = useState<ShopifyDiscount[]>([])
-  const [discountCount, setDiscountCount] = useState(0)
-  const [discountPage, setDiscountPage] = useState(1)
   const [tabValue, setTabValue] = useState(0)
   const [demandSearch, setDemandSearch] = useState('')
   const [demandPeriod, setDemandPeriod] = useState<string>('7')  // '7', '14', '30'
@@ -210,25 +201,7 @@ export default function ShopifyIntegration() {
           } else {
             setSyncJobs([])
           }
-        }).catch(e => console.error('Failed to load sync jobs:', e)),
-        shopifyService.listDraftOrders({ store: storeId, page: 1 }).then(res => {
-          if (res && res.results) {
-            setDraftOrders(res.results)
-            setDraftOrderCount(res.count || 0)
-            setDraftOrderPage(1)
-          } else {
-            setDraftOrders([])
-          }
-        }).catch(e => console.error('Failed to load draft orders:', e)),
-        shopifyService.listDiscounts({ store: storeId, page: 1 }).then(res => {
-          if (res && res.results) {
-            setDiscounts(res.results)
-            setDiscountCount(res.count || 0)
-            setDiscountPage(1)
-          } else {
-            setDiscounts([])
-          }
-        }).catch(e => console.error('Failed to load discounts:', e))
+        }).catch(e => console.error('Failed to load sync jobs:', e))
       ]);
     } catch (error: any) {
       console.error('Failed to load essential store data:', error)
@@ -333,29 +306,6 @@ export default function ShopifyIntegration() {
     }
   }
 
-  const loadDraftOrderPage = async (page: number) => {
-    if (!selectedStore) return
-    try {
-      const res = await shopifyService.listDraftOrders({ store: selectedStore.id, page })
-      setDraftOrders(res.results)
-      setDraftOrderCount(res.count)
-      setDraftOrderPage(page)
-    } catch (e) {
-      console.error('Failed to load draft orders page:', e)
-    }
-  }
-
-  const loadDiscountPage = async (page: number) => {
-    if (!selectedStore) return
-    try {
-      const res = await shopifyService.listDiscounts({ store: selectedStore.id, page })
-      setDiscounts(res.results)
-      setDiscountCount(res.count)
-      setDiscountPage(page)
-    } catch (e) {
-      console.error('Failed to load discounts page:', e)
-    }
-  }
 
   const productTypes = useMemo(() => {
     const types = Array.from(new Set(products.map(p => p.shopify_product_type).filter(Boolean)))
@@ -513,33 +463,6 @@ export default function ShopifyIntegration() {
 
 
 
-  const handleSyncDraftOrders = async (store: ShopifyStore) => {
-    try {
-      const result = await shopifyService.syncDraftOrders(store.id)
-      setSnackbar({ open: true, message: result.message, severity: 'info' })
-      setTimeout(() => loadStoreData(store.id), 2000)
-    } catch (error: any) {
-      setSnackbar({
-        open: true,
-        message: error.response?.data?.error || 'Failed to start draft order sync',
-        severity: 'error'
-      })
-    }
-  }
-
-  const handleSyncDiscounts = async (store: ShopifyStore) => {
-    try {
-      const result = await shopifyService.syncDiscounts(store.id)
-      setSnackbar({ open: true, message: result.message, severity: 'info' })
-      setTimeout(() => loadStoreData(store.id), 2000)
-    } catch (error: any) {
-      setSnackbar({
-        open: true,
-        message: error.response?.data?.error || 'Failed to start discount sync',
-        severity: 'error'
-      })
-    }
-  }
 
   const handleTestConnection = async (store: ShopifyStore) => {
     try {
@@ -722,7 +645,6 @@ export default function ShopifyIntegration() {
                 <Tab label="Overview" icon={<Assessment />} iconPosition="start" />
                 <Tab label="Products" icon={<Inventory />} iconPosition="start" />
                 <Tab label="Product Demand" icon={<Assessment />} iconPosition="start" />
-                <Tab label="Sales" icon={<LocalOffer />} iconPosition="start" />
                 <Tab label="Sync Jobs" icon={<Sync />} iconPosition="start" />
               </Tabs>
 
@@ -1343,193 +1265,6 @@ export default function ShopifyIntegration() {
               </TabPanel>
 
               <TabPanel value={tabValue} index={3}>
-                {/* Discounts Section */}
-                <Box sx={{ mb: 4 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                    <Box>
-                      <Typography variant="h6" sx={{ fontWeight: 600 }}>Discounts & Price Rules</Typography>
-                      <Typography variant="body2" color="text.secondary">{discounts.length} active discounts</Typography>
-                    </Box>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      startIcon={<Sync />}
-                      onClick={() => handleSyncDiscounts(selectedStore!)}
-                    >
-                      Sync Discounts
-                    </Button>
-                  </Box>
-                  <TableContainer component={Paper} variant="outlined">
-                    <Table size="small">
-                      <TableHead sx={{ bgcolor: 'action.hover' }}>
-                        <TableRow>
-                          <TableCell sx={{ fontWeight: 'bold' }}>Code</TableCell>
-                          <TableCell sx={{ fontWeight: 'bold' }}>Type</TableCell>
-                          <TableCell sx={{ fontWeight: 'bold' }}>Value</TableCell>
-                          <TableCell sx={{ fontWeight: 'bold' }}>Valid From</TableCell>
-                          <TableCell sx={{ fontWeight: 'bold' }}>Valid Until</TableCell>
-                          <TableCell sx={{ fontWeight: 'bold' }}>Status</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {discounts.length === 0 ? (
-                          <TableRow>
-                            <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
-                              <Typography color="text.secondary">No discounts synced. Click "Sync Discounts" to pull from Shopify.</Typography>
-                            </TableCell>
-                          </TableRow>
-                        ) : (
-                          discounts.map(d => (
-                            <TableRow key={d.id} hover>
-                              <TableCell sx={{ fontWeight: 'bold', fontFamily: 'monospace' }}>{d.code}</TableCell>
-                              <TableCell><Chip label={d.type || 'discount'} size="small" variant="outlined" /></TableCell>
-                              <TableCell sx={{ fontWeight: 'bold', color: 'success.main' }}>
-                                {d.value_type === 'percentage' ? `${d.value}%` : `INR ${Number(d.value).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
-                              </TableCell>
-                              <TableCell>{d.starts_at ? new Date(d.starts_at).toLocaleDateString() : '-'}</TableCell>
-                              <TableCell>{d.ends_at ? new Date(d.ends_at).toLocaleDateString() : 'No expiry'}</TableCell>
-                              <TableCell>
-                                <Chip label={d.is_active ? 'Active' : 'Expired'} size="small" color={d.is_active ? 'success' : 'default'} variant="outlined" />
-                              </TableCell>
-                            </TableRow>
-                          ))
-                        )}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                  {/* Pagination */}
-                  {discountCount > 50 && (
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2, px: 1 }}>
-                      <Typography variant="body2" color="text.secondary">
-                        Showing {(discountPage - 1) * 50 + 1}-{Math.min(discountPage * 50, discountCount)} of {discountCount} discounts
-                      </Typography>
-                      <Box sx={{ display: 'flex', gap: 1 }}>
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          disabled={discountPage <= 1}
-                          onClick={() => void loadDiscountPage(discountPage - 1)}
-                        >
-                          Previous
-                        </Button>
-                        <Chip label={`Page ${discountPage} of ${Math.ceil(discountCount / 50)}`} variant="outlined" />
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          disabled={discountPage * 50 >= discountCount}
-                          onClick={() => void loadDiscountPage(discountPage + 1)}
-                        >
-                          Next
-                        </Button>
-                      </Box>
-                    </Box>
-                  )}
-                </Box>
-
-                {/* Draft Orders Section */}
-                <Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                    <Box>
-                      <Typography variant="h6" sx={{ fontWeight: 600 }}>Draft Orders</Typography>
-                      <Typography variant="body2" color="text.secondary">{draftOrders.length} draft orders (quotations / proposals)</Typography>
-                    </Box>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      startIcon={<Sync />}
-                      onClick={() => handleSyncDraftOrders(selectedStore!)}
-                    >
-                      Sync Draft Orders
-                    </Button>
-                  </Box>
-                  <TableContainer component={Paper} variant="outlined">
-                    <Table size="small">
-                      <TableHead sx={{ bgcolor: 'action.hover' }}>
-                        <TableRow>
-                          <TableCell sx={{ fontWeight: 'bold' }}>Draft #</TableCell>
-                          <TableCell sx={{ fontWeight: 'bold' }}>Customer</TableCell>
-                          <TableCell sx={{ fontWeight: 'bold' }}>Items</TableCell>
-                          <TableCell sx={{ fontWeight: 'bold', textAlign: 'right' }}>Total</TableCell>
-                          <TableCell sx={{ fontWeight: 'bold' }}>Status</TableCell>
-                          <TableCell sx={{ fontWeight: 'bold' }}>ERP Doc</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {draftOrders.length === 0 ? (
-                          <TableRow>
-                            <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
-                              <Typography color="text.secondary">No draft orders synced. Click "Sync Draft Orders" to pull from Shopify.</Typography>
-                            </TableCell>
-                          </TableRow>
-                        ) : (
-                          draftOrders.map(draft => (
-                            <TableRow key={draft.id} hover>
-                              <TableCell sx={{ fontWeight: 'bold' }}>#{draft.shopify_draft_order_id}</TableCell>
-                              <TableCell>{draft.customer_name || '-'}</TableCell>
-                              <TableCell>
-                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                                  {(draft.line_items || []).length > 0 ? (
-                                    draft.line_items.map((item, idx) => (
-                                      <Tooltip key={idx} title={`${item.title}${item.variant_title ? ` - ${item.variant_title}` : ''} | SKU: ${item.sku || 'N/A'} | Qty: ${item.quantity} | Price: ₹${item.price}`}>
-                                        <Chip
-                                          label={`${item.title.substring(0, 25)}${item.title.length > 25 ? '...' : ''} x${item.quantity}`}
-                                          size="small"
-                                          variant="outlined"
-                                          sx={{ fontSize: '0.7rem' }}
-                                        />
-                                      </Tooltip>
-                                    ))
-                                  ) : (
-                                    <Typography variant="caption" color="text.secondary">No items</Typography>
-                                  )}
-                                </Box>
-                              </TableCell>
-                              <TableCell sx={{ fontWeight: 'bold', textAlign: 'right' }}>INR {Number(draft.total_price).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</TableCell>
-                              <TableCell><Chip label={draft.status} size="small" color={draft.status === 'open' ? 'info' : draft.status === 'completed' ? 'success' : 'default'} /></TableCell>
-                              <TableCell>
-                                {draft.erp_document_number ? (
-                                  <Chip label={draft.erp_document_number} size="small" color="primary" variant="outlined" />
-                                ) : (
-                                  <Typography variant="caption" color="text.secondary">Pending</Typography>
-                                )}
-                              </TableCell>
-                            </TableRow>
-                          ))
-                        )}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                  {/* Pagination */}
-                  {draftOrderCount > 50 && (
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2, px: 1 }}>
-                      <Typography variant="body2" color="text.secondary">
-                        Showing {(draftOrderPage - 1) * 50 + 1}-{Math.min(draftOrderPage * 50, draftOrderCount)} of {draftOrderCount} draft orders
-                      </Typography>
-                      <Box sx={{ display: 'flex', gap: 1 }}>
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          disabled={draftOrderPage <= 1}
-                          onClick={() => void loadDraftOrderPage(draftOrderPage - 1)}
-                        >
-                          Previous
-                        </Button>
-                        <Chip label={`Page ${draftOrderPage} of ${Math.ceil(draftOrderCount / 50)}`} variant="outlined" />
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          disabled={draftOrderPage * 50 >= draftOrderCount}
-                          onClick={() => void loadDraftOrderPage(draftOrderPage + 1)}
-                        >
-                          Next
-                        </Button>
-                      </Box>
-                    </Box>
-                  )}
-                </Box>
-              </TabPanel>
-
-              <TabPanel value={tabValue} index={4}>
                 <TableContainer component={Paper} variant="outlined">
                   <Table>
                     <TableHead sx={{ bgcolor: 'action.hover' }}>
