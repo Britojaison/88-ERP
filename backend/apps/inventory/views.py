@@ -150,7 +150,8 @@ class InventoryBalanceViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, 
         if cached:
             return Response(cached)
 
-        from django.db.models import Sum, OuterRef, Subquery, Coalesce, Value, Case, When, DecimalField, Q, F
+        from django.db.models import Sum, OuterRef, Subquery, Value, Case, When, DecimalField, Q, F, Count
+        from django.db.models.functions import Coalesce
         from apps.sales.models import SalesTransactionLine
         from django.utils import timezone
         import datetime
