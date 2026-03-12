@@ -122,6 +122,9 @@ class InventoryBalanceViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, 
             zero_stock=Count('id', filter=models.Q(quantity_available__lte=0)),
         )
 
+        print(f"DEBUG SUMMARY: User={request.user}, Company={request.user.company_id}, Location={location_id}, location_code={location_code}")
+        print(f"DEBUG SUMMARY: QS COUNT={qs.count()}, AGG={agg}")
+
         return Response({
             "total_skus": agg['total_skus'] or 0,
             "total_units": int(agg['total_units'] or 0),
@@ -150,7 +153,8 @@ class InventoryBalanceViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, 
         if cached:
             return Response(cached)
 
-        from django.db.models import Sum, OuterRef, Subquery, Coalesce, Value, Case, When, DecimalField, Q, F
+        from django.db.models import Sum, OuterRef, Subquery, Value, Case, When, DecimalField, Q, F
+        from django.db.models.functions import Coalesce
         from apps.sales.models import SalesTransactionLine
         from django.utils import timezone
         import datetime

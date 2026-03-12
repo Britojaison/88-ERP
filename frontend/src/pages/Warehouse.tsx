@@ -156,16 +156,15 @@ export default function Warehouse() {
             setFetchingLogs(true)
 
             try {
+                // Fetch aggregate summary separately so it doesn't fail if logs fail
+                inventoryService.getBalanceSummary({ location: selectedWarehouse.id })
+                    .then(summaryData => setSummary(summaryData))
+                    .catch(() => setSummary({ total_skus: 0, total_units: 0, zero_stock: 0 }))
+
                 const [, logData] = await Promise.all([
                     fetchBalances(selectedWarehouse.id, '', stockFilter, 1, selectedCollection?.id, ordering),
-                    inventoryService.getGoodsReceiptScans({ location: selectedWarehouse.id })
+                    inventoryService.getGoodsReceiptScans({ location: selectedWarehouse.id }).catch(() => []) // Catch log errors so they don't break the page
                 ])
-
-                // Fetch aggregate summary separately (not affected by pagination)
-                try {
-                    const summaryData = await inventoryService.getBalanceSummary({ location: selectedWarehouse.id })
-                    setSummary(summaryData)
-                } catch { setSummary({ total_skus: 0, total_units: 0, zero_stock: 0 }) }
 
                 setScanLogs(Array.isArray(logData) ? logData : (logData as any).results || [])
             } catch (error) {
