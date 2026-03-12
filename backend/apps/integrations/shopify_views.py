@@ -697,21 +697,34 @@ class ShopifyStoreViewSet(viewsets.ModelViewSet):
     def setup_webhooks(self, request, pk=None):
         """Setup Shopify webhooks."""
         store = self.get_object()
-        base_url = request.build_absolute_uri('/')[:-1]  # Remove trailing slash
-        
+
+        # Priority 1: Frontend explicitly passes the public ngrok/production URL
+        base_url = request.data.get('webhook_base_url', '').strip().rstrip('/')
+
+        # Priority 2: Use X-Forwarded-Host (set by ngrok when request comes through tunnel)
+        if not base_url:
+            forwarded_host = request.META.get('HTTP_X_FORWARDED_HOST', '')
+            forwarded_proto = request.META.get('HTTP_X_FORWARDED_PROTO', 'https')
+            if forwarded_host:
+                base_url = f"{forwarded_proto}://{forwarded_host}"
+
+        # Priority 3: Fall back to request's own URL (will be localhost — not useful for Shopify)
+        if not base_url:
+            base_url = request.build_absolute_uri('/').rstrip('/')
+
         try:
-            webhooks = ShopifyService.setup_webhooks(store, base_url)
+            webhooks = ShopifyService.setup_webhooks(store, base_url, force_update=True)
             return Response({
                 'success': True,
                 'webhooks_created': len(webhooks),
-                'message': f'Created {len(webhooks)} webhooks'
+                'message': f'Registered {len(webhooks)} webhooks to {base_url}'
             })
         except Exception as e:
             return Response({
                 'success': False,
                 'error': str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
-    
+
     @action(detail=True, methods=['get'])
     def sync_status(self, request, pk=None):
         """Get sync status and statistics."""

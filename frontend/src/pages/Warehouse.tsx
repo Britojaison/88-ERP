@@ -163,7 +163,7 @@ export default function Warehouse() {
 
                 // Fetch aggregate summary separately (not affected by pagination)
                 try {
-                    const summaryData = await inventoryService.getBalanceSummary(selectedWarehouse.id)
+                    const summaryData = await inventoryService.getBalanceSummary({ location: selectedWarehouse.id })
                     setSummary(summaryData)
                 } catch { setSummary({ total_skus: 0, total_units: 0, zero_stock: 0 }) }
 

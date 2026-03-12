@@ -206,8 +206,10 @@ export const shopifyService = {
     return response.data
   },
 
-  setupWebhooks: async (storeId: string) => {
-    const response = await api.post(`/integrations/shopify/stores/${storeId}/setup_webhooks/`)
+  setupWebhooks: async (storeId: string, baseUrl?: string) => {
+    const response = await api.post(`/integrations/shopify/stores/${storeId}/setup_webhooks/`, {
+      webhook_base_url: baseUrl ?? '',
+    })
     return response.data
   },
 
