@@ -70,12 +70,15 @@ class SalesTransactionViewSet(viewsets.ModelViewSet):
         
         date_from = self.request.query_params.get('date_from')
         date_to = self.request.query_params.get('date_to')
+        force_refresh = self.request.query_params.get('force_refresh') == 'true'
         
         # Build cache key
         cache_key = f"sales_summary_{request.user.company_id}_{date_from or 'none'}_{date_to or 'none'}"
-        cached = cache.get(cache_key)
-        if cached:
-            return Response(cached)
+        
+        if not force_refresh:
+            cached = cache.get(cache_key)
+            if cached:
+                return Response(cached)
 
         # POS Stats
         pos_summary = self.get_queryset().aggregate(

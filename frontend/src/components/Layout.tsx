@@ -81,7 +81,7 @@ const navSections = [
     heading: 'Reports Detailed',
     visible: true,
     items: [
-      { text: 'Daily Sales', icon: <DailySalesIcon />, path: '/reports/daily', permission: 'report.daily' },
+      { text: 'Daily Sales', icon: <DailySalesIcon />, path: '/reports', permission: 'report.daily' },
       { text: 'Stock Velocity', icon: <VelocityIcon />, path: '/reports/weekly-stock', permission: 'report.stock' },
       { text: 'Margin Analysis', icon: <MarginIcon />, path: '/reports/monthly-margin', permission: 'report.margin' },
       { text: 'Store vs Online', icon: <CompareIcon />, path: '/reports/channel-comparison', permission: 'report.channel' },

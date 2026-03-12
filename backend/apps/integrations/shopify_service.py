@@ -1977,14 +1977,21 @@ class ShopifyService:
         try:
             client = ShopifyAPIClient(store)
             
-            # Prepare ISO strings for Shopify API
+            from django.utils import timezone
+            import datetime
+            
             created_at_min = None
             if start_date:
-                created_at_min = f"{start_date}T00:00:00Z"
+                dt = datetime.datetime.strptime(start_date, '%Y-%m-%d')
+                dt_aware = timezone.make_aware(dt, timezone.get_current_timezone())
+                created_at_min = dt_aware.isoformat()
             
             created_at_max = None
             if end_date:
-                created_at_max = f"{end_date}T23:59:59Z"
+                dt = datetime.datetime.strptime(end_date, '%Y-%m-%d')
+                dt = dt.replace(hour=23, minute=59, second=59)
+                dt_aware = timezone.make_aware(dt, timezone.get_current_timezone())
+                created_at_max = dt_aware.isoformat()
 
             orders = client.get_all_orders(created_at_min=created_at_min, created_at_max=created_at_max)
             job.total_items = len(orders)
