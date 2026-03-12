@@ -144,8 +144,8 @@ export default function ProductionOrders() {
             ])
             const orderList = Array.isArray(orderData) ? orderData : orderData.results || []
             setOrders(orderList)
-            setSkus(skuData)
-            setLocations(locationData)
+            setSkus(Array.isArray(skuData) ? skuData : skuData.results || [])
+            setLocations(Array.isArray(locationData) ? locationData : locationData.results || [])
             setDashboard(dashData)
         } catch (error) {
             console.error('Failed to load production orders:', error)

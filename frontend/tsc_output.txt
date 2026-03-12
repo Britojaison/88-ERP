@@ -1,36 +1,25 @@
-src/components/reports/ReportDisplay.tsx(29,1): error TS6133: 'documentsService' is declared but its value is never read.
-src/components/reports/ReportDisplay.tsx(47,7): error TS6133: 'getCurrencySymbol' is declared but its value is never read.
-src/components/reports/ReportDisplay.tsx(320,41): error TS6133: 'summary' is declared but its value is never read.
-src/components/reports/ReportDisplay.tsx(555,61): error TS2339: Property 'results' does not exist on type 'never'.
-src/components/reports/ReportDisplay.tsx(558,37): error TS7006: Parameter 'sku' implicitly has an 'any' type.
-src/components/reports/ReportDisplay.tsx(563,20): error TS2339: Property 'code' does not exist on type '{}'.
-src/components/reports/ReportDisplay.tsx(564,20): error TS2339: Property 'name' does not exist on type '{}'.
-src/components/reports/ReportDisplay.tsx(567,32): error TS2339: Property 'base_price' does not exist on type '{}'.
-src/components/reports/ReportDisplay.tsx(591,61): error TS2339: Property 'results' does not exist on type 'never'.
-src/components/reports/ReportDisplay.tsx(593,37): error TS7006: Parameter 'sku' implicitly has an 'any' type.
-src/components/reports/ReportDisplay.tsx(603,38): error TS2339: Property 'base_price' does not exist on type '{}'.
-src/components/reports/ReportDisplay.tsx(626,42): error TS2339: Property 'base_price' does not exist on type '{}'.
-src/components/reports/ReportDisplay.tsx(629,23): error TS2339: Property 'code' does not exist on type '{}'.
-src/components/reports/ReportDisplay.tsx(702,77): error TS2339: Property 'results' does not exist on type 'never'.
-src/components/reports/ReportDisplay.tsx(703,61): error TS2339: Property 'results' does not exist on type 'never'.
-src/components/reports/ReportDisplay.tsx(707,45): error TS7006: Parameter 'p' implicitly has an 'any' type.
-src/components/reports/ReportDisplay.tsx(708,37): error TS7006: Parameter 's' implicitly has an 'any' type.
-src/components/reports/ReportDisplay.tsx(714,48): error TS2339: Property 'product' does not exist on type '{}'.
-src/components/reports/ReportDisplay.tsx(715,37): error TS2339: Property 'name' does not exist on type '{}'.
-src/components/reports/ReportDisplay.tsx(748,77): error TS2339: Property 'results' does not exist on type 'never'.
-src/components/reports/ReportDisplay.tsx(749,61): error TS2339: Property 'results' does not exist on type 'never'.
-src/components/reports/ShopifyReportHelpers.tsx(163,24): error TS2339: Property 'status_breakdown' does not exist on type 'ShopifySalesSummary'.
-src/components/reports/ShopifyReportHelpers.tsx(167,34): error TS2339: Property 'status_breakdown' does not exist on type 'ShopifySalesSummary'.
-src/components/reports/ShopifyReportHelpers.tsx(168,39): error TS2339: Property 'fulfillment_breakdown' does not exist on type 'ShopifySalesSummary'.
-src/components/reports/ShopifyReportHelpers.tsx(170,11): error TS6133: 'currency' is declared but its value is never read.
-src/pages/InventoryBarcodes.tsx(65,60): error TS2339: Property 'results' does not exist on type 'never'.
-src/pages/MasterData.tsx(11,3): error TS6133: 'Checkbox' is declared but its value is never read.
-src/pages/MasterData.tsx(17,3): error TS6133: 'FormControlLabel' is declared but its value is never read.
-src/pages/MasterData.tsx(52,10): error TS6133: 'businessUnits' is declared but its value is never read.
-src/pages/MasterData.tsx(55,10): error TS6133: 'openSkuDialog' is declared but its value is never read.
-src/pages/MasterData.tsx(56,10): error TS6133: 'openCompanyDialog' is declared but its value is never read.
-src/pages/MasterData.tsx(57,10): error TS6133: 'openLocationDialog' is declared but its value is never read.
-src/pages/MasterData.tsx(70,10): error TS6133: 'skuForm' is declared but its value is never read.
-src/pages/MasterData.tsx(80,10): error TS6133: 'companyForm' is declared but its value is never read.
-src/pages/MasterData.tsx(87,10): error TS6133: 'locationForm' is declared but its value is never read.
-src/pages/ShopifyIntegration.tsx(384,9): error TS6133: 'handleSyncInventory' is declared but its value is never read.
+src/components/reports/ReportDisplay.tsx(517,47): error TS7006: Parameter 'loc' implicitly has an 'any' type.
+src/components/reports/ReportDisplay.tsx(519,56): error TS7006: Parameter 'balance' implicitly has an 'any' type.
+src/components/reports/ReportDisplay.tsx(520,58): error TS2339: Property 'code' does not exist on type '{}'.
+src/components/reports/ReportDisplay.tsx(547,41): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/components/reports/ReportDisplay.tsx(547,46): error TS7006: Parameter 'b' implicitly has an 'any' type.
+src/components/reports/ReportDisplay.tsx(653,34): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/components/reports/ReportDisplay.tsx(657,15): error TS7006: Parameter 'balance' implicitly has an 'any' type.
+src/components/reports/ReportDisplay.tsx(666,28): error TS7006: Parameter 'item' implicitly has an 'any' type.
+src/components/reports/ReportDisplay.tsx(686,33): error TS7006: Parameter 'movement' implicitly has an 'any' type.
+src/components/reports/ReportDisplay.tsx(715,22): error TS7006: Parameter 'balance' implicitly has an 'any' type.
+src/components/reports/ReportDisplay.tsx(759,48): error TS2339: Property 'length' does not exist on type 'PaginatedResponse<Location>'.
+src/pages/DailySalesReport.tsx(111,28): error TS2339: Property 'filter' does not exist on type 'PaginatedResponse<Location>'.
+src/pages/DailySalesReport.tsx(111,35): error TS7006: Parameter 'l' implicitly has an 'any' type.
+src/pages/DesignApprovals.tsx(75,36): error TS2339: Property 'filter' does not exist on type 'PaginatedResponse<Location>'.
+src/pages/InventoryHealth.tsx(114,32): error TS2339: Property 'filter' does not exist on type 'PaginatedResponse<Location>'.
+src/pages/MonthlyMarginReport.tsx(52,71): error TS2339: Property 'filter' does not exist on type 'PaginatedResponse<Location>'.
+src/pages/MonthlyMarginReport.tsx(52,78): error TS7006: Parameter 'l' implicitly has an 'any' type.
+src/pages/POSCheckout.tsx(166,41): error TS2339: Property 'filter' does not exist on type 'PaginatedResponse<Location>'.
+src/pages/POSCheckout.tsx(166,48): error TS7006: Parameter 'loc' implicitly has an 'any' type.
+src/pages/ProductionOrders.tsx(147,21): error TS2345: Argument of type 'PaginatedResponse<SKU>' is not assignable to parameter of type 'SetStateAction<SKU[]>'.
+src/pages/ProductionOrders.tsx(148,26): error TS2345: Argument of type 'PaginatedResponse<Location>' is not assignable to parameter of type 'SetStateAction<Location[]>'.
+src/pages/WeeklyStockReport.tsx(38,71): error TS2339: Property 'filter' does not exist on type 'PaginatedResponse<Location>'.
+src/pages/WeeklyStockReport.tsx(38,78): error TS7006: Parameter 'l' implicitly has an 'any' type.
+src/services/inventory.service.ts(2,10): error TS2459: Module '"./mdm.service"' declares 'PaginatedResponse' locally, but it is not exported.
+src/services/mdm.service.ts(1,15): error TS6133: 'extractListData' is declared but its value is never read.

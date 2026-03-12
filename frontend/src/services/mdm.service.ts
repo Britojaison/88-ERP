@@ -1,4 +1,4 @@
-import api, { extractListData, extractPaginatedData, type PaginatedResponse } from './api'
+import api, { extractPaginatedData, type PaginatedResponse } from './api'
 
 export interface Product {
   id: string

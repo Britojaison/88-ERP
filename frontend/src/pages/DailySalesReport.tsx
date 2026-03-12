@@ -108,7 +108,8 @@ export default function DailySalesReport() {
     const loadStores = async () => {
         try {
             const data = await mdmService.getLocations()
-            setStores(data.filter(l => l.location_type === 'store'))
+            const list = Array.isArray(data) ? data : data.results
+            setStores(list.filter((l: any) => l.location_type === 'store'))
         } catch { }
     }
 

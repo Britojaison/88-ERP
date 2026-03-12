@@ -111,7 +111,8 @@ export default function InventoryHealth() {
             setAlertData(alerts as any)
             setRestockSuggestions(restock.suggestions || [])
             setRestockSummary(restock.summary || null)
-            setWarehouses(locs.filter((l: Location) => l.location_type === 'warehouse'))
+            const list = Array.isArray(locs) ? locs : locs.results
+            setWarehouses(list.filter((l: any) => l.location_type === 'warehouse'))
         } catch (error) {
             console.error('Failed to load inventory health data', error)
         } finally {

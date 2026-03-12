@@ -35,7 +35,7 @@ export default function WeeklyStockReport() {
     const [loading, setLoading] = useState(false)
     const [tab, setTab] = useState(0)
 
-    useEffect(() => { mdmService.getLocations().then(d => setStores(d.filter(l => l.location_type === 'store'))).catch(() => { }) }, [])
+    useEffect(() => { mdmService.getLocations().then(d => { const list = Array.isArray(d) ? d : d.results; setStores(list.filter((l: any) => l.location_type === 'store')) }).catch(() => { }) }, [])
     useEffect(() => { void loadData() }, [period, storeId])
 
     const loadData = async () => {

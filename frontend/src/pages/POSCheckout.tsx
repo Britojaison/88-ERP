@@ -163,7 +163,8 @@ export default function POSCheckout() {
         try {
             const data = await mdmService.getLocations()
             // Only show physical stores in the dropdown
-            const storeLocations = data.filter(loc => loc.location_type === 'store')
+            const list = Array.isArray(data) ? data : data.results
+            const storeLocations = list.filter((loc: any) => loc.location_type === 'store')
             setStores(storeLocations)
 
             if (storeLocations.length > 0) setSelectedStore(storeLocations[0].id)

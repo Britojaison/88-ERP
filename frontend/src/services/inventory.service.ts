@@ -1,5 +1,4 @@
-import api from './api'
-import { PaginatedResponse } from './mdm.service'
+import api, { type PaginatedResponse } from './api'
 
 export interface InventoryBalance {
   id: string

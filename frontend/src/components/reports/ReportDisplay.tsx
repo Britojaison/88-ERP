@@ -513,10 +513,11 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
     ])
 
     const balances = Array.isArray(balanceData) ? balanceData : balanceData.results
+    const locationList = Array.isArray(locations) ? locations : locations.results
 
-    const locationMap = new Map(locations.map(loc => [loc.id, loc]))
+    const locationMap = new Map(locationList.map((loc: any) => [loc.id, loc]))
 
-    const stockByLocation = balances.reduce((acc: any, balance) => {
+    const stockByLocation = balances.reduce((acc: any, balance: any) => {
       const locCode = locationMap.get(balance.location)?.code || balance.location_code || 'Unknown'
       if (!acc[locCode]) {
         acc[locCode] = {
@@ -544,7 +545,7 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
       summary: {
         totalLocations: Object.keys(stockByLocation).length,
         totalItems: balances.length,
-        totalQuantity: balances.reduce((sum, b) => sum + parseFloat(b.quantity_available || '0'), 0),
+        totalQuantity: balances.reduce((sum: number, b: any) => sum + parseFloat(b.quantity_available || '0'), 0),
       }
     }
   }
@@ -650,11 +651,11 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
 
     // Get SKUs with no recent movements
     const recentMovementSKUs = new Set(
-      movements.slice(0, 50).map(m => m.sku)
+      movements.slice(0, 50).map((m: any) => m.sku)
     )
 
     const slowMoving = balances
-      .filter(balance => {
+      .filter((balance: any) => {
         const qty = parseFloat(balance.quantity_available || '0')
         return qty > 0 && !recentMovementSKUs.has(balance.sku)
       })
@@ -663,7 +664,7 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
     return {
       type: 'table',
       columns: ['SKU Code', 'Location', 'Quantity', 'Avg Cost', 'Total Value', 'Days Stagnant'],
-      rows: slowMoving.map(item => [
+      rows: slowMoving.map((item: any) => [
         item.sku_code || 'Unknown',
         item.location_code || 'Unknown',
         Math.round(parseFloat(item.quantity_available || '0')).toString(),
@@ -683,7 +684,7 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
     return {
       type: 'table',
       columns: ['Date', 'Type', 'SKU', 'From', 'To', 'Quantity', 'Cost'],
-      rows: recentMovements.map(movement => [
+      rows: recentMovements.map((movement: any) => [
         new Date(movement.movement_date).toLocaleDateString(),
         movement.movement_type,
         movement.sku_code || 'Unknown',
@@ -712,7 +713,7 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
 
     const categoryData = new Map<string, { name: string, skus: number, quantity: number, value: number }>()
 
-    balances.forEach(balance => {
+    balances.forEach((balance: any) => {
       const sku = skuMap.get(balance.sku)
       const product = sku ? productMap.get(sku.product) : null
       const categoryName = product?.name || 'Uncategorized'
@@ -750,13 +751,14 @@ export default function ReportDisplay({ reportName, dateRange, locationFilter }:
 
     const products: any[] = Array.isArray(productData) ? productData : (productData as any).results
     const skus: any[] = Array.isArray(skuData) ? skuData : (skuData as any).results
+    const locationList = Array.isArray(locations) ? locations : (locations as any).results
 
     return {
       type: 'summary',
       metrics: [
         { label: 'Products', value: products.length, icon: <ShoppingCart /> },
         { label: 'SKUs', value: skus.length, icon: <InventoryIcon /> },
-        { label: 'Locations', value: locations.length, icon: <InventoryIcon /> },
+        { label: 'Locations', value: locationList.length, icon: <InventoryIcon /> },
       ],
       message: 'This report is under development. Showing available data summary.',
     }

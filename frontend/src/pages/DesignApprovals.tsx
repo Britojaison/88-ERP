@@ -72,7 +72,8 @@ export default function DesignApprovals() {
         const loadLocations = async () => {
             try {
                 const locs = await mdmService.getLocations()
-                setWarehouses(locs.filter((l: Location) => l.location_type === 'warehouse'))
+                const list = Array.isArray(locs) ? locs : locs.results
+                setWarehouses(list.filter((l: any) => l.location_type === 'warehouse'))
             } catch { }
         }
         loadLocations()

@@ -49,7 +49,7 @@ export default function MonthlyMarginReport() {
     const [data, setData] = useState<MarginData | null>(null)
     const [loading, setLoading] = useState(false)
 
-    useEffect(() => { mdmService.getLocations().then(d => setStores(d.filter(l => l.location_type === 'store'))).catch(() => { }) }, [])
+    useEffect(() => { mdmService.getLocations().then(d => { const list = Array.isArray(d) ? d : d.results; setStores(list.filter((l: any) => l.location_type === 'store')) }).catch(() => { }) }, [])
     useEffect(() => { void loadData() }, [selectedMonth, storeId])
 
     const loadData = async () => {
