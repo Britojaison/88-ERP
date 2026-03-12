@@ -18,6 +18,9 @@ import {
   FormControl,
   InputLabel,
   Snackbar,
+  Tooltip,
+  TablePagination,
+  CircularProgress,
   Table,
   TableBody,
   TableCell,
@@ -26,7 +29,6 @@ import {
   TableRow,
   TextField,
   IconButton,
-  Tooltip,
 } from '@mui/material'
 import { Add, CheckCircle, Cancel, Delete as DeleteIcon, PhotoCamera as PhotoCameraIcon, Collections as CollectionsIcon, Edit as EditIcon } from '@mui/icons-material'
 import PageHeader from '../components/ui/PageHeader'
@@ -51,11 +53,25 @@ function TabPanel(props: TabPanelProps) {
 export default function MasterData() {
   const [tabValue, setTabValue] = useState(0)
   const [products, setProducts] = useState<Product[]>([])
+  const [totalProducts, setTotalProducts] = useState(0)
+  const [productPage, setProductPage] = useState(0)
+
   const [skus, setSkus] = useState<SKU[]>([])
+  const [totalSkus, setTotalSkus] = useState(0)
+  const [skuPage, setSkuPage] = useState(0)
+
   const [companies, setCompanies] = useState<Company[]>([])
   const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>([])
+
   const [locations, setLocations] = useState<Location[]>([])
+  const [totalLocations, setTotalLocations] = useState(0)
+  const [locationPage, setLocationPage] = useState(0)
+
   const [fabrics, setFabrics] = useState<Fabric[]>([])
+  const [totalFabrics, setTotalFabrics] = useState(0)
+  const [fabricPage, setFabricPage] = useState(0)
+
+  const [loading, setLoading] = useState(false)
   const [shopifyCollections, setShopifyCollections] = useState<ShopifyCollection[]>([])
   const [fabricFilter, setFabricFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all')
   const [openProductDialog, setOpenProductDialog] = useState(false)
@@ -125,32 +141,64 @@ export default function MasterData() {
     { open: false, message: '', severity: 'info' },
   )
 
-  const loadData = async () => {
+  const fetchData = async (index: number) => {
+    setLoading(true)
     try {
-      const [productData, skuData, companyData, businessUnitData, locationData, fabricData, shopifyCollectionsData] = await Promise.all([
-        mdmService.getProducts({ hide_shopify: true }),
-        mdmService.getSKUs({ hide_shopify: true }),
-        mdmService.getCompanies(),
-        mdmService.getBusinessUnits(),
-        mdmService.getLocations(),
-        mdmService.getFabrics(),
-        shopifyService.listCollections().catch(() => []),
-      ])
-      setProducts(productData)
-      setSkus(skuData)
-      setCompanies(companyData)
-      setBusinessUnits(businessUnitData)
-      setLocations(locationData)
-      setFabrics(fabricData)
-      setShopifyCollections(shopifyCollectionsData)
+      if (companies.length === 0) {
+        const [companyData, bizData] = await Promise.all([
+          mdmService.getCompanies(),
+          mdmService.getBusinessUnits()
+        ])
+        setCompanies(companyData.results)
+        setBusinessUnits(bizData.results)
+      }
+
+      switch (index) {
+        case 0: {
+          const res = await mdmService.getProducts({ hide_shopify: true, page: productPage + 1, page_size: 50 })
+          setProducts(res.results)
+          setTotalProducts(res.count)
+          break
+        }
+        case 1: {
+          const res = await mdmService.getSKUs({ hide_shopify: true, page: skuPage + 1, page_size: 50 })
+          setSkus(res.results)
+          setTotalSkus(res.count)
+          break
+        }
+        case 2: {
+          const res = await mdmService.getFabrics({ page: fabricPage + 1, page_size: 50 })
+          setFabrics(res.results)
+          setTotalFabrics(res.count)
+          break
+        }
+        case 3:
+        case 4: {
+          const type = index === 3 ? 'warehouse' : 'store'
+          const res = await mdmService.getLocations({ location_type: type, page: locationPage + 1, page_size: 50 })
+          setLocations(res.results)
+          setTotalLocations(res.count)
+          break
+        }
+      }
+      
+      if (shopifyCollections.length === 0) {
+        shopifyService.listCollections().then(setShopifyCollections).catch(() => [])
+      }
     } catch (error) {
       setSnackbar({ open: true, message: 'Failed to load master data.', severity: 'error' })
+    } finally {
+      setLoading(false)
     }
   }
 
   useEffect(() => {
-    void loadData()
-  }, [])
+    setFabricPage(0)
+  }, [fabricFilter])
+
+  useEffect(() => {
+    void fetchData(tabValue)
+  }, [tabValue, productPage, skuPage, fabricPage, locationPage])
 
   const handleAddNew = () => {
     if (tabValue === 0) {
@@ -281,7 +329,7 @@ export default function MasterData() {
           is_serialized: false,
           is_batch_tracked: false,
         })
-        void loadData();
+        void fetchData(tabValue);
       }, 300);
 
     } catch (error: any) {
@@ -291,6 +339,17 @@ export default function MasterData() {
       }
       const errorMsg = error?.response?.data?.error || error?.response?.data?.detail || JSON.stringify(error?.response?.data) || 'Unknown error'
       setSnackbar({ open: true, message: `Failed to create product/SKU: ${errorMsg}`, severity: 'error' })
+    }
+  }
+
+  const handleCreateSku = async () => {
+    try {
+      await mdmService.createSKU(skuForm)
+      setOpenSkuDialog(false)
+      fetchData(tabValue)
+      setSnackbar({ open: true, message: 'SKU created successfully!', severity: 'success' })
+    } catch {
+      setSnackbar({ open: true, message: 'Failed to create SKU.', severity: 'error' })
     }
   }
 
@@ -321,7 +380,7 @@ export default function MasterData() {
         setProductImageFile(null)
         setProductImagePreview('')
         setSelectedProduct(null)
-        void loadData();
+        void fetchData(tabValue);
       }, 300);
     } catch (error) {
       setSnackbar({ open: true, message: 'Failed to create variants.', severity: 'error' })
@@ -342,22 +401,13 @@ export default function MasterData() {
         setFabricForm({ name: '', color: '', fabric_type: '', total_meters: '', cost_per_meter: '', dispatch_unit: '', notes: '' })
         setFabricPhotoFile(null)
         setFabricPhotoPreview('')
-        void loadData()
+        void fetchData(tabValue)
       }, 300)
     } catch (error: any) {
       setSnackbar({ open: true, message: error?.response?.data?.detail || 'Failed to create fabric.', severity: 'error' })
     }
   }
 
-  const handleApproveFabric = async (id: string) => {
-    try {
-      await mdmService.approveFabric(id)
-      setTimeout(() => { void loadData() }, 300)
-      setSnackbar({ open: true, message: 'Fabric approved!', severity: 'success' })
-    } catch {
-      setSnackbar({ open: true, message: 'Failed to approve fabric.', severity: 'error' })
-    }
-  }
 
   const handleRejectFabric = async () => {
     if (!rejectFabricId) return
@@ -366,7 +416,7 @@ export default function MasterData() {
       setOpenRejectDialog(false)
       setRejectReason('')
       setRejectFabricId('')
-      setTimeout(() => { void loadData() }, 300)
+      setTimeout(() => { void fetchData(tabValue) }, 300)
       setSnackbar({ open: true, message: 'Fabric rejected.', severity: 'info' })
     } catch {
       setSnackbar({ open: true, message: 'Failed to reject fabric.', severity: 'error' })
@@ -400,7 +450,7 @@ export default function MasterData() {
       }
 
       setOpenWarehouseDialog(false)
-      setTimeout(() => { void loadData() }, 300)
+      setTimeout(() => { void fetchData(tabValue) }, 300)
     } catch (error: any) {
       setSnackbar({ open: true, message: error?.response?.data?.detail || 'Failed to save warehouse.', severity: 'error' })
     }
@@ -431,7 +481,7 @@ export default function MasterData() {
       }
 
       setOpenStoreDialog(false)
-      setTimeout(() => { void loadData() }, 300)
+      setTimeout(() => { void fetchData(tabValue) }, 300)
     } catch (error: any) {
       setSnackbar({ open: true, message: error?.response?.data?.detail || 'Failed to save store.', severity: 'error' })
     }
@@ -446,7 +496,7 @@ export default function MasterData() {
       else if (type === 'location' || type === 'warehouse' || type === 'store') await mdmService.deleteLocation(id)
       setSnackbar({ open: true, message: `${type.charAt(0).toUpperCase() + type.slice(1)} deleted successfully.`, severity: 'success' })
       setDeleteConfirm({ open: false, type: '', id: '', name: '' })
-      void loadData()
+      void fetchData(tabValue)
     } catch (error: any) {
       const msg = error?.response?.data?.detail || `Failed to delete ${type}. It may be referenced by other records.`
       setSnackbar({ open: true, message: msg, severity: 'error' })
@@ -454,9 +504,6 @@ export default function MasterData() {
     }
   }
 
-  const filteredFabrics = fabricFilter === 'all' ? fabrics : fabrics.filter(f => f.approval_status === fabricFilter)
-  const filteredWarehouses = locations.filter(loc => loc.location_type === 'warehouse')
-  const filteredStores = locations.filter(loc => loc.location_type === 'store')
 
   return (
     <Box>
@@ -483,7 +530,10 @@ export default function MasterData() {
 
         <TabPanel value={tabValue} index={0}>
           <TableContainer>
-            <Table>
+            {loading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}><CircularProgress /></Box>
+            ) : (
+              <Table>
               <TableHead>
                 <TableRow>
                   <TableCell>Image</TableCell>
@@ -578,54 +628,75 @@ export default function MasterData() {
                 )}
               </TableBody>
             </Table>
-          </TableContainer>
+          )}
+        </TableContainer>
+          <TablePagination
+            component="div"
+            count={totalProducts}
+            page={productPage}
+            onPageChange={(_, newPage) => setProductPage(newPage)}
+            rowsPerPage={50}
+            rowsPerPageOptions={[50]}
+          />
         </TabPanel>
 
         <TabPanel value={tabValue} index={1}>
           <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>SKU Code</TableCell>
-                  <TableCell>Product</TableCell>
-                  <TableCell>Style / Size</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell>Price</TableCell>
-                  <TableCell>Created</TableCell>
-                  <TableCell>Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {skus.length === 0 ? (
+            {loading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}><CircularProgress /></Box>
+            ) : (
+              <Table>
+                <TableHead>
                   <TableRow>
-                    <TableCell colSpan={5} align="center">
-                      <Typography variant="body2" color="text.secondary" sx={{ py: 4 }}>
-                        No SKUs found.
-                      </Typography>
-                    </TableCell>
+                    <TableCell>SKU Code</TableCell>
+                    <TableCell>Product</TableCell>
+                    <TableCell>Style / Size</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell>Price</TableCell>
+                    <TableCell>Created</TableCell>
+                    <TableCell>Actions</TableCell>
                   </TableRow>
-                ) : (
-                  skus.map((sku) => (
-                    <TableRow key={sku.id}>
-                      <TableCell>{sku.code}</TableCell>
-                      <TableCell>{sku.product_name || sku.product_code || sku.product}</TableCell>
-                      <TableCell>{sku.style_code || '-'} / {sku.size || '-'}</TableCell>
-                      <TableCell>{sku.status}</TableCell>
-                      <TableCell>₹{sku.base_price}</TableCell>
-                      <TableCell>{new Date(sku.created_at).toLocaleDateString()}</TableCell>
-                      <TableCell>
-                        <Tooltip title="Delete SKU">
-                          <IconButton size="small" color="error" onClick={() => setDeleteConfirm({ open: true, type: 'sku', id: sku.id, name: sku.code })}>
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
+                </TableHead>
+                <TableBody>
+                  {skus.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} align="center">
+                        <Typography variant="body2" color="text.secondary" sx={{ py: 4 }}>
+                          No SKUs found.
+                        </Typography>
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ) : (
+                    skus.map((sku) => (
+                      <TableRow key={sku.id}>
+                        <TableCell>{sku.code}</TableCell>
+                        <TableCell>{sku.product_name || sku.product_code || sku.product}</TableCell>
+                        <TableCell>{sku.style_code || '-'} / {sku.size || '-'}</TableCell>
+                        <TableCell>{sku.status}</TableCell>
+                        <TableCell>₹{sku.base_price}</TableCell>
+                        <TableCell>{new Date(sku.created_at).toLocaleDateString()}</TableCell>
+                        <TableCell>
+                          <Tooltip title="Delete SKU">
+                            <IconButton size="small" color="error" onClick={() => setDeleteConfirm({ open: true, type: 'sku', id: sku.id, name: sku.code })}>
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            )}
           </TableContainer>
+          <TablePagination
+            component="div"
+            count={totalSkus}
+            page={skuPage}
+            onPageChange={(_, newPage) => setSkuPage(newPage)}
+            rowsPerPage={50}
+            rowsPerPageOptions={[50]}
+          />
         </TabPanel>
 
         {/* Fabrics Tab */}
@@ -635,7 +706,7 @@ export default function MasterData() {
               <Chip
                 key={f}
                 label={f === 'all' ? `All (${fabrics.length})` : `${f.charAt(0).toUpperCase() + f.slice(1)} (${fabrics.filter(fb => fb.approval_status === f).length})`}
-                onClick={() => setFabricFilter(f)}
+                onClick={() => { setFabricFilter(f); setFabricPage(0); }}
                 color={fabricFilter === f ? (f === 'approved' ? 'success' : f === 'rejected' ? 'error' : f === 'pending' ? 'warning' : 'primary') : 'default'}
                 variant={fabricFilter === f ? 'filled' : 'outlined'}
                 sx={{ cursor: 'pointer' }}
@@ -643,220 +714,261 @@ export default function MasterData() {
             ))}
           </Box>
           <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Code / SKU</TableCell>
-                  <TableCell>Name</TableCell>
-                  <TableCell>Type</TableCell>
-                  <TableCell>Color</TableCell>
-                  <TableCell>Meters (Total / Used / Left)</TableCell>
-                  <TableCell>₹/m</TableCell>
-                  <TableCell>Unit</TableCell>
-                  <TableCell>Approval</TableCell>
-                  <TableCell>Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {filteredFabrics.length === 0 ? (
+            {loading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}><CircularProgress /></Box>
+            ) : (
+              <Table>
+                <TableHead>
                   <TableRow>
-                    <TableCell colSpan={9} align="center">
-                      <Typography variant="body2" color="text.secondary" sx={{ py: 4 }}>
-                        No fabrics found. Click "Add New" to create your first fabric.
-                      </Typography>
-                    </TableCell>
+                    <TableCell>Code / SKU</TableCell>
+                    <TableCell>Name</TableCell>
+                    <TableCell>Type</TableCell>
+                    <TableCell>Color</TableCell>
+                    <TableCell>Meters (Total / Used / Left)</TableCell>
+                    <TableCell>₹/m</TableCell>
+                    <TableCell>Unit</TableCell>
+                    <TableCell>Approval</TableCell>
+                    <TableCell>Actions</TableCell>
                   </TableRow>
-                ) : (
-                  filteredFabrics.map((fabric) => (
-                    <TableRow key={fabric.id}>
-                      <TableCell>
-                        <Typography variant="body2" fontWeight={600}>{fabric.code}</Typography>
-                        {fabric.sku_code && <Typography variant="caption" color="text.secondary">SKU: {fabric.sku_code}</Typography>}
-                      </TableCell>
-                      <TableCell>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          {fabric.photo_url && (
-                            <Box component="img" src={fabric.photo_url} sx={{ width: 32, height: 32, borderRadius: 0.5, objectFit: 'cover' }} />
-                          )}
-                          {fabric.name}
-                        </Box>
-                      </TableCell>
-                      <TableCell>{fabric.fabric_type || '-'}</TableCell>
-                      <TableCell>{fabric.color || '-'}</TableCell>
-                      <TableCell>
-                        <Typography variant="body2">
-                          {fabric.total_meters} / {fabric.used_meters} / <strong>{fabric.remaining_meters}</strong>
+                </TableHead>
+                <TableBody>
+                  {fabrics.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={9} align="center">
+                        <Typography variant="body2" color="text.secondary" sx={{ py: 4 }}>
+                          No fabrics found.
                         </Typography>
                       </TableCell>
-                      <TableCell>₹{fabric.cost_per_meter}</TableCell>
-                      <TableCell>
-                        {fabric.dispatch_unit ? (
-                          <Chip label={`Unit ${fabric.dispatch_unit}`} size="small" color="info" variant="outlined" />
-                        ) : '-'}
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          label={fabric.approval_status}
-                          size="small"
-                          color={fabric.approval_status === 'approved' ? 'success' : fabric.approval_status === 'rejected' ? 'error' : 'warning'}
-                        />
-                        {fabric.rejection_reason && (
-                          <Typography variant="caption" display="block" color="error.main">{fabric.rejection_reason}</Typography>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Box sx={{ display: 'flex', gap: 0.5 }}>
-                          {fabric.approval_status === 'pending' && (
-                            <>
-                              <Tooltip title="Approve">
-                                <IconButton size="small" color="success" onClick={() => void handleApproveFabric(fabric.id)}>
-                                  <CheckCircle fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                              <Tooltip title="Reject">
-                                <IconButton size="small" color="error" onClick={() => { setRejectFabricId(fabric.id); setRejectReason(''); setOpenRejectDialog(true) }}>
-                                  <Cancel fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                            </>
-                          )}
-                          <Tooltip title="Delete fabric">
-                            <IconButton size="small" color="error" onClick={() => setDeleteConfirm({ open: true, type: 'fabric', id: fabric.id, name: fabric.name })}>
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        </Box>
-                      </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ) : (
+                    fabrics.map((fabric) => (
+                      <TableRow key={fabric.id}>
+                        <TableCell>
+                          <Typography variant="body2" fontWeight={600}>{fabric.code}</Typography>
+                          {fabric.sku_code && <Typography variant="caption" color="text.secondary">SKU: {fabric.sku_code}</Typography>}
+                        </TableCell>
+                        <TableCell>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            {fabric.photo_url && (
+                              <Box component="img" src={fabric.photo_url} sx={{ width: 32, height: 32, borderRadius: 0.5, objectFit: 'cover' }} />
+                            )}
+                            {fabric.name}
+                          </Box>
+                        </TableCell>
+                        <TableCell>{fabric.fabric_type || '-'}</TableCell>
+                        <TableCell>{fabric.color || '-'}</TableCell>
+                        <TableCell>
+                          <Typography variant="body2">
+                            {fabric.total_meters} / {fabric.used_meters} / <strong>{fabric.remaining_meters}</strong>
+                          </Typography>
+                        </TableCell>
+                        <TableCell>₹{fabric.cost_per_meter}</TableCell>
+                        <TableCell>
+                          {fabric.dispatch_unit ? (
+                            <Chip label={`Unit ${fabric.dispatch_unit}`} size="small" color="info" variant="outlined" />
+                          ) : '-'}
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            label={fabric.approval_status}
+                            size="small"
+                            color={fabric.approval_status === 'approved' ? 'success' : fabric.approval_status === 'rejected' ? 'error' : 'warning'}
+                            variant="outlined"
+                          />
+                          {fabric.rejection_reason && (
+                            <Typography variant="caption" display="block" color="error.main">{fabric.rejection_reason}</Typography>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Box sx={{ display: 'flex', gap: 0.5 }}>
+                            {fabric.approval_status === 'pending' && (
+                              <>
+                                <Tooltip title="Approve">
+                                  <IconButton size="small" color="success" onClick={() => mdmService.approveFabric(fabric.id).then(() => { void fetchData(tabValue) })}>
+                                    <CheckCircle fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                                <Tooltip title="Reject">
+                                  <IconButton
+                                    size="small"
+                                    color="error"
+                                    onClick={() => {
+                                      setRejectFabricId(fabric.id)
+                                      setRejectReason('')
+                                      setOpenRejectDialog(true)
+                                    }}
+                                  >
+                                    <Cancel fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                              </>
+                            )}
+                            <Tooltip title="Delete fabric">
+                              <IconButton size="small" color="error" onClick={() => setDeleteConfirm({ open: true, type: 'fabric', id: fabric.id, name: fabric.name })}>
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </Box>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            )}
           </TableContainer>
+          <TablePagination
+            component="div"
+            count={totalFabrics}
+            page={fabricPage}
+            onPageChange={(_, newPage) => setFabricPage(newPage)}
+            rowsPerPage={50}
+            rowsPerPageOptions={[50]}
+          />
         </TabPanel>
 
         <TabPanel value={tabValue} index={3}>
           <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Warehouse Code</TableCell>
-                  <TableCell>Warehouse Name</TableCell>
-                  <TableCell>Contact Email</TableCell>
-                  <TableCell>Opening Date</TableCell>
-                  <TableCell>Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {filteredWarehouses.length === 0 ? (
+            {loading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}><CircularProgress /></Box>
+            ) : (
+              <Table>
+                <TableHead>
                   <TableRow>
-                    <TableCell colSpan={4} align="center">
-                      <Typography variant="body2" color="text.secondary" sx={{ py: 4 }}>
-                        No warehouses found. Click "Add New" to create your first warehouse.
-                      </Typography>
-                    </TableCell>
+                    <TableCell>Code</TableCell>
+                    <TableCell>Name</TableCell>
+                    <TableCell>Email</TableCell>
+                    <TableCell>Business Unit</TableCell>
+                    <TableCell>Opening Date</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell>Actions</TableCell>
                   </TableRow>
-                ) : (
-                  filteredWarehouses.map((wh) => (
-                    <TableRow key={wh.id}>
-                      <TableCell>{wh.code}</TableCell>
-                      <TableCell>{wh.name}</TableCell>
-                      <TableCell>{wh.email || '-'}</TableCell>
-                      <TableCell>{wh.opening_date ? new Date(wh.opening_date).toLocaleDateString() : '-'}</TableCell>
-                      <TableCell>
-                        <Tooltip title="Edit warehouse">
-                          <IconButton
-                            size="small"
-                            color="info"
-                            onClick={() => {
-                              setEditWarehouseId(wh.id)
-                              setWarehouseForm({
-                                code: wh.code,
-                                name: wh.name,
-                                email: wh.email || '',
-                                opening_date: wh.opening_date || '',
-                                business_unit: wh.business_unit || '',
-                              })
-                              setOpenWarehouseDialog(true)
-                            }}
-                          >
-                            <EditIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Delete warehouse">
-                          <IconButton size="small" color="error" onClick={() => setDeleteConfirm({ open: true, type: 'warehouse', id: wh.id, name: wh.name })}>
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
+                </TableHead>
+                <TableBody>
+                  {locations.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} align="center">
+                        <Typography variant="body2" color="text.secondary" sx={{ py: 4 }}>
+                          No warehouses found.
+                        </Typography>
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ) : (
+                    locations.map((loc) => (
+                      <TableRow key={loc.id}>
+                        <TableCell>{loc.code}</TableCell>
+                        <TableCell>{loc.name}</TableCell>
+                        <TableCell>{loc.email || '-'}</TableCell>
+                        <TableCell>{loc.business_unit_code || '-'}</TableCell>
+                        <TableCell>{loc.opening_date || '-'}</TableCell>
+                        <TableCell>{loc.status}</TableCell>
+                        <TableCell>
+                          <Box sx={{ display: 'flex', gap: 0.5 }}>
+                            <IconButton size="small" color="info" onClick={() => {
+                              setEditWarehouseId(loc.id)
+                              setWarehouseForm({
+                                code: loc.code,
+                                name: loc.name,
+                                email: loc.email || '',
+                                opening_date: loc.opening_date || '',
+                                business_unit: loc.business_unit || '',
+                              })
+                              setOpenWarehouseDialog(true)
+                            }}>
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton size="small" color="error" onClick={() => setDeleteConfirm({ open: true, type: 'warehouse', id: loc.id, name: loc.name })}>
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Box>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            )}
           </TableContainer>
+          <TablePagination
+            component="div"
+            count={totalLocations}
+            page={locationPage}
+            onPageChange={(_, newPage) => setLocationPage(newPage)}
+            rowsPerPage={50}
+            rowsPerPageOptions={[50]}
+          />
         </TabPanel>
 
         <TabPanel value={tabValue} index={4}>
           <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Store Code</TableCell>
-                  <TableCell>Store Name</TableCell>
-                  <TableCell>Store Email</TableCell>
-                  <TableCell>Opening Date</TableCell>
-                  <TableCell>Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {filteredStores.length === 0 ? (
+            {loading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}><CircularProgress /></Box>
+            ) : (
+              <Table>
+                <TableHead>
                   <TableRow>
-                    <TableCell colSpan={4} align="center">
-                      <Typography variant="body2" color="text.secondary" sx={{ py: 4 }}>
-                        No stores found. Click "Add New" to create your first store.
-                      </Typography>
-                    </TableCell>
+                    <TableCell>Code</TableCell>
+                    <TableCell>Name</TableCell>
+                    <TableCell>Email</TableCell>
+                    <TableCell>Business Unit</TableCell>
+                    <TableCell>Opening Date</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell>Actions</TableCell>
                   </TableRow>
-                ) : (
-                  filteredStores.map((store) => (
-                    <TableRow key={store.id}>
-                      <TableCell>{store.code}</TableCell>
-                      <TableCell>{store.name}</TableCell>
-                      <TableCell>{store.email || '-'}</TableCell>
-                      <TableCell>{store.opening_date ? new Date(store.opening_date).toLocaleDateString() : '-'}</TableCell>
-                      <TableCell>
-                        <Tooltip title="Edit store">
-                          <IconButton
-                            size="small"
-                            color="info"
-                            onClick={() => {
-                              setEditStoreId(store.id)
-                              setStoreForm({
-                                code: store.code,
-                                name: store.name,
-                                email: store.email || '',
-                                opening_date: store.opening_date || '',
-                                business_unit: store.business_unit || '',
-                              })
-                              setOpenStoreDialog(true)
-                            }}
-                          >
-                            <EditIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Delete store">
-                          <IconButton size="small" color="error" onClick={() => setDeleteConfirm({ open: true, type: 'store', id: store.id, name: store.name })}>
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
+                </TableHead>
+                <TableBody>
+                  {locations.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} align="center">
+                        <Typography variant="body2" color="text.secondary" sx={{ py: 4 }}>
+                          No stores found.
+                        </Typography>
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ) : (
+                    locations.map((loc) => (
+                      <TableRow key={loc.id}>
+                        <TableCell>{loc.code}</TableCell>
+                        <TableCell>{loc.name}</TableCell>
+                        <TableCell>{loc.email || '-'}</TableCell>
+                        <TableCell>{loc.business_unit_code || '-'}</TableCell>
+                        <TableCell>{loc.opening_date || '-'}</TableCell>
+                        <TableCell>{loc.status}</TableCell>
+                        <TableCell>
+                          <Box sx={{ display: 'flex', gap: 0.5 }}>
+                            <IconButton size="small" color="info" onClick={() => {
+                              setEditStoreId(loc.id)
+                              setStoreForm({
+                                code: loc.code,
+                                name: loc.name,
+                                email: loc.email || '',
+                                opening_date: loc.opening_date || '',
+                                business_unit: loc.business_unit || '',
+                              })
+                              setOpenStoreDialog(true)
+                            }}>
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton size="small" color="error" onClick={() => setDeleteConfirm({ open: true, type: 'store', id: loc.id, name: loc.name })}>
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Box>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            )}
           </TableContainer>
+          <TablePagination
+            component="div"
+            count={totalLocations}
+            page={locationPage}
+            onPageChange={(_, newPage) => setLocationPage(newPage)}
+            rowsPerPage={50}
+            rowsPerPageOptions={[50]}
+          />
         </TabPanel>
       </Paper>
 
@@ -1157,7 +1269,44 @@ export default function MasterData() {
         </DialogActions>
       </Dialog>
 
-      {/* Variants Dialog */}
+      {/* SKU Dialog */}
+      <Dialog open={openSkuDialog} onClose={() => setOpenSkuDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Quick Create SKU</DialogTitle>
+        <DialogContent>
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12}>
+              <FormControl fullWidth>
+                <InputLabel>Product</InputLabel>
+                <Select
+                  value={skuForm.product}
+                  label="Product"
+                  onChange={(e) => setSkuForm({ ...skuForm, product: e.target.value })}
+                >
+                  {products.map((p) => (
+                    <MenuItem key={p.id} value={p.id}>{p.name} ({p.code})</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={6}>
+              <TextField fullWidth label="SKU Code" value={skuForm.code} onChange={(e) => setSkuForm({ ...skuForm, code: e.target.value })} />
+            </Grid>
+            <Grid item xs={6}>
+              <TextField fullWidth label="SKU Name" value={skuForm.name} onChange={(e) => setSkuForm({ ...skuForm, name: e.target.value })} />
+            </Grid>
+            <Grid item xs={6}>
+              <TextField fullWidth label="Base Price" type="number" value={skuForm.base_price} onChange={(e) => setSkuForm({ ...skuForm, base_price: e.target.value })} />
+            </Grid>
+            <Grid item xs={6}>
+              <TextField fullWidth label="Cost Price" type="number" value={skuForm.cost_price} onChange={(e) => setSkuForm({ ...skuForm, cost_price: e.target.value })} />
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenSkuDialog(false)}>Cancel</Button>
+          <Button variant="contained" onClick={() => void handleCreateSku()}>Create SKU</Button>
+        </DialogActions>
+      </Dialog>
       <Dialog open={openVariantsDialog} onClose={() => setOpenVariantsDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Create Product Variants</DialogTitle>
         <DialogContent>
@@ -1434,9 +1583,8 @@ export default function MasterData() {
             onChange={(e) => {
               const name = e.target.value
               setWarehouseForm(prev => {
-                // Determine next sequential number for WH-
                 let nextNum = 1
-                const whCodes = filteredWarehouses.map(w => w.code || '')
+                const whCodes = locations.map((w: any) => w.code || '')
                 whCodes.forEach(code => {
                   const match = code.match(/WH-(\d+)/)
                   if (match) {
@@ -1496,9 +1644,8 @@ export default function MasterData() {
             onChange={(e) => {
               const name = e.target.value
               setStoreForm(prev => {
-                // Determine next sequential number
                 let nextNum = 1
-                const storeCodes = filteredStores.map(s => s.code || '')
+                const storeCodes = locations.map((s: any) => s.code || '')
                 storeCodes.forEach(code => {
                   const match = code.match(/STORE-(\d+)/)
                   if (match) {

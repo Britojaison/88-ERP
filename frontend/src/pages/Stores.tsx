@@ -60,10 +60,21 @@ export default function Stores() {
     const [collections, setCollections] = useState<ShopifyCollection[]>([])
     const [selectedCollection, setSelectedCollection] = useState<ShopifyCollection | null>(null)
     const [ordering, setOrdering] = useState<string>('sku_code')
+    const [summary, setSummary] = useState({ total_skus: 0, total_units: 0, zero_stock: 0 })
 
-    // Pagination State
+    // Pagination & Search State
     const [page, setPage] = useState(0)
     const [rowsPerPage, setRowsPerPage] = useState(50)
+    const [totalCount, setTotalCount] = useState(0)
+    const [debouncedSearch, setDebouncedSearch] = useState('')
+
+    // Debounce product search
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(productSearch)
+        }, 500)
+        return () => clearTimeout(timer)
+    }, [productSearch])
 
     useEffect(() => {
         const fetchStores = async () => {
@@ -99,6 +110,7 @@ export default function Stores() {
             if (!selectedStore) {
                 setBalances([])
                 setScanLogs([])
+                setTotalCount(0)
                 return
             }
 
@@ -106,32 +118,42 @@ export default function Stores() {
             setFetchingLogs(true)
 
             try {
-                const [balanceData, logData] = await Promise.all([
+                const [balanceData, logData, summaryData] = await Promise.all([
                     inventoryService.getBalances({ 
                         location_code: 'SHOPIFY-WH', 
-                        page_size: 5000,
+                        page_size: rowsPerPage,
+                        page: page + 1,
+                        search: debouncedSearch,
+                        is_offer_eligible: showOnlyOffers ? 'true' : undefined,
                         shopify_collection: selectedCollection?.id,
-                        ordering: ordering === 'collection' ? 'collection' : (ordering === '-collection' ? '-collection' : undefined)
+                        ordering: ordering
                     }),
-                    inventoryService.getGoodsReceiptScans({ location: selectedStore.id })
+                    inventoryService.getGoodsReceiptScans({ location: selectedStore.id }),
+                    inventoryService.getBalanceSummary({ location_code: 'SHOPIFY-WH' })
                 ])
 
-                const sortedBalances = (Array.isArray(balanceData) ? balanceData : (balanceData as any).results || [])
-                    .sort((a: InventoryBalance, b: InventoryBalance) => (a.sku_code || '').localeCompare(b.sku_code || ''))
-
-                setBalances(sortedBalances)
+                if (Array.isArray(balanceData)) {
+                    setBalances(balanceData)
+                    setTotalCount(balanceData.length)
+                } else {
+                    setBalances(balanceData.results || [])
+                    setTotalCount(balanceData.count || 0)
+                }
+                
                 setScanLogs(Array.isArray(logData) ? logData : (logData as any).results || [])
+                setSummary(summaryData)
             } catch (error) {
                 console.error('Error fetching store data:', error)
                 setBalances([])
                 setScanLogs([])
+                setTotalCount(0)
             } finally {
                 setFetchingBalances(false)
                 setFetchingLogs(false)
             }
         }
         fetchData()
-    }, [selectedStore, selectedCollection, ordering])
+    }, [selectedStore, selectedCollection, ordering, page, rowsPerPage, debouncedSearch, showOnlyOffers])
 
     const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
         setTabValue(newValue)
@@ -187,33 +209,10 @@ export default function Stores() {
         setOrdering(prev => prev === field ? `-${field}` : field)
     }
 
-    const filteredBalances = balances.filter(b => {
-        const matchesSearch = (b.sku_code || '').toLowerCase().includes(productSearch.toLowerCase()) ||
-            (b.sku_name || '').toLowerCase().includes(productSearch.toLowerCase()) ||
-            (b.product_name || '').toLowerCase().includes(productSearch.toLowerCase())
-        if (showOnlyOffers) {
-            return matchesSearch && b.is_offer_eligible
-        }
-        return matchesSearch
-    })
-
-    const sortedBalances = [...filteredBalances].sort((a, b) => {
-        if (ordering === 'collection') {
-            return (a.shopify_collection_name || '').localeCompare(b.shopify_collection_name || '')
-        }
-        if (ordering === '-collection') {
-            return (b.shopify_collection_name || '').localeCompare(a.shopify_collection_name || '')
-        }
-        // Add other sorting if needed, but the API already handles basic naming
-        return 0
-    })
-
-    const paginatedBalances = sortedBalances.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-
     // Reset pagination to first page when search changes
     useEffect(() => {
         setPage(0)
-    }, [productSearch, showOnlyOffers])
+    }, [debouncedSearch, showOnlyOffers, selectedCollection])
 
     if (loading) {
         return (
@@ -362,7 +361,7 @@ export default function Stores() {
                                             Total SKUs
                                         </Typography>
                                         <Typography variant="h3" sx={{ fontWeight: 800, mt: 1 }}>
-                                            {balances.length}
+                                            {summary.total_skus}
                                         </Typography>
                                     </CardContent>
                                 </Card>
@@ -374,7 +373,7 @@ export default function Stores() {
                                             Available Quantity
                                         </Typography>
                                         <Typography variant="h3" sx={{ fontWeight: 800, mt: 1, color: '#0f6d6a' }}>
-                                            {balances.reduce((acc, b) => acc + parseInt(b.quantity_available || '0'), 0)}
+                                            {qty(summary.total_units)}
                                         </Typography>
                                     </CardContent>
                                 </Card>
@@ -386,7 +385,7 @@ export default function Stores() {
                                             Out of Stock Items
                                         </Typography>
                                         <Typography variant="h3" sx={{ fontWeight: 800, mt: 1, color: 'error.main' }}>
-                                            {balances.filter(b => parseInt(b.quantity_available || '0') <= 0).length}
+                                            {summary.zero_stock}
                                         </Typography>
                                     </CardContent>
                                 </Card>
@@ -483,7 +482,7 @@ export default function Stores() {
                                         <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
                                             <CircularProgress size={32} />
                                         </Box>
-                                    ) : filteredBalances.length === 0 ? (
+                                    ) : balances.length === 0 ? (
                                         <Box sx={{ textAlign: 'center', py: 10 }}>
                                             <Search sx={{ fontSize: 48, color: 'text.disabled', mb: 2 }} />
                                             <Typography variant="body1" color="text.secondary" fontWeight={500}>
@@ -512,7 +511,7 @@ export default function Stores() {
                                                         </TableRow>
                                                     </TableHead>
                                                     <TableBody>
-                                                        {paginatedBalances.map((row) => (
+                                                        {balances.map((row) => (
                                                             <TableRow
                                                                 key={row.id}
                                                                 sx={{ '&:hover': { bgcolor: 'rgba(15, 109, 106, 0.02)' } }}
@@ -574,7 +573,7 @@ export default function Stores() {
                                             <TablePagination
                                                 rowsPerPageOptions={[25, 50, 100, 250]}
                                                 component="div"
-                                                count={filteredBalances.length}
+                                                count={totalCount}
                                                 rowsPerPage={rowsPerPage}
                                                 page={page}
                                                 onPageChange={handleChangePage}

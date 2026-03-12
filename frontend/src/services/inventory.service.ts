@@ -64,8 +64,8 @@ export const inventoryService = {
     return response.data as PaginatedResponse<InventoryBalance> | InventoryBalance[]
   },
 
-  getBalanceSummary: async (locationId: string) => {
-    const response = await api.get('/inventory/balances/summary/', { params: { location: locationId } })
+  getBalanceSummary: async (params?: any) => {
+    const response = await api.get('/inventory/balances/summary/', { params })
     return response.data as { total_skus: number; total_units: number; zero_stock: number }
   },
 

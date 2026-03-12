@@ -1,4 +1,4 @@
-import api, { extractListData } from './api'
+import api, { extractListData, extractPaginatedData, type PaginatedResponse } from './api'
 
 export interface Product {
   id: string
@@ -127,18 +127,12 @@ export interface Fabric {
   updated_at: string
 }
 
-export interface PaginatedResponse<T> {
-  count: number
-  next: string | null
-  previous: string | null
-  results: T[]
-}
 
 export const mdmService = {
   // Products
   getProducts: async (params?: any) => {
     const response = await api.get('/mdm/products/', { params })
-    return extractListData<Product>(response.data)
+    return extractPaginatedData<Product>(response.data)
   },
 
   getProduct: async (id: string) => {
@@ -206,7 +200,7 @@ export const mdmService = {
   // SKUs
   getSKUs: async (params?: any) => {
     const response = await api.get('/mdm/skus/', { params })
-    return extractListData<SKU>(response.data)
+    return extractPaginatedData<SKU>(response.data)
   },
 
   searchSKUsWithStock: async (params?: { search?: string; page?: number; page_size?: number; location?: string }) => {
@@ -262,7 +256,7 @@ export const mdmService = {
   // Companies
   getCompanies: async (params?: any) => {
     const response = await api.get('/mdm/companies/', { params })
-    return extractListData<Company>(response.data)
+    return extractPaginatedData<Company>(response.data)
   },
 
   createCompany: async (data: Partial<Company> & { code: string; name: string }) => {
@@ -273,7 +267,7 @@ export const mdmService = {
   // Business Units
   getBusinessUnits: async (params?: any) => {
     const response = await api.get('/mdm/business-units/', { params })
-    return extractListData<BusinessUnit>(response.data)
+    return extractPaginatedData<BusinessUnit>(response.data)
   },
 
   createBusinessUnit: async (data: Partial<BusinessUnit> & { code: string; name: string }) => {
@@ -284,7 +278,7 @@ export const mdmService = {
   // Locations
   getLocations: async (params?: any) => {
     const response = await api.get('/mdm/locations/', { params })
-    return extractListData<Location>(response.data)
+    return extractPaginatedData<Location>(response.data)
   },
 
   createLocation: async (data: Partial<Location> & { code: string; name: string; location_type: Location['location_type']; business_unit: string }) => {
@@ -300,7 +294,7 @@ export const mdmService = {
   // Fabrics
   getFabrics: async (params?: any) => {
     const response = await api.get('/mdm/fabrics/', { params })
-    return extractListData<Fabric>(response.data)
+    return extractPaginatedData<Fabric>(response.data)
   },
 
   createFabric: async (data: Partial<Fabric>, photoFile?: File) => {

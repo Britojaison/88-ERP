@@ -26,6 +26,13 @@ const processQueue = (error: any, token: string | null = null) => {
   failedQueue = []
 }
 
+export interface PaginatedResponse<T> {
+  count: number
+  next: string | null
+  previous: string | null
+  results: T[]
+}
+
 export const extractListData = <T>(data: unknown): T[] => {
   if (Array.isArray(data)) {
     return data as T[]
@@ -39,6 +46,18 @@ export const extractListData = <T>(data: unknown): T[] => {
   }
 
   return []
+}
+
+export const extractPaginatedData = <T>(data: any): PaginatedResponse<T> => {
+  if (data && typeof data === 'object' && 'results' in data) {
+    return data as PaginatedResponse<T>
+  }
+  return {
+    count: Array.isArray(data) ? data.length : 0,
+    next: null,
+    previous: null,
+    results: Array.isArray(data) ? data : []
+  }
 }
 
 // Request interceptor to add auth token

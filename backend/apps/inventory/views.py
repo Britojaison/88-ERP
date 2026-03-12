@@ -74,11 +74,23 @@ class InventoryBalanceViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, 
         if collection_id:
             queryset = queryset.filter(sku__product__shopify_collection_id=collection_id)
 
+        is_offer_eligible = self.request.query_params.get("is_offer_eligible")
+        if is_offer_eligible is not None:
+            queryset = queryset.filter(is_offer_eligible=is_offer_eligible.lower() == "true")
+
         ordering = self.request.query_params.get("ordering")
         if ordering == "collection":
             queryset = queryset.order_by("sku__product__shopify_collection__title", "sku__product__name", "sku__code")
         elif ordering == "-collection":
             queryset = queryset.order_by("-sku__product__shopify_collection__title", "sku__product__name", "sku__code")
+        elif ordering == "sku_code":
+            queryset = queryset.order_by("sku__code")
+        elif ordering == "-sku_code":
+            queryset = queryset.order_by("-sku__code")
+        elif ordering == "quantity_available":
+            queryset = queryset.order_by("quantity_available")
+        elif ordering == "-quantity_available":
+            queryset = queryset.order_by("-quantity_available")
         else:
             queryset = queryset.order_by("-updated_at")
 
@@ -88,15 +100,21 @@ class InventoryBalanceViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, 
     def summary(self, request):
         """Return aggregate stats for a location (total SKUs, total units, zero-stock count)."""
         location_id = request.query_params.get("location")
-        if not location_id:
-            return Response({"error": "location parameter is required"}, status=400)
+        location_code = request.query_params.get("location_code")
+        
+        if not location_id and not location_code:
+            return Response({"error": "location or location_code parameter is required"}, status=400)
 
         qs = InventoryBalance.objects.filter(
             company_id=request.user.company_id,
             status="active",
             condition=InventoryBalance.CONDITION_NEW,
-            location_id=location_id,
         )
+        
+        if location_id:
+            qs = qs.filter(location_id=location_id)
+        if location_code:
+            qs = qs.filter(location__code=location_code)
 
         agg = qs.aggregate(
             total_skus=Count('id'),
@@ -132,86 +150,80 @@ class InventoryBalanceViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, 
         if cached:
             return Response(cached)
 
+        from django.db.models import Sum, OuterRef, Subquery, Coalesce, Value, Case, When, DecimalField, Q, F
+        from apps.sales.models import SalesTransactionLine
+        from django.utils import timezone
+        import datetime
+
         period_ago = timezone.now() - datetime.timedelta(days=days)
         
-        # 1. Get current inventory by sku
-        balances = InventoryBalance.objects.filter(
-            company_id=request.user.company_id,
-            status="active"
-        ).values('sku__id', 'sku__code', 'sku__name').annotate(
-            total_quantity=Sum('quantity_on_hand')
-        )
-        
-        # 2. Get sales in period (Unified: POS + Shopify)
-        from apps.sales.models import SalesTransactionLine
-        
-        # POS sales
-        pos_sales = SalesTransactionLine.objects.filter(
-            sku__company_id=request.user.company_id,
+        # 1. Prepare Subqueries for Sales and Stock
+        sales_subquery = SalesTransactionLine.objects.filter(
+            sku_id=OuterRef('pk'),
             transaction__transaction_date__gte=period_ago,
             transaction__status='active'
-        ).values('sku__id').annotate(
-            sold_in_period=Sum('quantity')
+        ).values('sku_id').annotate(
+            total_sold=Sum('quantity')
+        ).values('total_sold')
+
+        stock_subquery = InventoryBalance.objects.filter(
+            sku_id=OuterRef('pk'),
+            company_id=request.user.company_id,
+            status="active"
+        ).values('sku_id').annotate(
+            total_qty=Sum('quantity_on_hand')
+        ).values('total_qty')
+
+        # 2. Main Queryset with Annotations for classification
+        base_qs = SKU.objects.filter(
+            company_id=request.user.company_id,
+            status='active'
+        ).annotate(
+            sold_period=Coalesce(Subquery(sales_subquery, output_field=DecimalField()), Decimal('0')),
+            current_stock=Coalesce(Subquery(stock_subquery, output_field=DecimalField()), Decimal('0'))
+        ).annotate(
+            new_classification=Case(
+                When(sold_period__gte=fast_threshold, then=Value(SKU.CLASSIFICATION_FAST)),
+                When(sold_period__gte=slow_threshold, then=Value(SKU.CLASSIFICATION_SLOW)),
+                When(current_stock__gt=0, then=Value(SKU.CLASSIFICATION_DEAD)),
+                default=Value(SKU.CLASSIFICATION_NONE),
+                output_field=models.CharField()
+            )
         )
 
-        sales_dict = {}
-        for item in pos_sales:
-            sales_dict[item['sku__id']] = float(item['sold_in_period'] or 0)
+        # 3. Batch Update changed classifications (more efficient than Python loop)
+        for class_val in [SKU.CLASSIFICATION_FAST, SKU.CLASSIFICATION_SLOW, SKU.CLASSIFICATION_DEAD, SKU.CLASSIFICATION_NONE]:
+            SKU.objects.filter(
+                id__in=base_qs.filter(new_classification=class_val).exclude(movement_classification=class_val)
+            ).update(movement_classification=class_val)
 
-        fast, slow, dead = [], [], []
-        sku_updates = []
-        
-        # We need SKU objects to update them
-        all_skus = SKU.objects.filter(company_id=request.user.company_id, status='active')
-        sku_map = {sku.id: sku for sku in all_skus}
+        # 4. Fetch Top 50 and Summary counts in efficient queries
+        summary = base_qs.aggregate(
+            fast_count=Count('pk', filter=Q(new_classification=SKU.CLASSIFICATION_FAST)),
+            slow_count=Count('pk', filter=Q(new_classification=SKU.CLASSIFICATION_SLOW)),
+            dead_count=Count('pk', filter=Q(new_classification=SKU.CLASSIFICATION_DEAD))
+        )
 
-        for bal in balances:
-            sku_id = bal['sku__id']
-            qty = bal['total_quantity'] or 0
-            sold = float(sales_dict.get(sku_id, 0))
-            
-            item = {
-                "sku_id": str(sku_id),
-                "sku_code": bal['sku__code'],
-                "sku_name": bal['sku__name'],
-                "current_stock": float(qty),
-                "sold_period": sold
+        def serialize_sku(sku):
+            return {
+                "sku_id": str(sku.id),
+                "sku_code": sku.code,
+                "sku_name": sku.name,
+                "current_stock": float(sku.current_stock),
+                "sold_period": float(sku.sold_period)
             }
-            classification = SKU.CLASSIFICATION_NONE
-            if sold >= fast_threshold:
-                classification = SKU.CLASSIFICATION_FAST
-                fast.append(item)
-            elif sold >= slow_threshold:
-                classification = SKU.CLASSIFICATION_SLOW
-                slow.append(item)
-            elif qty > 0:
-                classification = SKU.CLASSIFICATION_DEAD
-                dead.append(item)
-            # Update SKU model if changed
-            sku_obj = sku_map.get(sku_id)
-            if sku_obj and sku_obj.movement_classification != classification:
-                sku_obj.movement_classification = classification
-                sku_updates.append(sku_obj)
-                
-        if sku_updates:
-            SKU.objects.bulk_update(sku_updates, ['movement_classification'])
-                
-        # sort by highest sold / Highest stock
-        fast = sorted(fast, key=lambda x: x['sold_period'], reverse=True)
-        slow = sorted(slow, key=lambda x: x['sold_period'], reverse=True)
-        dead = sorted(dead, key=lambda x: x['current_stock'], reverse=True)
-        
+
+        fast_moving = [serialize_sku(s) for s in base_qs.filter(new_classification=SKU.CLASSIFICATION_FAST).order_by('-sold_period')[:50]]
+        slow_moving = [serialize_sku(s) for s in base_qs.filter(new_classification=SKU.CLASSIFICATION_SLOW).order_by('-sold_period')[:50]]
+        dead_stock = [serialize_sku(s) for s in base_qs.filter(new_classification=SKU.CLASSIFICATION_DEAD).order_by('-current_stock')[:50]]
+
         result = {
             "period_days": days,
             "thresholds": {"fast": fast_threshold, "slow": slow_threshold},
-            "summary": {
-                "fast_count": len(fast),
-                "slow_count": len(slow),
-                "dead_count": len(dead)
-            },
-            "fast_moving": fast[:50],
-            "slow_moving": slow[:50],
-            "dead_stock": dead[:50]
+            "summary": summary,
+            "fast_moving": fast_moving,
+            "slow_moving": slow_moving,
+            "dead_stock": dead_stock
         }
 
         # Cache for 5 minutes
