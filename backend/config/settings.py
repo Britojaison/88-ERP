@@ -17,6 +17,8 @@ DEBUG = os.getenv('DEBUG', 'False') == 'True'
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,.railway.app').split(',')
 if os.getenv('RAILWAY_PUBLIC_DOMAIN'):
     ALLOWED_HOSTS.append(os.getenv('RAILWAY_PUBLIC_DOMAIN'))
+# Allow all ngrok tunnel domains (used for Shopify webhook development)
+ALLOWED_HOSTS += ['.ngrok-free.dev', '.ngrok.io', '.ngrok-free.app']
 
 # Application definition
 INSTALLED_APPS = [

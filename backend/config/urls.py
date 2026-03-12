@@ -10,6 +10,24 @@ from apps.mdm.serializers import CustomTokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 
+from django.http import HttpResponse
+from django.views.decorators.csrf import csrf_exempt
+
+
+@csrf_exempt
+def meta_webhook_sink(request):
+    """
+    Silent handler for Meta/Instagram webhook deliveries targeting an old ngrok URL.
+    Returns 200 to stop Meta from retrying. Once the ngrok URL changes, Meta will
+    stop delivering to this endpoint automatically.
+    """
+    if request.method == 'GET':
+        # Meta webhook verification challenge
+        challenge = request.GET.get('hub.challenge', '')
+        return HttpResponse(challenge, content_type='text/plain')
+    return HttpResponse(status=200)
+
+
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
@@ -20,9 +38,10 @@ urlpatterns = [
     # Authentication
     path('api/auth/token/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    
-    # Metadata Management
-    # path('api/', include('apps.core.metadata_urls')),
+
+    # Meta/Instagram webhook sink (stale deliveries from a previous session)
+    path('api/webhook', meta_webhook_sink, name='meta-webhook-sink'),
+    path('api/webhook/', meta_webhook_sink, name='meta-webhook-sink-slash'),
     
     # ERP Modules
     path('api/mdm/', include('apps.mdm.urls')),

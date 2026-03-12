@@ -540,6 +540,33 @@ export default function ShopifyIntegration() {
     }
   }
 
+  const handleSetupWebhooks = async () => {
+    if (!selectedStore) return
+
+    const ngrokUrl = window.prompt(
+      '🔗 Enter your public ngrok URL (e.g. https://xxxx.ngrok-free.dev)\n\nThis is the URL Shopify will use to send webhooks to your ERP.',
+      'https://'
+    )
+    if (!ngrokUrl || ngrokUrl === 'https://') return
+
+    const baseUrl = ngrokUrl.trim().replace(/\/$/, '')
+
+    setLoading(true)
+    try {
+      const result = await shopifyService.setupWebhooks(selectedStore.id, baseUrl)
+      setSnackbar({
+        open: true,
+        message: `✅ ${result.message ?? 'Webhooks registered successfully!'}`,
+        severity: 'success',
+      })
+    } catch (error: any) {
+      const msg = error.response?.data?.error || 'Failed to setup webhooks'
+      setSnackbar({ open: true, message: msg, severity: 'error' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <Box sx={{ width: '100%', minWidth: 0, overflowX: 'hidden' }}>
       <PageHeader
@@ -784,6 +811,17 @@ export default function ShopifyIntegration() {
                       sx={{ minWidth: 160, fontWeight: 700 }}
                     >
                       {syncingNow ? 'Syncing...' : 'Sync Now'}
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      color="info"
+                      size="large"
+                      startIcon={loading ? <CircularProgress size={18} /> : <CheckCircle />}
+                      onClick={handleSetupWebhooks}
+                      disabled={loading}
+                      sx={{ minWidth: 180, fontWeight: 700 }}
+                    >
+                      Setup Webhooks
                     </Button>
                   </Box>
                 </Paper>

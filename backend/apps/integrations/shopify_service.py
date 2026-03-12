@@ -1742,11 +1742,17 @@ class ShopifyService:
         }
     
     @staticmethod
-    def setup_webhooks(store: ShopifyStore, base_url: str) -> List[ShopifyWebhook]:
-        """Setup Shopify webhooks."""
+    def setup_webhooks(store: ShopifyStore, base_url: str, force_update: bool = False) -> List[ShopifyWebhook]:
+        """
+        Setup Shopify webhooks for this store.
+        
+        Args:
+            store: The Shopify store instance.
+            base_url: The public base URL that Shopify can reach (e.g. https://xxx.ngrok-free.dev).
+            force_update: If True, delete and recreate all webhooks on Shopify's side to refresh the URL.
+        """
         client = ShopifyAPIClient(store)
         
-        # Define webhooks to create
         webhook_topics = [
             'products/create',
             'products/update',
@@ -1756,23 +1762,32 @@ class ShopifyService:
             'orders/updated',
         ]
         
+        address = f"{base_url}/api/integrations/shopify/webhook/{store.id}/"
+        
+        if force_update:
+            # Delete all existing webhooks on Shopify's side so we can recreate with new URL
+            try:
+                existing_on_shopify = client.get_webhooks()
+                for wh in existing_on_shopify:
+                    try:
+                        client.delete_webhook(wh['id'])
+                        logger.info(f"Deleted stale Shopify webhook {wh['id']} ({wh.get('topic')})")
+                    except Exception as e:
+                        logger.warning(f"Could not delete Shopify webhook {wh['id']}: {e}")
+            except Exception as e:
+                logger.warning(f"Could not list existing Shopify webhooks: {e}")
+            
+            # Clear local DB records so we recreate them cleanly
+            ShopifyWebhook.objects.filter(store=store).delete()
+        
         created_webhooks = []
         
         for topic in webhook_topics:
-            address = f"{base_url}/api/integrations/shopify/webhook/{store.id}/"
-            
             try:
-                # Check if webhook already exists
-                existing = ShopifyWebhook.objects.filter(
-                    store=store,
-                    topic=topic
-                ).first()
+                existing = ShopifyWebhook.objects.filter(store=store, topic=topic).first()
                 
                 if not existing:
-                    # Create webhook in Shopify
                     webhook_data = client.create_webhook(topic, address)
-                    
-                    # Save to database
                     webhook = ShopifyWebhook.objects.create(
                         store=store,
                         shopify_webhook_id=webhook_data['id'],
@@ -1780,7 +1795,7 @@ class ShopifyService:
                         address=address
                     )
                     created_webhooks.append(webhook)
-                    logger.info(f"Created webhook: {topic}")
+                    logger.info(f"Created webhook: {topic} → {address}")
                 else:
                     created_webhooks.append(existing)
                     
@@ -1788,7 +1803,7 @@ class ShopifyService:
                 logger.error(f"Failed to create webhook {topic}: {e}")
         
         return created_webhooks
-    
+
     @staticmethod
     @transaction.atomic
     def process_webhook(store: ShopifyStore, topic: str, payload: Dict, headers: Dict) -> None:
