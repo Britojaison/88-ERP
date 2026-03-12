@@ -543,13 +543,16 @@ export default function ShopifyIntegration() {
   const handleSetupWebhooks = async () => {
     if (!selectedStore) return
 
-    const ngrokUrl = window.prompt(
-      '🔗 Enter your public ngrok URL (e.g. https://xxxx.ngrok-free.dev)\n\nThis is the URL Shopify will use to send webhooks to your ERP.',
-      'https://'
-    )
-    if (!ngrokUrl || ngrokUrl === 'https://') return
+    const isRailway = window.location.hostname.includes('railway')
+    const defaultUrl = isRailway ? `https://${window.location.hostname}` : 'https://'
 
-    const baseUrl = ngrokUrl.trim().replace(/\/$/, '')
+    const serverUrl = window.prompt(
+      '🔗 Enter your Public Server URL (e.g. https://your-app.railway.app)\n\nThis is the base URL Shopify will use for webhook callbacks.',
+      defaultUrl
+    )
+    if (!serverUrl || serverUrl === 'https://') return
+
+    const baseUrl = serverUrl.trim().replace(/\/$/, '')
 
     setLoading(true)
     try {
