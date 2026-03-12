@@ -17,7 +17,6 @@ import InventoryHealth from './pages/InventoryHealth'
 import POSCheckout from './pages/POSCheckout'
 import Stores from './pages/Stores'
 import Warehouse from './pages/Warehouse'
-import Reports from './pages/Reports'
 import Settings from './pages/Settings'
 import ShopifyIntegration from './pages/ShopifyIntegration'
 import DailySalesReport from './pages/DailySalesReport'
@@ -81,8 +80,7 @@ function App() {
           <Route path="inventory/production-orders" element={<ProductionOrders />} />
           <Route path="inventory/stock-transfers" element={<StockTransfer />} />
           <Route path="inventory/health" element={<InventoryHealth />} />
-          <Route path="reports" element={<Reports />} />
-          <Route path="reports/daily" element={<DailySalesReport />} />
+          <Route path="reports" element={<DailySalesReport />} />
           <Route path="reports/weekly-stock" element={<WeeklyStockReport />} />
           <Route path="reports/monthly-margin" element={<MonthlyMarginReport />} />
           <Route path="reports/channel-comparison" element={<ChannelComparisonReport />} />

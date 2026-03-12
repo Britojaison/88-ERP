@@ -20,12 +20,13 @@ const quickActions = [
   { label: 'Create Product', path: '/master-data', permission: 'mdm.product.edit' },
   { label: 'New POS Sale', path: '/pos', permission: 'pos.checkout' },
   { label: 'Inventory Check', path: '/inventory', permission: 'inv.view' },
-  { label: 'Generate Report', path: '/reports', permission: 'report.sales' },
+  { label: 'Daily Sales Report', path: '/reports', permission: 'report.daily' },
 ]
 
-import { mdmService } from '../services/mdm.service'
 import { inventoryService } from '../services/inventory.service'
 import { salesService } from '../services/sales.service'
+import api from '../services/api'
+
 
 export default function Dashboard() {
   const { hasPermission, hasAnyPermission } = usePermissions()
@@ -37,26 +38,38 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [metrics, setMetrics] = useState({
     totalProducts: 0,
+    totalSkus: 0,
     activeLocations: 0,
     criticalAlerts: 0,
     fastMovingSkus: 0,
     totalSales: 0,
     totalTransactions: 0,
+    posSales: 0,
+    onlineSales: 0,
+    netSales: 0,
   })
+
+
 
   const [recentAlerts, setRecentAlerts] = useState<any[]>([])
 
-  const loadDashboardData = async () => {
+  const loadDashboardData = async (forceRefresh = false) => {
     setLoading(true)
     try {
-      const [productsData, locationsData, alertsData, velocityData] = await Promise.all([
-        mdmService.getProducts(),
-        mdmService.getLocations(),
+      const [productsRes, skusRes, locationsRes, alertsData, velocityData] = await Promise.all([
+        api.get('/mdm/products/', { params: { page_size: 1 } }),
+        api.get('/mdm/skus/', { params: { page_size: 1 } }),
+        api.get('/mdm/locations/', { params: { page_size: 1 } }),
         inventoryService.getStockAlerts(),
         inventoryService.getStockVelocity(),
       ])
 
-      // Attempt to load sales summary for today if supported
+      const totalProductsCount = productsRes.data.count || (Array.isArray(productsRes.data) ? productsRes.data.length : productsRes.data.results?.length) || 0;
+      const totalSkusCount = skusRes.data.count || (Array.isArray(skusRes.data) ? skusRes.data.length : skusRes.data.results?.length) || 0;
+      const totalLocationsCount = locationsRes.data.count || (Array.isArray(locationsRes.data) ? locationsRes.data.length : locationsRes.data.results?.length) || 0;
+
+
+      // Load sales summary for today
       let salesSum = 0;
       let transCount = 0;
       let salesDataObj: any = null;
@@ -71,6 +84,7 @@ export default function Dashboard() {
         const sales = await salesService.getSalesSummary({
           date_from: startOfToday,
           date_to: endOfToday,
+          force_refresh: forceRefresh,
         })
         salesDataObj = sales;
         salesSum = sales?.total_sales || 0;
@@ -80,15 +94,20 @@ export default function Dashboard() {
       }
 
       setMetrics({
-        totalProducts: Array.isArray(productsData) ? productsData.length : (productsData as any).results?.length || 0,
-        activeLocations: Array.isArray(locationsData) ? locationsData.length : (locationsData as any).results?.length || 0,
+        totalProducts: totalProductsCount,
+        totalSkus: totalSkusCount,
+        activeLocations: totalLocationsCount,
         criticalAlerts: alertsData?.summary?.critical_count || 0,
         fastMovingSkus: velocityData?.summary?.fast_count || 0,
         totalSales: salesSum,
         totalTransactions: transCount,
-        netSales: salesDataObj?.net_sales || salesSum,
+        posSales: salesDataObj?.pos_sales || 0,
         onlineSales: salesDataObj?.online_sales || 0,
+        netSales: salesDataObj?.net_sales || salesSum,
       } as any)
+
+
+
 
       setRecentAlerts(alertsData?.critical_best_sellers?.slice(0, 5) || [])
 
@@ -113,15 +132,15 @@ export default function Dashboard() {
           <Stack direction="row" spacing={1.25}>
             <Button
               variant="outlined"
-              onClick={() => void loadDashboardData()}
+              onClick={() => void loadDashboardData(true)}
               disabled={loading}
               size="small"
             >
               Refresh
             </Button>
-            {hasAnyPermission(['report.sales', 'report.stock', 'report.margin', 'report.channel']) && (
+            {hasAnyPermission(['report.daily', 'report.sales', 'report.stock', 'report.margin', 'report.channel']) && (
               <Button variant="contained" onClick={() => navigate('/reports')}>
-                View Analytics
+                Daily Sales
               </Button>
             )}
           </Stack>
@@ -139,12 +158,13 @@ export default function Dashboard() {
             <Grid item xs={12} sm={6} lg={3}>
               <MetricCard
                 label="Products Catalog"
-                value={metrics.totalProducts.toString()}
+                value={metrics.totalProducts.toLocaleString()}
                 icon={<Inventory />}
-                note="Total registered SKUs"
+                note={`${(metrics as any).totalSkus?.toLocaleString() || 0} Total Registered SKUs`}
               />
             </Grid>
           )}
+
           {hasPermission('org.stores.view') && (
             <Grid item xs={12} sm={6} lg={3}>
               <MetricCard
@@ -237,11 +257,39 @@ export default function Dashboard() {
                   <Typography variant="h5" sx={{ mt: 3, fontWeight: 600 }}>
                     ₹{metrics.totalSales.toLocaleString()}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
                     Gross Revenue (POS + Shopify)
                   </Typography>
-                  {/* Net Sales */}
-                  <Typography variant="h6" sx={{ mt: 1, color: 'success.main', fontWeight: 600 }}>
+
+                  {/* Revenue by Channel Breakdown */}
+                  <Box sx={{ width: '100%', mt: 3, mb: 1 }}>
+                    <Stack direction="row" justifyContent="space-between" mb={0.5}>
+                      <Typography variant="caption" fontWeight={600} color="primary.main">STORE (POS)</Typography>
+                      <Typography variant="caption" fontWeight={600} color="secondary.main">ONLINE (SHOPIFY)</Typography>
+                    </Stack>
+                    <Box sx={{ display: 'flex', width: '100%', height: 10, borderRadius: 5, overflow: 'hidden', bgcolor: '#f0f0f0' }}>
+                      <Box
+                        sx={{
+                          width: `${(metrics.totalSales > 0 ? (metrics as any).posSales / metrics.totalSales : 0.5) * 100}%`,
+                          bgcolor: 'primary.main',
+                          transition: 'width 1s ease-in-out'
+                        }}
+                      />
+                      <Box
+                        sx={{
+                          width: `${(metrics.totalSales > 0 ? (metrics as any).onlineSales / metrics.totalSales : 0.5) * 100}%`,
+                          bgcolor: 'secondary.main',
+                          transition: 'width 1s ease-in-out'
+                        }}
+                      />
+                    </Box>
+                    <Stack direction="row" justifyContent="space-between" mt={0.5}>
+                      <Typography variant="caption" color="text.secondary">₹{(metrics as any).posSales?.toLocaleString() || 0}</Typography>
+                      <Typography variant="caption" color="text.secondary">₹{(metrics as any).onlineSales?.toLocaleString() || 0}</Typography>
+                    </Stack>
+                  </Box>
+
+                  <Typography variant="h6" sx={{ mt: 3, color: 'success.main', fontWeight: 600 }}>
                     ₹{(metrics as any).netSales?.toLocaleString() || metrics.totalSales.toLocaleString()}
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
@@ -251,6 +299,7 @@ export default function Dashboard() {
               </Paper>
             </Grid>
           )}
+
 
           {/* Quick Actions Footer */}
           <Grid item xs={12}>
