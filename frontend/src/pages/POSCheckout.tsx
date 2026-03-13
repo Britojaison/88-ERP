@@ -11,8 +11,6 @@ import {
     MenuItem,
     Divider,
     List,
-    ListItem,
-    ListItemText,
     IconButton,
     Alert,
     CircularProgress,
@@ -31,8 +29,9 @@ import {
     DialogTitle,
     DialogContent,
     DialogActions,
+    InputAdornment,
 } from '@mui/material'
-import { Storefront, DeleteOutline, PointOfSale, Search, LocalOffer, Refresh, Close, Receipt } from '@mui/icons-material'
+import { Storefront, DeleteOutline, PointOfSale, Search, LocalOffer, Refresh, Close, Receipt, Add, Remove, History, FilterList, CalendarToday } from '@mui/icons-material'
 import PageHeader from '../components/ui/PageHeader'
 import { mdmService, Location, SKU } from '../services/mdm.service'
 
@@ -74,6 +73,11 @@ export default function POSCheckout() {
     const [selectedTx, setSelectedTx] = useState<SalesTransaction | null>(null)
     const [txDetailOpen, setTxDetailOpen] = useState(false)
     const [txDetailLoading, setTxDetailLoading] = useState(false)
+    const searchInputRef = useRef<HTMLInputElement>(null)
+
+    // History Filters
+    const [historySearch, setHistorySearch] = useState('')
+    const [historyLimit] = useState(30)
 
     const handleOpenTxDetail = async (tx: SalesTransaction) => {
         setTxDetailOpen(true)
@@ -107,6 +111,17 @@ export default function POSCheckout() {
         }
     }
 
+    const filteredTransactions = recentTransactions.filter(tx => {
+        if (historySearch) {
+            const search = historySearch.toLowerCase()
+            return (
+                tx.transaction_number.toLowerCase().includes(search) ||
+                (tx.customer && tx.customer.toLowerCase().includes(search))
+            )
+        }
+        return true
+    }).slice(0, 30)
+
     useEffect(() => {
         fetchStores()
         fetchSearchSKUs('')
@@ -127,7 +142,6 @@ export default function POSCheckout() {
         try {
             const data = await mdmService.searchSKUsWithStock({ search: query, page_size: 50 })
             const results = data.results || []
-            // Map results back to SKU interface for compatibility
             const mappedSKUs = results.map(r => ({
                 id: r.id,
                 code: r.code,
@@ -135,7 +149,6 @@ export default function POSCheckout() {
                 product_name: r.product_name,
                 size: r.size,
                 base_price: r.base_price,
-                // These will be used directly from SKU object now
                 warehouse_stock: r.warehouse_stock,
                 is_offer_eligible: r.is_offer_eligible
             } as any))
@@ -159,10 +172,29 @@ export default function POSCheckout() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchQuery])
 
+    const handleSearchKeyDown = async (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' && searchQuery.trim()) {
+            setLoading(true)
+            try {
+                const data = await mdmService.searchSKUsWithStock({ search: searchQuery, page_size: 2 })
+                if (data.results && data.results.length === 1) {
+                    const matchedSku = data.results[0]
+                    addToCart(matchedSku as any)
+                    setSearchQuery('')
+                    setFeedback({ type: 'success', msg: `Added ${matchedSku.name} to cart` })
+                    setTimeout(() => searchInputRef.current?.focus(), 50)
+                }
+            } catch (err) {
+                console.error('Fast search failed', err)
+            } finally {
+                setLoading(false)
+            }
+        }
+    }
+
     const fetchStores = async () => {
         try {
             const data = await mdmService.getLocations()
-            // Only show physical stores in the dropdown
             const list = Array.isArray(data) ? data : data.results
             const storeLocations = list.filter((loc: any) => loc.location_type === 'store')
             setStores(storeLocations)
@@ -198,8 +230,27 @@ export default function POSCheckout() {
             if (existing) {
                 return prev.map(item => item.sku.id === sku.id ? { ...item, quantity: item.quantity + 1 } : item)
             }
-            return [...prev, { sku, quantity: 1, discountPercent: 0 }]
+            return [{ sku, quantity: 1, discountPercent: 0 }, ...prev]
         })
+    }
+
+    const updateCartQuantity = (skuId: string, newQty: number) => {
+        const item = cart.find(i => i.sku.id === skuId)
+        if (!item) return
+        
+        const available = parseFloat((item.sku as any).warehouse_stock?.toString() || '0')
+        
+        if (newQty > available) {
+            setFeedback({ type: 'error', msg: `Cannot set quantity for ${item.sku.code} to ${newQty}. Only ${available} units available.` })
+            return
+        }
+
+        if (newQty <= 0) {
+            removeFromCart(skuId)
+            return
+        }
+
+        setCart(prev => prev.map(i => i.sku.id === skuId ? { ...i, quantity: newQty } : i))
     }
 
     const removeFromCart = (skuId: string) => {
@@ -218,19 +269,16 @@ export default function POSCheckout() {
     const activeStoreOffer = activeStore?.offer_tag || 'none'
     const activeStoreOfferMode = activeStore?.offer_mode || 'all'
 
-    // Mix & Match Offer Logic (Group-Level) - STORE WIDE
     const calculateOfferDiscounts = () => {
         let totalOfferSavings = 0
         const groups: Record<string, number[]> = { 'b1g1': [], 'b2g1': [], 'b3g1': [] }
 
         if (activeStoreOffer !== 'none' && groups[activeStoreOffer]) {
             cart.forEach(item => {
-                // Check eligibility if mode is 'selected'
                 let isEligible = true
                 if (activeStoreOfferMode === 'selected') {
                     isEligible = (item.sku as any).is_offer_eligible || false
                 }
-
                 if (isEligible) {
                     const price = parseFloat(item.sku.base_price || '0')
                     for (let i = 0; i < item.quantity; i++) groups[activeStoreOffer].push(price)
@@ -246,7 +294,7 @@ export default function POSCheckout() {
 
         Object.entries(groups).forEach(([tag, units]) => {
             if (units.length === 0) return
-            units.sort((a, b) => a - b) // Sort by price ascending
+            units.sort((a, b) => a - b)
             const freeCount = stats[tag].free
             for (let i = 0; i < freeCount; i++) totalOfferSavings += units[i]
         })
@@ -264,9 +312,7 @@ export default function POSCheckout() {
             if (activeStoreOfferMode === 'selected') {
                 isEligible = (item.sku as any).is_offer_eligible || false
             }
-
             if (isEligible) {
-                // Only divide by the gross of ELIGIBLE items to correctly distribute the discount
                 const eligibleGross = cart.reduce((tempAcc, tempItem) => {
                     let tempEligible = true
                     if (activeStoreOfferMode === 'selected') {
@@ -274,7 +320,6 @@ export default function POSCheckout() {
                     }
                     return tempAcc + (tempEligible ? parseFloat(tempItem.sku.base_price || '0') * tempItem.quantity : 0)
                 }, 0)
-
                 lineOfferSavings = (lineGross / eligibleGross) * offerDiscountTotal
             }
         }
@@ -315,27 +360,20 @@ export default function POSCheckout() {
                 }))
             })
 
-            // Save details for printing
             setLastSale(saleData)
             setLastCart([...cart])
-
-            // Show print prompt
             setFeedback({ type: 'success', msg: 'Sale recorded! Preparing receipt...' })
 
-            // Clear current cart immediately for next customer
             setTimeout(() => {
                 setCart([])
                 setCustomerMobile('')
                 setCustomerEmail('')
                 setBillDiscount('')
                 setPaymentMethod('cash')
-                // Refresh store inventory and transactions to reflect deductions
                 fetchSearchSKUs(searchQuery)
                 fetchTransactions()
             }, 100)
 
-
-            // Automatically prompt for print after react renders the new state
             setTimeout(() => {
                 if (handlePrint) handlePrint()
             }, 300)
@@ -349,10 +387,12 @@ export default function POSCheckout() {
 
     return (
         <Box>
-            <PageHeader
-                title="Store POS Terminal"
-                subtitle="Ring up customers using centralized warehouse inventory. Stock is deducted from the Shopify Warehouse and synced online automatically."
-            />
+            <Box sx={{ mb: 4, p: 3, borderRadius: 4, bgcolor: 'background.paper', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid', borderColor: 'divider' }}>
+                <PageHeader
+                    title="Store POS Terminal"
+                    subtitle="Centralized retail checkout for warehouse inventory. Auto-syncs with Shopify."
+                />
+            </Box>
 
             {feedback && !lastSale && (
                 <Alert severity={feedback.type} sx={{ mb: 3 }} onClose={() => setFeedback(null)}>
@@ -375,14 +415,11 @@ export default function POSCheckout() {
                 </Alert>
             )}
 
-            {/* Hidden printable receipt area */}
             <div style={{ display: 'none' }}>
                 <StoreInvoice ref={invoiceRef} saleData={lastSale} cart={lastCart} />
             </div>
 
             <Grid container spacing={3}>
-
-                {/* LEFT COLUMN: Cart & Checkout Form */}
                 <Grid item xs={12} md={5}>
                     <Card elevation={3} sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                         <CardContent>
@@ -450,7 +487,6 @@ export default function POSCheckout() {
                                 <MenuItem value="upi">UPI / Mobile Wallet</MenuItem>
                             </TextField>
 
-                            {/* Offer Progress Tracker */}
                             {Object.entries(offerStats).map(([tag, stat]) => {
                                 if (stat.total === 0) return null;
                                 const isUnlocked = stat.free > 0;
@@ -479,94 +515,114 @@ export default function POSCheckout() {
                             <Divider sx={{ mb: 2 }}><Typography variant="body2" color="text.secondary">CART ITEMS</Typography></Divider>
 
                             {cart.length === 0 ? (
-                                <Typography color="text.secondary" align="center" py={4}>Cart is empty</Typography>
+                                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 8, opacity: 0.5 }}>
+                                    <Receipt sx={{ fontSize: 48, mb: 1 }} />
+                                    <Typography color="text.secondary">Cart is empty</Typography>
+                                </Box>
                             ) : (
-                                <List sx={{ maxHeight: 300, overflow: 'auto', p: 0 }}>
+                                <List sx={{ maxHeight: 400, overflow: 'auto', px: 0 }}>
                                     {cart.map(item => (
-                                        <ListItem
-                                            key={item.sku.id}
-                                            disablePadding
-                                            sx={{ mb: 1, display: 'flex', alignItems: 'center' }}
+                                        <Paper 
+                                            key={item.sku.id} 
+                                            variant="outlined" 
+                                            sx={{ mb: 1.5, p: 1.5, position: 'relative', borderColor: 'divider' }}
                                         >
-                                            <ListItemText
-                                                primary={
-                                                    <Box display="flex" alignItems="center" gap={1}>
-                                                        {item.sku.name}
-                                                        {(() => {
-                                                            let isEligible = true
-                                                            if (activeStoreOfferMode === 'selected') {
-                                                                isEligible = (item.sku as any).is_offer_eligible || false
-                                                            }
-                                                            return activeStoreOffer !== 'none' && isEligible && (
-                                                                <Chip
-                                                                    label={activeStoreOffer.toUpperCase()}
-                                                                    size="small"
-                                                                    color="error"
-                                                                    sx={{ height: 18, fontSize: '0.65rem', fontWeight: 'bold' }}
-                                                                />
-                                                            )
-                                                        })()}
-                                                    </Box>
-                                                }
-                                                secondary={
-                                                    <Box component="span">
-                                                        {item.quantity}x @ ₹{parseFloat(item.sku.base_price || '0').toFixed(2)}
-                                                        {(() => {
-                                                            let isEligible = true
-                                                            if (activeStoreOfferMode === 'selected') {
-                                                                isEligible = (item.sku as any).is_offer_eligible || false
-                                                            }
-                                                            return activeStoreOffer !== 'none' && isEligible && (
-                                                                <Typography component="span" variant="caption" color="error.main" sx={{ ml: 1, fontWeight: 'bold' }}>
-                                                                    (Part of {activeStoreOffer.toUpperCase()} Mix & Match)
-                                                                </Typography>
-                                                            )
-                                                        })()}
-                                                        {item.discountPercent > 0 && ` (-${item.discountPercent}%)`}
-                                                    </Box>
-                                                }
-                                                sx={{ flexGrow: 1, mr: 1 }}
-                                            />
-                                            <TextField
-                                                size="small"
-                                                label="Disc%"
-                                                type="number"
-                                                value={item.discountPercent || ''}
-                                                onChange={(e) => updateItemDiscount(item.sku.id, parseFloat(e.target.value) || 0)}
-                                                sx={{ width: 70, mr: 1 }}
-                                                inputProps={{ min: 0, max: 100, step: 5 }}
-                                            />
-                                            <Box display="flex" alignItems="center" gap={1}>
-                                                <Typography variant="body1" fontWeight="bold">
-                                                    ₹{(() => {
-                                                        const lineGross = parseFloat(item.sku.base_price || '0') * item.quantity
-                                                        let lineOfferSavings = 0
+                                            <IconButton 
+                                                size="small" 
+                                                color="error" 
+                                                onClick={() => removeFromCart(item.sku.id)}
+                                                sx={{ position: 'absolute', top: 4, right: 4 }}
+                                            >
+                                                <DeleteOutline fontSize="small" />
+                                            </IconButton>
 
-                                                        if (offerDiscountTotal > 0 && activeStoreOffer !== 'none') {
-                                                            let isEligible = true
-                                                            if (activeStoreOfferMode === 'selected') {
-                                                                isEligible = (item.sku as any).is_offer_eligible || false
-                                                            }
-
-                                                            if (isEligible) {
-                                                                const eligibleGross = cart.reduce((acc, tempItem) => {
-                                                                    let tempEligible = true
-                                                                    if (activeStoreOfferMode === 'selected') {
-                                                                        tempEligible = (tempItem.sku as any).is_offer_eligible || false
-                                                                    }
-                                                                    return acc + (tempEligible ? parseFloat(tempItem.sku.base_price || '0') * tempItem.quantity : 0)
-                                                                }, 0)
-                                                                lineOfferSavings = eligibleGross > 0 ? (lineGross / eligibleGross) * offerDiscountTotal : 0
-                                                            }
-                                                        }
-                                                        return ((lineGross - lineOfferSavings) * (1 - item.discountPercent / 100)).toFixed(2)
-                                                    })()}
+                                            <Box sx={{ pr: 4 }}>
+                                                <Typography variant="subtitle2" fontWeight="bold" noWrap sx={{ maxWidth: '85%' }}>
+                                                    {item.sku.name}
                                                 </Typography>
-                                                <IconButton edge="end" color="error" onClick={() => removeFromCart(item.sku.id)}>
-                                                    <DeleteOutline />
-                                                </IconButton>
+                                                <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
+                                                    {item.sku.code} • WH: {parseFloat((item.sku as any).warehouse_stock?.toString() || '0')}
+                                                </Typography>
                                             </Box>
-                                        </ListItem>
+
+                                            <Box display="flex" justifyContent="space-between" alignItems="center" mt={1}>
+                                                <Box display="flex" alignItems="center" gap={0.5} sx={{ bgcolor: 'action.hover', borderRadius: 1.5, p: 0.5 }}>
+                                                    <IconButton 
+                                                        size="small" 
+                                                        onClick={() => updateCartQuantity(item.sku.id, item.quantity - 1)}
+                                                        disabled={item.quantity <= 1}
+                                                        sx={{ p: 0.5 }}
+                                                    >
+                                                        <Remove fontSize="small" />
+                                                    </IconButton>
+                                                    
+                                                    <TextField
+                                                        size="small"
+                                                        value={item.quantity}
+                                                        onChange={(e) => updateCartQuantity(item.sku.id, parseInt(e.target.value) || 0)}
+                                                        sx={{ 
+                                                            width: 40,
+                                                            '& .MuiInputBase-input': { p: 0.5, textAlign: 'center', fontWeight: 'bold' },
+                                                            '& .MuiOutlinedInput-notchedOutline': { border: 'none' }
+                                                        }}
+                                                    />
+
+                                                    <IconButton 
+                                                        size="small" 
+                                                        onClick={() => updateCartQuantity(item.sku.id, item.quantity + 1)}
+                                                        sx={{ p: 0.5 }}
+                                                    >
+                                                        <Add fontSize="small" />
+                                                    </IconButton>
+                                                </Box>
+
+                                                <Box textAlign="right">
+                                                    <Typography variant="body2" fontWeight="bold">
+                                                        ₹{(() => {
+                                                            const lineGross = parseFloat(item.sku.base_price || '0') * item.quantity
+                                                            let lineOfferSavings = 0
+
+                                                            if (offerDiscountTotal > 0 && activeStoreOffer !== 'none') {
+                                                                let isEligible = true
+                                                                if (activeStoreOfferMode === 'selected') {
+                                                                    isEligible = (item.sku as any).is_offer_eligible || false
+                                                                }
+
+                                                                if (isEligible) {
+                                                                    const eligibleGross = cart.reduce((acc, tempItem) => {
+                                                                        let tempEligible = true
+                                                                        if (activeStoreOfferMode === 'selected') {
+                                                                            tempEligible = (tempItem.sku as any).is_offer_eligible || false
+                                                                        }
+                                                                        return acc + (tempEligible ? parseFloat(tempItem.sku.base_price || '0') * tempItem.quantity : 0)
+                                                                    }, 0)
+                                                                    lineOfferSavings = eligibleGross > 0 ? (lineGross / eligibleGross) * offerDiscountTotal : 0
+                                                                }
+                                                            }
+                                                            return ((lineGross - lineOfferSavings) * (1 - item.discountPercent / 100)).toFixed(2)
+                                                        })()}
+                                                    </Typography>
+                                                    {item.discountPercent > 0 && (
+                                                        <Typography variant="caption" color="error.main">
+                                                            -{item.discountPercent}% OFF
+                                                        </Typography>
+                                                    )}
+                                                </Box>
+                                            </Box>
+                                            
+                                            <Box mt={1}>
+                                                <TextField
+                                                    size="small"
+                                                    label="Item Discount %"
+                                                    variant="standard"
+                                                    type="number"
+                                                    value={item.discountPercent || ''}
+                                                    onChange={(e) => updateItemDiscount(item.sku.id, parseFloat(e.target.value) || 0)}
+                                                    sx={{ width: 100 }}
+                                                    inputProps={{ min: 0, max: 100, style: { fontSize: '0.75rem' } }}
+                                                />
+                                            </Box>
+                                        </Paper>
                                     ))}
                                 </List>
                             )}
@@ -627,20 +683,27 @@ export default function POSCheckout() {
                     </Card>
                 </Grid>
 
-                {/* RIGHT COLUMN: Product Catalog */}
                 <Grid item xs={12} md={7}>
-                    <Paper elevation={0} sx={{ p: 2, border: '1px solid', borderColor: 'divider', height: '100%' }}>
+                    <Paper elevation={0} sx={{ p: 2, border: '1px solid', borderColor: 'divider', height: '100%', borderRadius: 3 }}>
                         <Box display="flex" alignItems="center" justifyContent="space-between" mb={3} gap={2} flexWrap="wrap">
-                            <Box display="flex" alignItems="center" gap={2} flexGrow={1} minWidth={300}>
-                                <Search color="action" />
-                                <TextField
-                                    fullWidth
-                                    variant="standard"
-                                    placeholder="Search products by SKU code or name..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                />
-                            </Box>
+                            <TextField
+                                fullWidth
+                                variant="standard"
+                                inputRef={searchInputRef}
+                                autoFocus
+                                placeholder="Scan barcode or search products..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                onKeyDown={handleSearchKeyDown}
+                                InputProps={{
+                                    startAdornment: (
+                                        <InputAdornment position="start">
+                                            <Search color="action" />
+                                        </InputAdornment>
+                                    ),
+                                }}
+                                sx={{ flex: 1 }}
+                            />
 
                             <Box display="flex" alignItems="center" gap={2}>
                                 <ToggleButtonGroup
@@ -658,7 +721,7 @@ export default function POSCheckout() {
                                 {activeStoreOffer !== 'none' && (
                                     <Chip
                                         icon={<LocalOffer sx={{ fontSize: '1rem !important' }} />}
-                                        label={`Active: ${activeStoreOffer.toUpperCase()} (${activeStoreOfferMode === 'selected' ? 'Selected items' : 'Store-wide'})`}
+                                        label={`${activeStoreOffer.toUpperCase()}`}
                                         color="error"
                                         variant="outlined"
                                         sx={{ fontWeight: 'bold' }}
@@ -677,10 +740,21 @@ export default function POSCheckout() {
                                             variant="outlined"
                                             onClick={() => addToCart(sku)}
                                             sx={{
-                                                cursor: 'pointer',
-                                                transition: '0.2s',
+                                                height: '100%',
+                                                borderRadius: 3,
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                transition: 'all 0.2s',
                                                 position: 'relative',
-                                                '&:hover': { borderColor: 'primary.main', boxShadow: 2, bgcolor: 'action.hover' }
+                                                overflow: 'hidden',
+                                                cursor: 'pointer',
+                                                '&:hover': {
+                                                    transform: 'translateY(-4px)',
+                                                    boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                                                    borderColor: 'primary.main'
+                                                },
+                                                border: '1px solid',
+                                                borderColor: 'divider',
                                             }}
                                         >
                                             {(() => {
@@ -710,37 +784,42 @@ export default function POSCheckout() {
                                                     </Box>
                                                 )
                                             })()}
-                                            <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                                                <Typography variant="caption" color="text.secondary" display="block">{sku.code}</Typography>
-                                                <Typography variant="subtitle2" fontWeight="bold" noWrap title={sku.name}>
-                                                    {sku.name}
-                                                </Typography>
-                                                <Box display="flex" justifyContent="space-between" alignItems="center" mt={1}>
-                                                    <Typography variant="body1" color="primary.main" fontWeight="bold">
-                                                        ₹{parseFloat(sku.base_price || '0').toFixed(2)}
-                                                    </Typography>
-
+                                            <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                                                <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+                                                    <Box sx={{ maxWidth: '70%' }}>
+                                                        <Typography variant="caption" color="text.secondary" fontWeight={600} display="block" sx={{ lineHeight: 1 }}>
+                                                            {sku.code}
+                                                        </Typography>
+                                                        <Typography variant="body2" fontWeight="bold" noWrap sx={{ mt: 0.5 }}>
+                                                            {sku.name}
+                                                        </Typography>
+                                                    </Box>
+                                                    
                                                     {(() => {
                                                         const baseAvailable = parseFloat((sku as any).warehouse_stock?.toString() || '0')
                                                         const inCart = cart.find(c => c.sku.id === sku.id)?.quantity || 0
                                                         const available = baseAvailable - inCart
 
                                                         return (
-                                                            <Typography
-                                                                variant="caption"
-                                                                sx={{
-                                                                    bgcolor: available > 0 ? 'success.light' : 'error.light',
-                                                                    color: available > 0 ? 'success.dark' : 'error.dark',
-                                                                    px: 1,
-                                                                    py: 0.5,
-                                                                    borderRadius: 1,
-                                                                    fontWeight: 'bold'
-                                                                }}
-                                                            >
-                                                                WH: {available}
-                                                            </Typography>
+                                                            <Chip 
+                                                                label={available}
+                                                                size="small"
+                                                                color={available > 0 ? 'success' : 'error'}
+                                                                variant={available > 0 ? 'filled' : 'outlined'}
+                                                                sx={{ height: 20, fontSize: '0.65rem', fontWeight: 800, borderRadius: 1 }}
+                                                            />
                                                         )
                                                     })()}
+                                                </Box>
+
+                                                <Box display="flex" justifyContent="space-between" alignItems="center" mt={1}>
+                                                    <Typography variant="subtitle1" color="primary.main" fontWeight={800}>
+                                                        ₹{parseFloat(sku.base_price || '0').toFixed(0)}
+                                                    </Typography>
+                                                    
+                                                    <Button size="small" variant="outlined" sx={{ minWidth: 0, px: 1, py: 0, height: 24, fontSize: '0.7rem', fontWeight: 'bold' }}>
+                                                        ADD
+                                                    </Button>
                                                 </Box>
                                             </CardContent>
                                         </Card>
@@ -758,54 +837,109 @@ export default function POSCheckout() {
 
             </Grid>
 
-            {/* Checkouts History Table */}
             {selectedStore && (
-                <Box mt={6}>
-                    <Typography variant="h6" fontWeight="bold" mb={2}>Recent Checkouts</Typography>
-                    <Card variant="outlined">
+                <Box mt={8}>
+                    <Box display="flex" justifyContent="space-between" alignItems="flex-end" mb={3}>
+                        <Box>
+                            <Typography variant="h5" fontWeight="bold" display="flex" alignItems="center" gap={1}>
+                                <History color="primary" /> Recent Checkouts
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                                Showing last 30 transactions for {activeStore?.name}
+                            </Typography>
+                        </Box>
+                        
+                        <Box display="flex" gap={2}>
+                            <TextField
+                                size="small"
+                                placeholder="Search by Receipt # or Phone..."
+                                value={historySearch}
+                                onChange={(e) => setHistorySearch(e.target.value)}
+                                InputProps={{
+                                    startAdornment: (
+                                        <InputAdornment position="start">
+                                            <FilterList fontSize="small" color="action" />
+                                        </InputAdornment>
+                                    ),
+                                }}
+                                sx={{ width: 300, bgcolor: 'background.paper' }}
+                            />
+                            <Button 
+                                variant="outlined" 
+                                startIcon={<Refresh />} 
+                                onClick={fetchTransactions}
+                                sx={{ borderRadius: 2 }}
+                            >
+                                Refresh
+                            </Button>
+                        </Box>
+                    </Box>
+
+                    <Card elevation={2} sx={{ borderRadius: 3, border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
                         <TableContainer>
-                            <Table size="small">
-                                <TableHead sx={{ bgcolor: 'background.default' }}>
+                            <Table sx={{ minWidth: 800 }}>
+                                <TableHead sx={{ bgcolor: 'action.hover' }}>
                                     <TableRow>
-                                        <TableCell>Date</TableCell>
-                                        <TableCell>Store</TableCell>
-                                        <TableCell>Receipt #</TableCell>
-                                        <TableCell>Customer Phone</TableCell>
-                                        <TableCell>Payment Method</TableCell>
-                                        <TableCell>Items</TableCell>
-                                        <TableCell>Total</TableCell>
-                                        <TableCell>Status</TableCell>
+                                        <TableCell sx={{ fontWeight: 'bold' }}>Date & Time</TableCell>
+                                        <TableCell sx={{ fontWeight: 'bold' }}>Receipt #</TableCell>
+                                        <TableCell sx={{ fontWeight: 'bold' }}>Customer</TableCell>
+                                        <TableCell sx={{ fontWeight: 'bold' }}>Payment</TableCell>
+                                        <TableCell sx={{ fontWeight: 'bold' }} align="center">Items</TableCell>
+                                        <TableCell sx={{ fontWeight: 'bold' }} align="right">Total</TableCell>
+                                        <TableCell sx={{ fontWeight: 'bold' }} align="center">Status</TableCell>
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
-                                    {recentTransactions.map((tx) => (
+                                    {filteredTransactions.map((tx) => (
                                         <TableRow
                                             key={tx.id}
                                             hover
-                                            sx={{ cursor: 'pointer' }}
+                                            sx={{ cursor: 'pointer', transition: '0.2s' }}
                                             onClick={() => handleOpenTxDetail(tx)}
                                         >
-                                            <TableCell>{new Date(tx.transaction_date).toLocaleString()}</TableCell>
-                                            <TableCell>{tx.store_name || tx.store_code || '-'}</TableCell>
-                                            <TableCell sx={{ fontWeight: 600 }}>{tx.transaction_number}</TableCell>
-                                            <TableCell>{tx.customer || 'Walk-in'}</TableCell>
-                                            <TableCell sx={{ textTransform: 'capitalize' }}>{tx.payment_method}</TableCell>
-                                            <TableCell>{tx.item_count}</TableCell>
-                                            <TableCell>₹{parseFloat(tx.total_amount).toFixed(2)}</TableCell>
                                             <TableCell>
+                                                <Box display="flex" alignItems="center" gap={1}>
+                                                    <CalendarToday sx={{ fontSize: '0.9rem', color: 'text.secondary' }} />
+                                                    {new Date(tx.transaction_date).toLocaleString()}
+                                                </Box>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Typography variant="body2" fontWeight="bold" color="primary">
+                                                    {tx.transaction_number}
+                                                </Typography>
+                                            </TableCell>
+                                            <TableCell>{tx.customer || 'Walk-in'}</TableCell>
+                                            <TableCell>
+                                                <Chip 
+                                                    label={tx.payment_method.toUpperCase()} 
+                                                    size="small" 
+                                                    variant="outlined"
+                                                    sx={{ fontSize: '0.65rem', fontWeight: 800 }}
+                                                />
+                                            </TableCell>
+                                            <TableCell align="center">{tx.item_count}</TableCell>
+                                            <TableCell align="right">
+                                                <Typography variant="body2" fontWeight="bold">
+                                                    ₹{parseFloat(tx.total_amount).toFixed(2)}
+                                                </Typography>
+                                            </TableCell>
+                                            <TableCell align="center">
                                                 <Chip
                                                     label="Completed"
                                                     size="small"
                                                     color="success"
-                                                    variant="outlined"
+                                                    sx={{ fontWeight: 'bold', fontSize: '0.7rem' }}
                                                 />
                                             </TableCell>
                                         </TableRow>
                                     ))}
-                                    {recentTransactions.length === 0 && (
+                                    {filteredTransactions.length === 0 && (
                                         <TableRow>
-                                            <TableCell colSpan={8} align="center" sx={{ py: 3 }}>
-                                                No recent checkouts found for this store.
+                                            <TableCell colSpan={7} align="center" sx={{ py: 6 }}>
+                                                <Box sx={{ opacity: 0.5 }}>
+                                                    <Receipt sx={{ fontSize: 40, mb: 1 }} />
+                                                    <Typography>No checkouts match your search.</Typography>
+                                                </Box>
                                             </TableCell>
                                         </TableRow>
                                     )}
@@ -816,7 +950,6 @@ export default function POSCheckout() {
                 </Box>
             )}
 
-            {/* Transaction Detail Dialog */}
             <Dialog
                 open={txDetailOpen}
                 onClose={() => { setTxDetailOpen(false); setSelectedTx(null) }}
@@ -842,7 +975,6 @@ export default function POSCheckout() {
                         </Box>
                     ) : selectedTx ? (
                         <Box>
-                            {/* Transaction Summary */}
                             <Grid container spacing={2} sx={{ mb: 3 }}>
                                 <Grid item xs={6} sm={3}>
                                     <Typography variant="caption" color="text.secondary" fontWeight={600}>Date</Typography>
@@ -872,7 +1004,6 @@ export default function POSCheckout() {
 
                             <Divider sx={{ mb: 2 }} />
 
-                            {/* Line Items Table */}
                             <Typography variant="subtitle2" fontWeight={700} mb={1}>Products Purchased</Typography>
                             <TableContainer>
                                 <Table size="small">
@@ -927,7 +1058,6 @@ export default function POSCheckout() {
                                 </Table>
                             </TableContainer>
 
-                            {/* Totals */}
                             <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
                                 <Box display="flex" justifyContent="space-between" mb={0.5}>
                                     <Typography variant="body2" color="text.secondary">Subtotal</Typography>

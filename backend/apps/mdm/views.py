@@ -387,8 +387,9 @@ class SKUViewSet(TenantScopedViewSet):
             queryset = queryset.filter(
                 Q(code__icontains=search) |
                 Q(name__icontains=search) |
-                Q(product__name__icontains=search)
-            )
+                Q(product__name__icontains=search) |
+                Q(barcodes__barcode_value__icontains=search)
+            ).distinct()
 
         return queryset.order_by("-created_at")
 
@@ -413,8 +414,9 @@ class SKUViewSet(TenantScopedViewSet):
             queryset = queryset.filter(
                 Q(code__icontains=search) |
                 Q(name__icontains=search) |
-                Q(product__name__icontains=search)
-            )
+                Q(product__name__icontains=search) |
+                Q(barcodes__barcode_value__icontains=search)
+            ).distinct()
 
         total = queryset.count()
         skus_page = queryset.order_by('product__name', 'name')[(page - 1) * page_size:page * page_size]
