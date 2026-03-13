@@ -237,9 +237,9 @@ export default function POSCheckout() {
     const updateCartQuantity = (skuId: string, newQty: number) => {
         const item = cart.find(i => i.sku.id === skuId)
         if (!item) return
-        
+
         const available = parseFloat((item.sku as any).warehouse_stock?.toString() || '0')
-        
+
         if (newQty > available) {
             setFeedback({ type: 'error', msg: `Cannot set quantity for ${item.sku.code} to ${newQty}. Only ${available} units available.` })
             return
@@ -522,14 +522,14 @@ export default function POSCheckout() {
                             ) : (
                                 <List sx={{ maxHeight: 400, overflow: 'auto', px: 0 }}>
                                     {cart.map(item => (
-                                        <Paper 
-                                            key={item.sku.id} 
-                                            variant="outlined" 
+                                        <Paper
+                                            key={item.sku.id}
+                                            variant="outlined"
                                             sx={{ mb: 1.5, p: 1.5, position: 'relative', borderColor: 'divider' }}
                                         >
-                                            <IconButton 
-                                                size="small" 
-                                                color="error" 
+                                            <IconButton
+                                                size="small"
+                                                color="error"
                                                 onClick={() => removeFromCart(item.sku.id)}
                                                 sx={{ position: 'absolute', top: 4, right: 4 }}
                                             >
@@ -547,28 +547,28 @@ export default function POSCheckout() {
 
                                             <Box display="flex" justifyContent="space-between" alignItems="center" mt={1}>
                                                 <Box display="flex" alignItems="center" gap={0.5} sx={{ bgcolor: 'action.hover', borderRadius: 1.5, p: 0.5 }}>
-                                                    <IconButton 
-                                                        size="small" 
+                                                    <IconButton
+                                                        size="small"
                                                         onClick={() => updateCartQuantity(item.sku.id, item.quantity - 1)}
                                                         disabled={item.quantity <= 1}
                                                         sx={{ p: 0.5 }}
                                                     >
                                                         <Remove fontSize="small" />
                                                     </IconButton>
-                                                    
+
                                                     <TextField
                                                         size="small"
                                                         value={item.quantity}
                                                         onChange={(e) => updateCartQuantity(item.sku.id, parseInt(e.target.value) || 0)}
-                                                        sx={{ 
+                                                        sx={{
                                                             width: 40,
                                                             '& .MuiInputBase-input': { p: 0.5, textAlign: 'center', fontWeight: 'bold' },
                                                             '& .MuiOutlinedInput-notchedOutline': { border: 'none' }
                                                         }}
                                                     />
 
-                                                    <IconButton 
-                                                        size="small" 
+                                                    <IconButton
+                                                        size="small"
                                                         onClick={() => updateCartQuantity(item.sku.id, item.quantity + 1)}
                                                         sx={{ p: 0.5 }}
                                                     >
@@ -609,7 +609,7 @@ export default function POSCheckout() {
                                                     )}
                                                 </Box>
                                             </Box>
-                                            
+
                                             <Box mt={1}>
                                                 <TextField
                                                     size="small"
@@ -794,14 +794,14 @@ export default function POSCheckout() {
                                                             {sku.name}
                                                         </Typography>
                                                     </Box>
-                                                    
+
                                                     {(() => {
                                                         const baseAvailable = parseFloat((sku as any).warehouse_stock?.toString() || '0')
                                                         const inCart = cart.find(c => c.sku.id === sku.id)?.quantity || 0
                                                         const available = baseAvailable - inCart
 
                                                         return (
-                                                            <Chip 
+                                                            <Chip
                                                                 label={available}
                                                                 size="small"
                                                                 color={available > 0 ? 'success' : 'error'}
@@ -816,7 +816,7 @@ export default function POSCheckout() {
                                                     <Typography variant="subtitle1" color="primary.main" fontWeight={800}>
                                                         ₹{parseFloat(sku.base_price || '0').toFixed(0)}
                                                     </Typography>
-                                                    
+
                                                     <Button size="small" variant="outlined" sx={{ minWidth: 0, px: 1, py: 0, height: 24, fontSize: '0.7rem', fontWeight: 'bold' }}>
                                                         ADD
                                                     </Button>
@@ -848,7 +848,7 @@ export default function POSCheckout() {
                                 Showing last 30 transactions for {activeStore?.name}
                             </Typography>
                         </Box>
-                        
+
                         <Box display="flex" gap={2}>
                             <TextField
                                 size="small"
@@ -864,9 +864,9 @@ export default function POSCheckout() {
                                 }}
                                 sx={{ width: 300, bgcolor: 'background.paper' }}
                             />
-                            <Button 
-                                variant="outlined" 
-                                startIcon={<Refresh />} 
+                            <Button
+                                variant="outlined"
+                                startIcon={<Refresh />}
                                 onClick={fetchTransactions}
                                 sx={{ borderRadius: 2 }}
                             >
@@ -910,9 +910,9 @@ export default function POSCheckout() {
                                             </TableCell>
                                             <TableCell>{tx.customer || 'Walk-in'}</TableCell>
                                             <TableCell>
-                                                <Chip 
-                                                    label={tx.payment_method.toUpperCase()} 
-                                                    size="small" 
+                                                <Chip
+                                                    label={tx.payment_method.toUpperCase()}
+                                                    size="small"
                                                     variant="outlined"
                                                     sx={{ fontSize: '0.65rem', fontWeight: 800 }}
                                                 />
