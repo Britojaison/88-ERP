@@ -74,6 +74,7 @@ export default function POSCheckout() {
     const [selectedTx, setSelectedTx] = useState<SalesTransaction | null>(null)
     const [txDetailOpen, setTxDetailOpen] = useState(false)
     const [txDetailLoading, setTxDetailLoading] = useState(false)
+    const searchInputRef = useRef<HTMLInputElement>(null)
 
     const handleOpenTxDetail = async (tx: SalesTransaction) => {
         setTxDetailOpen(true)
@@ -158,6 +159,28 @@ export default function POSCheckout() {
         return () => clearTimeout(timer)
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchQuery])
+
+    const handleSearchKeyDown = async (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' && searchQuery.trim()) {
+            setLoading(true)
+            try {
+                // Fetch directly with the query to find exact match
+                const data = await mdmService.searchSKUsWithStock({ search: searchQuery, page_size: 2 })
+                if (data.results && data.results.length === 1) {
+                    const matchedSku = data.results[0]
+                    addToCart(matchedSku as any)
+                    setSearchQuery('')
+                    setFeedback({ type: 'success', msg: `Added ${matchedSku.name} to cart` })
+                    // Ensure focus stays for next scan
+                    setTimeout(() => searchInputRef.current?.focus(), 50)
+                }
+            } catch (err) {
+                console.error('Fast search failed', err)
+            } finally {
+                setLoading(false)
+            }
+        }
+    }
 
     const fetchStores = async () => {
         try {
@@ -633,13 +656,16 @@ export default function POSCheckout() {
                         <Box display="flex" alignItems="center" justifyContent="space-between" mb={3} gap={2} flexWrap="wrap">
                             <Box display="flex" alignItems="center" gap={2} flexGrow={1} minWidth={300}>
                                 <Search color="action" />
-                                <TextField
-                                    fullWidth
-                                    variant="standard"
-                                    placeholder="Search products by SKU code or name..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                />
+                                    <TextField
+                                        fullWidth
+                                        variant="standard"
+                                        inputRef={searchInputRef}
+                                        autoFocus
+                                        placeholder="Search products by SKU, name or barcode..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        onKeyDown={handleSearchKeyDown}
+                                    />
                             </Box>
 
                             <Box display="flex" alignItems="center" gap={2}>
